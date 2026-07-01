@@ -16,10 +16,6 @@ const AttendanceSchema = new Schema<IAttendance>(
       type: String,
       trim: true,
     },
-    visitorDept: {
-      type: String,
-      trim: true,
-    },
     floorId: {
       type: Schema.Types.ObjectId,
       ref: "Floor",

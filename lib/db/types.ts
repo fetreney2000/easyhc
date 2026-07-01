@@ -82,7 +82,6 @@ export interface IAttendance {
   type: AttendanceType;
   userId?: Types.ObjectId;
   visitorName?: string;
-  visitorDept?: string;
   floorId: Types.ObjectId;
   checkedInAt: Date;
   checkedOutAt?: Date;

@@ -81,11 +81,6 @@ export const visitorCheckInSchema = z.object({
     .min(1, strings.required)
     .max(100, strings.maxLength(strings.visitorName, 100))
     .trim(),
-  visitorDept: z
-    .string()
-    .min(1, strings.required)
-    .max(100, strings.maxLength(strings.visitorDept, 100))
-    .trim(),
   visitorPhone: z
     .string()
     .max(20, strings.maxLength(strings.visitorPhone, 20))

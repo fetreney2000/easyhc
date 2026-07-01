@@ -11,13 +11,10 @@ import {
   Loader,
   Center,
   Image,
-  ActionIcon,
+  Badge,
+  Divider,
 } from "@mantine/core";
-import {
-  IconPrinter,
-  IconRefresh,
-  IconQrcode,
-} from "@tabler/icons-react";
+import { IconPrinter, IconRefresh, IconQrcode, IconUsers, IconUserStar } from "@tabler/icons-react";
 import useSWR from "swr";
 import { strings } from "@/lib/i18n/strings";
 
@@ -35,53 +32,23 @@ export default function QRCodesPage() {
     fetcher
   );
 
-  const handlePrintAll = () => {
-    if (!floors?.length) return;
+  const handlePrintSingle = (floor: Floor, type: "employee" | "visitor") => {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
-    const html = `
-      <html>
-        <head>
-          <title>Kod QR Semua Lantai</title>
-          <style>
-            body { font-family: 'Inter', sans-serif; padding: 20px; }
-            .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
-            .card { text-align: center; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; page-break-inside: avoid; }
-            .card h3 { margin-bottom: 12px; }
-            .card img { width: 200px; height: 200px; }
-            @media print { .grid { grid-template-columns: repeat(2, 1fr); } }
-          </style>
-        </head>
-        <body>
-          <h1 style="text-align:center;">Kod QR Lantai</h1>
-          <div class="grid">
-            ${floors.map((f) => `
-              <div class="card">
-                <h3>${f.name}</h3>
-                <img src="/api/qr/${f._id}" alt="QR ${f.name}" />
-              </div>
-            `).join("")}
-          </div>
-        </body>
-      </html>
-    `;
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.print();
-  };
-
-  const handlePrintSingle = (floor: Floor) => {
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
+    const label = type === "visitor" ? "PELAWAT / VISITOR" : "KAKITANGAN / STAFF";
+    const desc = type === "visitor"
+      ? "Imbas menggunakan kamera telefon anda untuk daftar masuk sebagai pelawat"
+      : "Imbas menggunakan aplikasi EasyHC untuk daftar masuk";
 
     printWindow.document.write(`
       <html>
-        <head><title>Kod QR - ${floor.name}</title></head>
+        <head><title>Kod QR ${type === "visitor" ? "Pelawat" : "Kakitangan"} - ${floor.name}</title></head>
         <body style="text-align:center; padding:40px; font-family:'Inter',sans-serif;">
           <h1>${floor.name}</h1>
-          <img src="/api/qr/${floor._id}" style="width:300px;height:300px;" />
-          <p style="margin-top:16px;color:#666;">Imbas kod QR ini untuk daftar masuk</p>
+          <p style="font-size:18px;font-weight:bold;color:${type === "visitor" ? "#e65100" : "#1565c0"};">${label}</p>
+          <img src="/api/qr/${floor._id}?type=${type}" style="width:300px;height:300px;" />
+          <p style="margin-top:16px;color:#666;">${desc}</p>
         </body>
       </html>
     `);
@@ -93,61 +60,86 @@ export default function QRCodesPage() {
     <Stack gap="lg">
       <Group justify="space-between">
         <Title order={2}>{strings.qrCodes}</Title>
-        <Group>
-          <Button
-            variant="light"
-            leftSection={<IconRefresh size={16} />}
-            onClick={() => mutate()}
-          >
-            {strings.refresh}
-          </Button>
-          <Button
-            leftSection={<IconPrinter size={16} />}
-            onClick={handlePrintAll}
-            disabled={!floors?.length}
-          >
-            {strings.printQR} Semua
-          </Button>
-        </Group>
+        <Button
+          variant="light"
+          leftSection={<IconRefresh size={16} />}
+          onClick={() => mutate()}
+        >
+          {strings.refresh}
+        </Button>
       </Group>
 
+      <Text size="sm" c="dimmed">
+        Setiap lantai mempunyai 2 jenis kod QR: satu untuk kakitangan (imbas dalam aplikasi) dan satu untuk pelawat (imbas dengan kamera telefon).
+      </Text>
+
       {isLoading ? (
-        <Center py="xl">
-          <Loader />
-        </Center>
+        <Center py="xl"><Loader /></Center>
       ) : !floors?.length ? (
         <Center py="xl">
           <Text c="dimmed">Tiada lantai dikonfigurasi. Sila tambah lantai dahulu.</Text>
         </Center>
       ) : (
-        <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="lg">
+        <Stack gap="xl">
           {floors.map((floor) => (
             <Paper key={floor._id} p="lg" radius="md" withBorder>
-              <Stack align="center" gap="md">
-                <Text fw={700} size="lg">
-                  {floor.name}
-                </Text>
-                <Image
-                  src={`/api/qr/${floor._id}`}
-                  alt={`QR Code for ${floor.name}`}
-                  width={200}
-                  height={200}
-                  fit="contain"
-                />
-                <Group>
+              <Title order={3} mb="md">{floor.name}</Title>
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
+                {/* Employee QR */}
+                <Stack align="center" gap="sm">
+                  <Badge color="blue" size="lg" leftSection={<IconUsers size={14} />}>
+                    Kakitangan / Staff
+                  </Badge>
+                  <Image
+                    src={`/api/qr/${floor._id}?type=employee`}
+                    alt={`Employee QR for ${floor.name}`}
+                    width={180}
+                    height={180}
+                    fit="contain"
+                  />
+                  <Text size="xs" c="dimmed" ta="center">
+                    Imbas dalam aplikasi EasyHC
+                  </Text>
                   <Button
                     size="xs"
                     variant="light"
+                    color="blue"
                     leftSection={<IconPrinter size={14} />}
-                    onClick={() => handlePrintSingle(floor)}
+                    onClick={() => handlePrintSingle(floor, "employee")}
                   >
                     {strings.printQR}
                   </Button>
-                </Group>
-              </Stack>
+                </Stack>
+
+                {/* Visitor QR */}
+                <Stack align="center" gap="sm">
+                  <Badge color="orange" size="lg" leftSection={<IconUserStar size={14} />}>
+                    Pelawat / Visitor
+                  </Badge>
+                  <Image
+                    src={`/api/qr/${floor._id}?type=visitor`}
+                    alt={`Visitor QR for ${floor.name}`}
+                    width={180}
+                    height={180}
+                    fit="contain"
+                  />
+                  <Text size="xs" c="dimmed" ta="center">
+                    Imbas dengan kamera telefon (URL pelawat)
+                  </Text>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    color="orange"
+                    leftSection={<IconPrinter size={14} />}
+                    onClick={() => handlePrintSingle(floor, "visitor")}
+                  >
+                    {strings.printQR}
+                  </Button>
+                </Stack>
+              </SimpleGrid>
             </Paper>
           ))}
-        </SimpleGrid>
+        </Stack>
       )}
     </Stack>
   );

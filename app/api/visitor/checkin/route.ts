@@ -16,7 +16,7 @@ export async function POST(request: Request) {
       return badRequest(validation.error.errors[0].message);
     }
 
-    const { visitorName, visitorDept, visitorPhone, floorId } = validation.data;
+    const { visitorName, visitorPhone, floorId } = validation.data;
 
     // Validate floor exists
     const floor = await Floor.findById(floorId);
@@ -28,7 +28,6 @@ export async function POST(request: Request) {
     const attendance = await Attendance.create({
       type: "visitor",
       visitorName,
-      visitorDept,
       floorId: floor._id,
       checkedInAt: new Date(),
       method: "qr",

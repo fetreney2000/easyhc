@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 import { connectDB } from "@/lib/db/mongoose";
 import {
   getAuthenticatedUser,
@@ -12,6 +13,23 @@ import Attendance from "@/lib/db/models/Attendance";
 import Floor from "@/lib/db/models/Floor";
 import AuditLog from "@/lib/db/models/AuditLog";
 import { can } from "@/lib/auth/rbac";
+
+const ENCRYPTION_KEY = process.env.NEXTAUTH_SECRET || "default-key";
+
+function decryptFloorId(encrypted: string): string | null {
+  try {
+    const decipher = crypto.createDecipheriv(
+      "aes-256-cbc",
+      Buffer.from(ENCRYPTION_KEY.padEnd(32, "0").slice(0, 32)),
+      Buffer.from(ENCRYPTION_KEY.padEnd(16, "0").slice(0, 16))
+    );
+    let decrypted = decipher.update(encrypted, "hex", "utf8");
+    decrypted += decipher.final("utf8");
+    return decrypted;
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(request: Request) {
   const user = await getAuthenticatedUser();
@@ -32,8 +50,25 @@ export async function POST(request: Request) {
       return forbidden();
     }
 
-    // Find the floor by QR token
-    const floor = await Floor.findOne({ qrToken });
+    // Try to find the floor by decrypting the QR token (employee QR)
+    let floor = null;
+
+    // First, try to decrypt as encrypted floor ID
+    const decryptedFloorId = decryptFloorId(qrToken);
+    if (decryptedFloorId) {
+      floor = await Floor.findById(decryptedFloorId);
+    }
+
+    // If not found, try as qrToken (visitor QR token)
+    if (!floor) {
+      floor = await Floor.findOne({ qrToken });
+    }
+
+    // If still not found, try as raw floor ID
+    if (!floor) {
+      floor = await Floor.findById(qrToken);
+    }
+
     if (!floor) {
       return badRequest("Kod QR tidak sah");
     }

@@ -60,7 +60,9 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Navigation items based on role (Section 9.2)
+  // Navigation items based on role — logically grouped by function
+
+  // GROUP 1: Kehadiran (Attendance) — always visible
   const navItems: NavLinkItem[] = [
     {
       label: strings.dashboard,
@@ -74,25 +76,7 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
     },
   ];
 
-  // Role-specific navigation
-  if (can(user.role, "reports:generate_all") || can(user.role, "reports:generate_own_floor")) {
-    navItems.push({
-      label: strings.reports,
-      icon: <IconReport size={20} stroke={1.5} />,
-      href: "/reports",
-    });
-  }
-
-  if (can(user.role, "locations:track_own_unit") || can(user.role, "locations:track_all")) {
-    navItems.push({
-      label: user.role === "dept_head" || user.role === "superadmin" || user.role === "admin"
-        ? strings.allStaffLocations
-        : strings.myUnit,
-      icon: <IconMap size={20} stroke={1.5} />,
-      href: user.role === "unit_head" ? "/my-unit" : "/all-staff",
-    });
-  }
-
+  // GROUP 2: Lantai & Lokasi (Floors & Location)
   if (can(user.role, "floors:view_all") || can(user.role, "floors:view_own_floor")) {
     navItems.push({
       label: user.role === "floor_head" || user.role === "safety_head"
@@ -103,12 +87,34 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
     });
   }
 
-  // Admin-only items
+  if (can(user.role, "locations:track_own_unit") || can(user.role, "locations:track_all")) {
+    navItems.push({
+      label: user.role === "unit_head" ? strings.myUnit : strings.allStaffLocations,
+      icon: <IconMap size={20} stroke={1.5} />,
+      href: user.role === "unit_head" ? "/my-unit" : "/all-staff",
+    });
+  }
+
+  // GROUP 3: Laporan (Reports)
+  if (can(user.role, "reports:generate_all") || can(user.role, "reports:generate_own_floor")) {
+    navItems.push({
+      label: strings.reports,
+      icon: <IconReport size={20} stroke={1.5} />,
+      href: "/reports",
+    });
+  }
+
+  // GROUP 4: Pentadbiran (Admin-only management)
   if (can(user.role, "users:manage")) {
     navItems.push({
       label: strings.userManagement,
       icon: <IconUsers size={20} stroke={1.5} />,
       href: "/users",
+    });
+    navItems.push({
+      label: strings.floorManagement,
+      icon: <IconBuildingSkyscraper size={20} stroke={1.5} />,
+      href: "/floors/manage",
     });
     navItems.push({
       label: strings.jabatan,
@@ -119,11 +125,6 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
       label: strings.unit,
       icon: <IconBuilding size={20} stroke={1.5} />,
       href: "/units",
-    });
-    navItems.push({
-      label: strings.floorManagement,
-      icon: <IconBuilding size={20} stroke={1.5} />,
-      href: "/floors/manage",
     });
     navItems.push({
       label: strings.qrCodes,

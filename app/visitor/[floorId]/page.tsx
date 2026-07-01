@@ -31,13 +31,10 @@ export default function VisitorCheckInPage({
   const form = useForm({
     initialValues: {
       visitorName: "",
-      visitorDept: "",
       visitorPhone: "",
     },
     validate: {
       visitorName: (value) =>
-        value.trim().length < 1 ? strings.required : null,
-      visitorDept: (value) =>
         value.trim().length < 1 ? strings.required : null,
     },
   });
@@ -161,12 +158,6 @@ export default function VisitorCheckInPage({
                 placeholder={strings.visitorName}
                 required
                 {...form.getInputProps("visitorName")}
-              />
-              <TextInput
-                label={strings.visitorDept}
-                placeholder={strings.visitorDept}
-                required
-                {...form.getInputProps("visitorDept")}
               />
               <TextInput
                 label={strings.visitorPhone}

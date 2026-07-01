@@ -15,6 +15,8 @@ import {
   Modal,
   TextInput,
   Image,
+  SimpleGrid,
+  Badge,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import {
@@ -272,41 +274,39 @@ export default function FloorManagementPage() {
         opened={!!qrModalFloor}
         onClose={() => setQrModalFloor(null)}
         title={`${strings.qrCodeFor} ${qrModalFloor?.name}`}
-        size="sm"
+        size="md"
       >
         {qrModalFloor && (
-          <Stack align="center" gap="md">
-            <Image
-              src={`/api/qr/${qrModalFloor._id}`}
-              alt={`QR Code for ${qrModalFloor.name}`}
-              width={250}
-              height={250}
-            />
-            <Group>
-              <Button
-                variant="light"
-                leftSection={<IconPrinter size={16} />}
-                onClick={() => {
-                  const printWindow = window.open("", "_blank");
-                  if (printWindow) {
-                    printWindow.document.write(`
-                      <html>
-                        <head><title>${strings.printQR} - ${qrModalFloor.name}</title></head>
-                        <body style="text-align:center; padding:20px;">
-                          <h2>${qrModalFloor.name}</h2>
-                          <img src="/api/qr/${qrModalFloor._id}" style="width:300px;height:300px;" />
-                        </body>
-                      </html>
-                    `);
-                    printWindow.document.close();
-                    printWindow.print();
-                  }
-                }}
-              >
+          <SimpleGrid cols={2} spacing="md">
+            <Stack align="center" gap="xs">
+              <Badge color="blue" size="sm">Kakitangan</Badge>
+              <Image
+                src={`/api/qr/${qrModalFloor._id}?type=employee`}
+                alt={`Employee QR`}
+                width={150}
+                height={150}
+                fit="contain"
+              />
+              <Button size="xs" variant="light" color="blue" leftSection={<IconPrinter size={14} />}
+                onClick={() => window.open(`/api/qr/${qrModalFloor._id}?type=employee`, "_blank")}>
                 {strings.printQR}
               </Button>
-            </Group>
-          </Stack>
+            </Stack>
+            <Stack align="center" gap="xs">
+              <Badge color="orange" size="sm">Pelawat</Badge>
+              <Image
+                src={`/api/qr/${qrModalFloor._id}?type=visitor`}
+                alt={`Visitor QR`}
+                width={150}
+                height={150}
+                fit="contain"
+              />
+              <Button size="xs" variant="light" color="orange" leftSection={<IconPrinter size={14} />}
+                onClick={() => window.open(`/api/qr/${qrModalFloor._id}?type=visitor`, "_blank")}>
+                {strings.printQR}
+              </Button>
+            </Stack>
+          </SimpleGrid>
         )}
       </Modal>
     </Stack>

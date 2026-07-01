@@ -41,7 +41,6 @@ interface PresenceRecord {
     role: string;
   };
   visitorName?: string;
-  visitorDept?: string;
   floorId: {
     _id: string;
     name: string;
@@ -333,9 +332,7 @@ export default function DashboardPage() {
                           {record.userId?.role}
                         </Badge>
                       ) : (
-                        <Text size="sm" c="dimmed">
-                          {record.visitorDept}
-                        </Text>
+                        <Text size="sm" c="dimmed">—</Text>
                       )}
                     </Table.Td>
                     <Table.Td>

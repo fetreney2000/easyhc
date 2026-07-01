@@ -22,11 +22,11 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { name, username, password, staffId } = body;
+    const { name, username, password } = body;
 
-    if (!name || !username || !password || !staffId) {
+    if (!name || !username || !password) {
       return NextResponse.json(
-        { error: "Semua medan diperlukan: nama, nama pengguna, kata laluan, no. pekerja" },
+        { error: "Semua medan diperlukan: nama, nama pengguna, kata laluan" },
         { status: 400 }
       );
     }
@@ -42,7 +42,6 @@ export async function POST(request: Request) {
 
     const superadmin = await User.create({
       name,
-      staffId,
       username: username.toLowerCase().trim(),
       passwordHash,
       role: "superadmin",

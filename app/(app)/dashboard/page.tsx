@@ -37,7 +37,6 @@ interface PresenceRecord {
   userId?: {
     _id: string;
     name: string;
-    staffId: string;
     role: string;
   };
   visitorName?: string;

@@ -40,7 +40,6 @@ export type UserStatus = "active" | "inactive";
 export interface IUser {
   _id: Types.ObjectId;
   name: string;
-  staffId: string;
   username: string;
   passwordHash: string;
   phone?: string;

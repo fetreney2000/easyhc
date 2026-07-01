@@ -23,7 +23,6 @@ import { useState } from "react";
 interface UserLocation {
   _id: string;
   name: string;
-  staffId: string;
   role: string;
   currentFloor?: string;
   checkedInAt?: string;
@@ -65,7 +64,6 @@ export default function AllStaffPage() {
   const userLocations: UserLocation[] = (users || []).map((user) => ({
     _id: user._id,
     name: user.name,
-    staffId: user.staffId,
     role: user.role,
     currentFloor: attendanceMap.get(user._id)?.floorName,
     checkedInAt: attendanceMap.get(user._id)?.checkedInAt,
@@ -105,7 +103,6 @@ export default function AllStaffPage() {
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>{strings.name}</Table.Th>
-                  <Table.Th>{strings.staffId}</Table.Th>
                   <Table.Th>{strings.role}</Table.Th>
                   <Table.Th>Lokasi Semasa</Table.Th>
                 </Table.Tr>
@@ -114,7 +111,6 @@ export default function AllStaffPage() {
                 {userLocations.map((user) => (
                   <Table.Tr key={user._id}>
                     <Table.Td><Text fw={500}>{user.name}</Text></Table.Td>
-                    <Table.Td>{user.staffId}</Table.Td>
                     <Table.Td>
                       <Badge size="xs" variant="light">
                         {ROLE_LABELS[user.role as keyof typeof ROLE_LABELS] || user.role}

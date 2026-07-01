@@ -18,11 +18,6 @@ export const createUserSchema = z.object({
     .string()
     .min(1, strings.required)
     .max(100, strings.maxLength(strings.name, 100)),
-  staffId: z
-    .string()
-    .min(1, strings.required)
-    .max(20, strings.maxLength(strings.staffId, 20))
-    .trim(),
   username: z
     .string()
     .min(3, strings.minLength(strings.username, 3))

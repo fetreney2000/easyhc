@@ -48,7 +48,6 @@ curl -X POST http://localhost:3000/api/setup \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Super Admin",
-    "staffId": "SA001",
     "username": "superadmin",
     "password": "YourSecurePassword123"
   }'

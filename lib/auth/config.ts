@@ -12,7 +12,6 @@ declare module "next-auth" {
       name: string;
       username: string;
       role: Role;
-      staffId: string;
       unitId?: string;
       jabatanId?: string;
       sessionVersion: number;
@@ -24,7 +23,6 @@ declare module "next-auth" {
     name: string;
     username: string;
     role: Role;
-    staffId: string;
     unitId?: string;
     jabatanId?: string;
     sessionVersion: number;
@@ -37,7 +35,6 @@ declare module "next-auth" {
     name: string;
     username: string;
     role: Role;
-    staffId: string;
     unitId?: string;
     jabatanId?: string;
     sessionVersion: number;
@@ -92,7 +89,6 @@ export const {
           name: user.name,
           username: user.username,
           role: user.role,
-          staffId: user.staffId,
           unitId: user.unitId?.toString(),
           jabatanId: user.jabatanId?.toString(),
           sessionVersion: user.sessionVersion,
@@ -118,7 +114,6 @@ export const {
         token.name = user.name;
         token.username = user.username;
         token.role = user.role;
-        token.staffId = user.staffId;
         token.unitId = user.unitId;
         token.jabatanId = user.jabatanId;
         token.sessionVersion = user.sessionVersion;
@@ -151,7 +146,6 @@ export const {
         name: token.name as string,
         username: token.username as string,
         role: token.role as Role,
-        staffId: token.staffId as string,
         unitId: token.unitId as string | undefined,
         jabatanId: token.jabatanId as string | undefined,
         sessionVersion: token.sessionVersion as number,

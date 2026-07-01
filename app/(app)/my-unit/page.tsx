@@ -71,7 +71,6 @@ export default function MyUnitPage() {
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>{strings.name}</Table.Th>
-                <Table.Th>{strings.staffId}</Table.Th>
                 <Table.Th>{strings.role}</Table.Th>
                 <Table.Th>Lokasi Semasa</Table.Th>
               </Table.Tr>
@@ -80,7 +79,6 @@ export default function MyUnitPage() {
               {userLocations.map((user: any) => (
                 <Table.Tr key={user._id}>
                   <Table.Td><Text fw={500}>{user.name}</Text></Table.Td>
-                  <Table.Td>{user.staffId}</Table.Td>
                   <Table.Td>
                     <Badge size="xs" variant="light">
                       {ROLE_LABELS[user.role as keyof typeof ROLE_LABELS] || user.role}

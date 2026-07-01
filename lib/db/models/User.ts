@@ -8,12 +8,6 @@ const UserSchema = new Schema<IUser>(
       required: true,
       trim: true,
     },
-    staffId: {
-      type: String,
-      required: true,
-      unique: true,
-      trim: true,
-    },
     username: {
       type: String,
       required: true,
@@ -60,7 +54,6 @@ const UserSchema = new Schema<IUser>(
 
 // Indexes for performance
 UserSchema.index({ username: 1 }, { unique: true });
-UserSchema.index({ staffId: 1 }, { unique: true });
 UserSchema.index({ role: 1 });
 UserSchema.index({ unitId: 1 });
 UserSchema.index({ jabatanId: 1 });

@@ -61,7 +61,7 @@ export async function GET(request: Request) {
 
   try {
     const attendance = await Attendance.find(query)
-      .populate("userId", "name staffId role")
+      .populate("userId", "name role")
       .populate("floorId", "name")
       .sort({ checkedInAt: -1 })
       .limit(200)

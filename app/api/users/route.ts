@@ -35,7 +35,6 @@ export async function GET(request: Request) {
   if (search) {
     query.$or = [
       { name: { $regex: search, $options: "i" } },
-      { staffId: { $regex: search, $options: "i" } },
       { username: { $regex: search, $options: "i" } },
     ];
   }
@@ -56,7 +55,7 @@ export async function GET(request: Request) {
     }
 
     const users = await User.find(query)
-      .select("name staffId username phone role jabatanId unitId status createdAt")
+      .select("name username phone role jabatanId unitId status createdAt")
       .populate("jabatanId", "name")
       .populate("unitId", "name")
       .sort({ name: 1 })
@@ -104,19 +103,10 @@ export async function POST(request: Request) {
       return badRequest("Nama pengguna sudah wujud");
     }
 
-    // Check duplicate staffId
-    const existingStaff = await User.findOne({
-      staffId: data.staffId,
-    });
-    if (existingStaff) {
-      return badRequest("No. pekerja sudah wujud");
-    }
-
     const passwordHash = await bcrypt.hash(data.password, 12);
 
     const newUser = await User.create({
       name: data.name,
-      staffId: data.staffId,
       username: data.username,
       passwordHash,
       phone: data.phone || undefined,

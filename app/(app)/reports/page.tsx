@@ -29,7 +29,7 @@ import { strings } from "@/lib/i18n/strings";
 interface ReportRecord {
   _id: string;
   type: "employee" | "visitor";
-  userId?: { name: string; staffId: string; role: string };
+  userId?: { name: string; role: string };
   visitorName?: string;
   visitorDept?: string;
   floorId?: { name: string };
@@ -68,7 +68,6 @@ export default function ReportsPage() {
 
     const headers = [
       "Nama",
-      "No. Pekerja",
       "Jenis",
       "Lantai",
       "Daftar Masuk",
@@ -78,7 +77,6 @@ export default function ReportsPage() {
 
     const rows = data.records.map((r) => [
       r.type === "employee" ? r.userId?.name : r.visitorName,
-      r.type === "employee" ? r.userId?.staffId : "-",
       r.type === "employee" ? "Kakitangan" : "Pelawat",
       r.floorId?.name || "-",
       new Date(r.checkedInAt).toLocaleString("ms-MY"),
@@ -193,7 +191,6 @@ export default function ReportsPage() {
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>{strings.name}</Table.Th>
-                  <Table.Th>{strings.staffId}</Table.Th>
                   <Table.Th>Jenis</Table.Th>
                   <Table.Th>{strings.floors}</Table.Th>
                   <Table.Th>{strings.checkIn}</Table.Th>
@@ -207,11 +204,6 @@ export default function ReportsPage() {
                       {record.type === "employee"
                         ? record.userId?.name
                         : record.visitorName}
-                    </Table.Td>
-                    <Table.Td>
-                      {record.type === "employee"
-                        ? record.userId?.staffId
-                        : "-"}
                     </Table.Td>
                     <Table.Td>
                       <Badge

@@ -38,7 +38,6 @@ import { can } from "@/lib/auth/rbac";
 interface UserRecord {
   _id: string;
   name: string;
-  staffId: string;
   username: string;
   phone?: string;
   role: string;
@@ -79,7 +78,6 @@ export default function UsersPage() {
   const form = useForm({
     initialValues: {
       name: "",
-      staffId: "",
       username: "",
       password: "",
       phone: "",
@@ -100,7 +98,6 @@ export default function UsersPage() {
     setEditingUser(user);
     form.setValues({
       name: user.name,
-      staffId: user.staffId,
       username: user.username,
       password: "",
       phone: user.phone || "",
@@ -289,7 +286,6 @@ export default function UsersPage() {
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>{strings.name}</Table.Th>
-                  <Table.Th>{strings.staffId}</Table.Th>
                   <Table.Th>{strings.username}</Table.Th>
                   <Table.Th>{strings.role}</Table.Th>
                   <Table.Th>{strings.status}</Table.Th>
@@ -302,7 +298,6 @@ export default function UsersPage() {
                     <Table.Td>
                       <Text fw={500}>{user.name}</Text>
                     </Table.Td>
-                    <Table.Td>{user.staffId}</Table.Td>
                     <Table.Td>{user.username}</Table.Td>
                     <Table.Td>
                       <Badge size="xs" variant="light">
@@ -367,11 +362,6 @@ export default function UsersPage() {
               label={strings.name}
               required
               {...form.getInputProps("name")}
-            />
-            <TextInput
-              label={strings.staffId}
-              required
-              {...form.getInputProps("staffId")}
             />
             <TextInput
               label={strings.username}

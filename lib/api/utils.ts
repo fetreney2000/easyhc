@@ -9,7 +9,6 @@ export interface AuthUser {
   name: string;
   username: string;
   role: Role;
-  staffId: string;
   unitId?: string;
   jabatanId?: string;
   sessionVersion: number;

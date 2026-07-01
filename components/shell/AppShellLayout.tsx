@@ -327,12 +327,16 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
       <AppShell.Main>{children}</AppShell.Main>
 
       {/* Footer (Mobile tab bar) */}
-      <AppShell.Footer hiddenFrom="md" p={0}>
+      <AppShell.Footer hiddenFrom="md" p={0} style={{ 
+        background: "var(--mantine-color-body)",
+        borderTop: "1px solid var(--mantine-color-default-border)",
+        boxShadow: "0 -2px 10px rgba(0, 0, 0, 0.05)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+      }}>
         <Group
           grow
           gap={0}
           h="100%"
-          style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}
         >
           {footerItems.map((item) => (
             <FooterTab

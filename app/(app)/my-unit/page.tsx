@@ -46,7 +46,7 @@ export default function MyUnitPage() {
     }
   });
 
-  const userLocations = (users || []).map((user) => ({
+  const userLocations = (Array.isArray(users) ? users : []).map((user) => ({
     ...user,
     currentFloor: attendanceMap.get(user._id)?.floorName,
     checkedInAt: attendanceMap.get(user._id)?.checkedInAt,

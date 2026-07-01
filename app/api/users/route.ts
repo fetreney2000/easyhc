@@ -56,8 +56,6 @@ export async function GET(request: Request) {
 
     const users = await User.find(query)
       .select("name username phone role jabatanId unitId status createdAt")
-      .populate("jabatanId", "name")
-      .populate("unitId", "name")
       .sort({ name: 1 })
       .limit(500)
       .lean();

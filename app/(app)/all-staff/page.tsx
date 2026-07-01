@@ -61,7 +61,7 @@ export default function AllStaffPage() {
     }
   });
 
-  const userLocations: UserLocation[] = (users || []).map((user) => ({
+  const userLocations: UserLocation[] = (Array.isArray(users) ? users : []).map((user) => ({
     _id: user._id,
     name: user.name,
     role: user.role,

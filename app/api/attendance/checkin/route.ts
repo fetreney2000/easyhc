@@ -73,18 +73,42 @@ export async function POST(request: Request) {
       return badRequest("Kod QR tidak sah");
     }
 
-    // Check if user already has an open attendance record
-    const existingRecord = await Attendance.findOne({
+    // Check if user already has an open attendance record on THIS floor (toggle behavior)
+    const existingOnThisFloor = await Attendance.findOne({
+      userId: user.id,
+      floorId: floor._id,
+      checkedOutAt: null,
+      type: "employee",
+    });
+
+    if (existingOnThisFloor) {
+      // Already on this floor → CHECK OUT (toggle)
+      existingOnThisFloor.checkedOutAt = new Date();
+      existingOnThisFloor.checkedOutBy = "self";
+      await existingOnThisFloor.save();
+
+      return success({
+        message: `Berjaya daftar keluar dari ${floor.name}`,
+        action: "checkout",
+        attendance: {
+          _id: existingOnThisFloor._id,
+          floorName: floor.name,
+        },
+      });
+    }
+
+    // Not on this floor → CHECK IN
+    // First, auto-checkout from any other floor
+    const existingOnOtherFloor = await Attendance.findOne({
       userId: user.id,
       checkedOutAt: null,
       type: "employee",
     });
 
-    if (existingRecord) {
-      // Auto-checkout from previous floor
-      existingRecord.checkedOutAt = new Date();
-      existingRecord.checkedOutBy = "self";
-      await existingRecord.save();
+    if (existingOnOtherFloor) {
+      existingOnOtherFloor.checkedOutAt = new Date();
+      existingOnOtherFloor.checkedOutBy = "self";
+      await existingOnOtherFloor.save();
     }
 
     // Create new attendance record
@@ -112,6 +136,7 @@ export async function POST(request: Request) {
     return success(
       {
         message: `Berjaya daftar masuk ke ${floor.name}`,
+        action: "checkin",
         attendance: {
           _id: attendance._id,
           floorName: floor.name,

@@ -134,13 +134,15 @@ export default function ScanPage() {
       const data = await res.json();
 
       if (res.ok) {
-        setLastResult(data.message);
         notifications.show({
           title: strings.success,
           message: data.message,
           color: "green",
           icon: <IconCheck size={16} />,
         });
+        // Redirect to dashboard after successful check-in
+        router.push("/dashboard");
+        return;
       } else {
         notifications.show({
           title: strings.error,

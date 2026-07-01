@@ -24,6 +24,7 @@ import {
   IconRefresh,
   IconLogout,
   IconSearch,
+  IconDoorExit,
 } from "@tabler/icons-react";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
@@ -78,6 +79,44 @@ export default function DashboardPage() {
     "/api/floors",
     fetcher
   );
+
+  const handleSelfCheckout = async () => {
+    // Find current user's active attendance record
+    const myRecord = data?.attendance?.find(
+      (r) => r.type === "employee" && r.userId?._id === session?.user?.id
+    );
+    if (!myRecord) return;
+
+    try {
+      const res = await fetch("/api/attendance/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attendanceId: myRecord._id }),
+      });
+
+      if (res.ok) {
+        notifications.show({
+          title: strings.success,
+          message: strings.checkOutSuccess,
+          color: "green",
+        });
+        mutate();
+      } else {
+        const errData = await res.json();
+        notifications.show({
+          title: strings.error,
+          message: errData.error || strings.checkOutError,
+          color: "red",
+        });
+      }
+    } catch {
+      notifications.show({
+        title: strings.error,
+        message: strings.serverError,
+        color: "red",
+      });
+    }
+  };
 
   const handleForceCheckout = async (attendanceId: string) => {
     try {
@@ -185,6 +224,37 @@ export default function DashboardPage() {
           </Group>
         </Paper>
       </SimpleGrid>
+
+      {/* Self checkout button */}
+      {data?.attendance?.some(
+        (r) => r.type === "employee" && r.userId?._id === session?.user?.id
+      ) && (
+        <Paper p="md" radius="md" withBorder style={{ borderColor: "var(--mantine-color-orange-4)" }}>
+          <Group justify="space-between">
+            <div>
+              <Text fw={600} size="sm">
+                Anda berdaftar masuk di{" "}
+                <Text span c="brandPrimary" fw={700}>
+                  {data.attendance.find(
+                    (r) => r.type === "employee" && r.userId?._id === session?.user?.id
+                  )?.floorId?.name}
+                </Text>
+              </Text>
+              <Text size="xs" c="dimmed">
+                Tekan butang di sebelah untuk daftar keluar
+              </Text>
+            </div>
+            <Button
+              color="orange"
+              variant="filled"
+              leftSection={<IconDoorExit size={18} />}
+              onClick={handleSelfCheckout}
+            >
+              {strings.checkOut}
+            </Button>
+          </Group>
+        </Paper>
+      )}
 
       {/* Filters */}
       <Group>

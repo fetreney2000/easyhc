@@ -61,15 +61,19 @@ export const {
 
         await connectDB();
 
-        const user = await User.findOne({
-          username: (credentials.username as string).toLowerCase().trim(),
-        }).lean();
+        const username = (credentials.username as string).toLowerCase().trim();
+        const user = await User.findOne({ username }).lean();
 
         if (!user) {
+          console.error("Auth: user not found for username:", username);
+          // List all users for debugging
+          const allUsers = await User.find().select("username status").lean();
+          console.error("Auth: existing users:", allUsers.map(u => u.username));
           return null;
         }
 
         if (user.status === "inactive") {
+          console.error("Auth: user is inactive:", username);
           return null;
         }
 
@@ -79,6 +83,7 @@ export const {
         );
 
         if (!isPasswordValid) {
+          console.error("Auth: password mismatch for user:", username);
           return null;
         }
 

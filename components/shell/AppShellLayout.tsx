@@ -127,34 +127,80 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
     });
   }
 
-  // Footer tab items (mobile - top 4-5 most used)
-  const footerItems = [
-    {
+  // Footer tab items — MUST be odd count (3, 5, or 7) with Imbas Kod QR always centered
+  // Left side and right side of center button must have equal item count
+  const buildFooterItems = () => {
+    const leftItems: { label: string; icon: React.ReactNode; href: string; isPrimary?: boolean }[] = [];
+    const rightItems: { label: string; icon: React.ReactNode; href: string; isPrimary?: boolean }[] = [];
+
+    // LEFT side: Dashboard always first
+    leftItems.push({
       label: strings.dashboard,
       icon: <IconDashboard size={22} stroke={1.5} />,
       href: "/dashboard",
-    },
-    {
-      label: strings.scanQR,
-      icon: <IconScan size={28} stroke={2} />,
-      href: "/scan",
-      isPrimary: true, // Center button, visually distinct
-    },
-    ...(can(user.role, "reports:generate_all") || can(user.role, "reports:generate_own_floor")
-      ? [
-          {
-            label: strings.reports,
-            icon: <IconReport size={22} stroke={1.5} />,
-            href: "/reports",
-          },
-        ]
-      : []),
-    {
+    });
+
+    // LEFT side: second item based on role
+    if (can(user.role, "users:manage")) {
+      leftItems.push({
+        label: strings.userManagement,
+        icon: <IconUsers size={22} stroke={1.5} />,
+        href: "/users",
+      });
+    } else if (can(user.role, "locations:track_all") || can(user.role, "locations:track_own_unit")) {
+      leftItems.push({
+        label: user.role === "unit_head" ? strings.myUnit : strings.allStaffLocations,
+        icon: <IconMap size={22} stroke={1.5} />,
+        href: user.role === "unit_head" ? "/my-unit" : "/all-staff",
+      });
+    } else if (can(user.role, "floors:view_all") || can(user.role, "floors:view_own_floor")) {
+      leftItems.push({
+        label: strings.floors,
+        icon: <IconBuildingSkyscraper size={22} stroke={1.5} />,
+        href: "/floors",
+      });
+    }
+
+    // RIGHT side: first item based on role
+    if (can(user.role, "reports:generate_all") || can(user.role, "reports:generate_own_floor")) {
+      rightItems.push({
+        label: strings.reports,
+        icon: <IconReport size={22} stroke={1.5} />,
+        href: "/reports",
+      });
+    } else if (can(user.role, "floors:view_all") || can(user.role, "floors:view_own_floor")) {
+      rightItems.push({
+        label: strings.floors,
+        icon: <IconBuildingSkyscraper size={22} stroke={1.5} />,
+        href: "/floors",
+      });
+    }
+
+    // RIGHT side: last item is always Profile
+    rightItems.push({
       label: strings.profile,
       icon: <IconUser size={22} stroke={1.5} />,
       href: "/profile",
-    },
-  ];
+    });
+
+    // Balance: trim to make left and right equal length
+    const sideCount = Math.min(leftItems.length, rightItems.length);
+    const balancedLeft = leftItems.slice(0, sideCount);
+    const balancedRight = rightItems.slice(0, sideCount);
+
+    return [
+      ...balancedLeft,
+      {
+        label: strings.scanQR,
+        icon: <IconScan size={28} stroke={2} />,
+        href: "/scan",
+        isPrimary: true,
+      },
+      ...balancedRight,
+    ];
+  };
+
+  const footerItems = buildFooterItems();
 
   const handleLogout = async () => {
     await signOut({ callbackUrl: "/login" });

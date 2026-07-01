@@ -63,9 +63,7 @@ export const {
 
         const user = await User.findOne({
           username: (credentials.username as string).toLowerCase().trim(),
-        })
-          .select("+passwordHash +sessionVersion")
-          .lean();
+        }).lean();
 
         if (!user) {
           return null;

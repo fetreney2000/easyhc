@@ -38,7 +38,7 @@ export default function UnitsPage() {
   const [editing, setEditing] = useState<Unit | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const { data: units, isLoading, mutate } = useSWR<Unit[]>("/api/units", fetcher);
+  const { data: units, isLoading, mutate } = useSWR<any[]>("/api/units", fetcher);
   const { data: jabatans } = useSWR<{ _id: string; name: string }[]>("/api/jabatans", fetcher);
   const { data: floors } = useSWR<{ _id: string; name: string }[]>("/api/floors", fetcher);
 
@@ -56,12 +56,12 @@ export default function UnitsPage() {
     setModalOpened(true);
   };
 
-  const handleEdit = (item: Unit) => {
+  const handleEdit = (item: any) => {
     setEditing(item);
     form.setValues({
       name: item.name,
-      jabatanId: item.jabatanId?._id || "",
-      homeFloorId: item.homeFloorId?._id || "",
+      jabatanId: typeof item.jabatanId === "object" ? item.jabatanId?._id || "" : item.jabatanId || "",
+      homeFloorId: typeof item.homeFloorId === "object" ? item.homeFloorId?._id || "" : item.homeFloorId || "",
     });
     setModalOpened(true);
   };
@@ -140,8 +140,8 @@ export default function UnitsPage() {
               {units.map((item) => (
                 <Table.Tr key={item._id}>
                   <Table.Td><Text fw={500}>{item.name}</Text></Table.Td>
-                  <Table.Td><Text size="sm">{item.jabatanId?.name || "—"}</Text></Table.Td>
-                  <Table.Td><Text size="sm">{item.homeFloorId?.name || "—"}</Text></Table.Td>
+                  <Table.Td><Text size="sm">{typeof item.jabatanId === "object" ? item.jabatanId?.name : "—"}</Text></Table.Td>
+                  <Table.Td><Text size="sm">{typeof item.homeFloorId === "object" ? item.homeFloorId?.name : "—"}</Text></Table.Td>
                   <Table.Td>
                     <Group gap="xs">
                       <ActionIcon variant="subtle" onClick={() => handleEdit(item)} title={strings.edit}>

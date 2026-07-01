@@ -10,7 +10,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
   if (!user) return unauthorized();
   await connectDB();
   try {
-    const unit = await Unit.findById(params.id).populate("jabatanId", "name").populate("homeFloorId", "name").lean();
+    const unit = await Unit.findById(params.id).lean();
     if (!unit) return badRequest("Unit tidak dijumpai");
     return success(unit);
   } catch { return serverError(); }

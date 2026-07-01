@@ -40,6 +40,16 @@ export async function POST(request: Request) {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
+    // Drop old indexes from schema migration (staffId, email from NextAuth adapter)
+    for (const idxName of ["staffId_1", "email_1"]) {
+      try {
+        await User.collection.dropIndex(idxName);
+        console.log("Dropped old index:", idxName);
+      } catch {
+        // Index might not exist, ignore
+      }
+    }
+
     // Find existing superadmin or create new one
     let superadmin = await User.findOne({ username: username.toLowerCase().trim() });
     

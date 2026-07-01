@@ -9,10 +9,7 @@ import {
 } from "@/lib/api/utils";
 import User from "@/lib/db/models/User";
 
-export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: Request) {
   const authUser = await getAuthenticatedUser();
   if (!authUser) return unauthorized();
 
@@ -30,9 +27,14 @@ export async function POST(
       return badRequest("Kata laluan baharu mestilah sekurang-kurangnya 6 aksara");
     }
 
-    // Use authenticated user's ID directly instead of params
-    const user = await User.findById(authUser.id);
-    if (!user) return badRequest("Pengguna tidak dijumpai dalam pangkalan data.");
+    // Find user by ID first, fall back to username
+    let user = await User.findById(authUser.id);
+    if (!user) {
+      user = await User.findOne({ username: authUser.username });
+    }
+    if (!user) {
+      return badRequest("Pengguna tidak dijumpai. Sila log keluar dan log masuk semula.");
+    }
 
     const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!isValid) {
@@ -40,7 +42,7 @@ export async function POST(
     }
 
     user.passwordHash = await bcrypt.hash(newPassword, 12);
-    user.sessionVersion += 1; // Invalidate all sessions
+    user.sessionVersion += 1;
     await user.save();
 
     return success({ message: "Kata laluan berjaya ditukar" });

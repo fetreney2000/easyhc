@@ -28,6 +28,7 @@ import {
   IconClipboardCheck,
   IconMap,
   IconBuildingSkyscraper,
+  IconCopyright,
 } from "@tabler/icons-react";
 import { useRouter, usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -104,7 +105,7 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
     });
   }
 
-  // GROUP 4: Pentadbiran (Admin-only management)
+  // GROUP 4: Pentadbiran — ordered by frequency of usage
   if (can(user.role, "users:manage")) {
     navItems.push({
       label: strings.userManagement,
@@ -115,6 +116,11 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
       label: strings.floorManagement,
       icon: <IconBuildingSkyscraper size={20} stroke={1.5} />,
       href: "/floors/manage",
+    });
+    navItems.push({
+      label: strings.manualCheckIn,
+      icon: <IconClipboardCheck size={20} stroke={1.5} />,
+      href: "/manual-checkin",
     });
     navItems.push({
       label: strings.jabatan,
@@ -131,12 +137,14 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
       icon: <IconQrcode size={20} stroke={1.5} />,
       href: "/floors/qr",
     });
-    navItems.push({
-      label: strings.manualCheckIn,
-      icon: <IconClipboardCheck size={20} stroke={1.5} />,
-      href: "/manual-checkin",
-    });
   }
+
+  // GROUP 5: Maklumat (Info) — least frequent
+  navItems.push({
+    label: "Hak Cipta",
+    icon: <IconCopyright size={20} stroke={1.5} />,
+    href: "/hakcipta",
+  });
 
   // Footer tab items — MUST be odd count (3, 5, or 7) with Imbas Kod QR always centered
   // Left side and right side of center button must have equal item count

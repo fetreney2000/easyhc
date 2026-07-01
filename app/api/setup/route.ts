@@ -40,6 +40,11 @@ export async function POST(request: Request) {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
+    // Drop any stale indexes that might prevent user creation
+    for (const idxName of ["staffId_1", "email_1"]) {
+      try { await User.collection.dropIndex(idxName); } catch {}
+    }
+
     const superadmin = await User.create({
       name,
       username: username.toLowerCase().trim(),

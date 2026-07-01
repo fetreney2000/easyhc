@@ -28,7 +28,7 @@ export async function GET(request: Request) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const query: any = {};
 
-  if (role && ROLES.includes(role as typeof ROLES[number])) {
+  if (role) {
     query.role = role;
   }
 

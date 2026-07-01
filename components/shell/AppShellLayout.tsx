@@ -111,6 +111,16 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
       href: "/users",
     });
     navItems.push({
+      label: strings.jabatan,
+      icon: <IconBuilding size={20} stroke={1.5} />,
+      href: "/jabatans",
+    });
+    navItems.push({
+      label: strings.unit,
+      icon: <IconBuilding size={20} stroke={1.5} />,
+      href: "/units",
+    });
+    navItems.push({
       label: strings.floorManagement,
       icon: <IconBuilding size={20} stroke={1.5} />,
       href: "/floors/manage",

@@ -16,11 +16,6 @@ export async function POST(
   const authUser = await getAuthenticatedUser();
   if (!authUser) return unauthorized();
 
-  // Users can only change their own password
-  if (params.id !== authUser.id) {
-    return unauthorized();
-  }
-
   await connectDB();
 
   try {
@@ -35,8 +30,9 @@ export async function POST(
       return badRequest("Kata laluan baharu mestilah sekurang-kurangnya 6 aksara");
     }
 
-    const user = await User.findById(params.id).select("+passwordHash");
-    if (!user) return badRequest("Pengguna tidak dijumpai");
+    // Use authenticated user's ID directly instead of params
+    const user = await User.findById(authUser.id);
+    if (!user) return badRequest("Pengguna tidak dijumpai dalam pangkalan data.");
 
     const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!isValid) {

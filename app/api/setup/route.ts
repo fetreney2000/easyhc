@@ -31,9 +31,9 @@ export async function POST(request: Request) {
       );
     }
 
-    if (password.length < 8) {
+    if (password.length < 6) {
       return NextResponse.json(
-        { error: "Kata laluan mestilah sekurang-kurangnya 8 aksara" },
+        { error: "Kata laluan mestilah sekurang-kurangnya 6 aksara" },
         { status: 400 }
       );
     }

@@ -27,7 +27,7 @@ export const createUserSchema = z.object({
     .toLowerCase(),
   password: z
     .string()
-    .min(8, strings.passwordMinLength),
+    .min(6, strings.passwordMinLength),
   phone: z
     .string()
     .max(20, strings.maxLength(strings.phone, 20))
@@ -97,7 +97,7 @@ export const visitorCheckInSchema = z.object({
 export const changePasswordSchema = z
   .object({
     currentPassword: z.string().min(1, strings.required),
-    newPassword: z.string().min(8, strings.passwordMinLength),
+    newPassword: z.string().min(6, strings.passwordMinLength),
     confirmPassword: z.string().min(1, strings.required),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {

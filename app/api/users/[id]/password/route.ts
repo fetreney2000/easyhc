@@ -31,8 +31,8 @@ export async function POST(
       return badRequest("Kata laluan semasa dan baharu diperlukan");
     }
 
-    if (newPassword.length < 8) {
-      return badRequest("Kata laluan baharu mestilah sekurang-kurangnya 8 aksara");
+    if (newPassword.length < 6) {
+      return badRequest("Kata laluan baharu mestilah sekurang-kurangnya 6 aksara");
     }
 
     const user = await User.findById(params.id).select("+passwordHash");

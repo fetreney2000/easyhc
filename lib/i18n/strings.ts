@@ -158,7 +158,7 @@ export const strings = {
   minLength: (field: string, min: number) => `${field} mestilah sekurang-kurangnya ${min} aksara`,
   maxLength: (field: string, max: number) => `${field} mestilah tidak melebihi ${max} aksara`,
   invalidPhone: "Nombor telefon tidak sah",
-  passwordMinLength: "Kata laluan mestilah sekurang-kurangnya 8 aksara",
+  passwordMinLength: "Kata laluan mestilah sekurang-kurangnya 6 aksara",
 
   // General
   save: "Simpan",

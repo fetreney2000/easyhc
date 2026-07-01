@@ -56,7 +56,7 @@ export default function ProfilePage() {
     },
     validate: {
       newPassword: (value) =>
-        value.length < 8 ? strings.passwordMinLength : null,
+        value.length < 6 ? strings.passwordMinLength : null,
       confirmPassword: (value, values) =>
         value !== values.newPassword ? strings.passwordMismatch : null,
     },

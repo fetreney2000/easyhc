@@ -55,10 +55,11 @@ export async function GET(
     }
 
     if (format === "svg") {
-      const svg = await QRCode.toString(qrContent, {
+    const svg = await QRCode.toString(qrContent, {
         type: "svg",
-        width: 300,
-        margin: 2,
+        width: 400,
+        margin: 3,
+        errorCorrectionLevel: "M",
         color: { dark: "#000000", light: "#FFFFFF" },
       });
 
@@ -73,9 +74,11 @@ export async function GET(
     // Default: PNG
     const pngDataUrl = await QRCode.toDataURL(qrContent, {
       type: "image/png",
-      width: 300,
-      margin: 2,
+      width: 400,
+      margin: 3,
+      errorCorrectionLevel: "M",
       color: { dark: "#000000", light: "#FFFFFF" },
+      scale: 4,
     });
 
     const base64Data = pngDataUrl.replace(/^data:image\/png;base64,/, "");

@@ -251,9 +251,16 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
               hiddenFrom="md"
               size="sm"
             />
-            <Text fw={700} size="lg">
-              {strings.appName}
-            </Text>
+            <Group gap="xs">
+              <img
+                src="/icons/icon.svg"
+                alt={strings.appName}
+                style={{ width: 32, height: 32 }}
+              />
+              <Text fw={700} size="lg">
+                {strings.appName}
+              </Text>
+            </Group>
           </Group>
           <Group gap="xs">
             {/* Scan button - always visible on desktop */}

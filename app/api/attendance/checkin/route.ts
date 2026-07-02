@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { qrToken, method = "qr" } = body;
 
-    if (!qrToken) {
+    if (method !== "manual" && !qrToken) {
       return badRequest("Token QR diperlukan");
     }
 
@@ -50,27 +50,34 @@ export async function POST(request: Request) {
       return forbidden();
     }
 
-    // Try to find the floor by decrypting the QR token (employee QR)
+    // Find the floor: manual check-in uses floorId directly, QR uses encrypted token
     let floor = null;
 
-    // First, try to decrypt as encrypted floor ID
-    const decryptedFloorId = decryptFloorId(qrToken);
-    if (decryptedFloorId) {
-      floor = await Floor.findById(decryptedFloorId);
+    if (method === "manual") {
+      // Manual check-in: floorId is sent directly in the body
+      const { floorId } = body;
+      if (!floorId) {
+        return badRequest("ID lantai diperlukan untuk daftar masuk manual");
+      }
+      floor = await Floor.findById(floorId);
+    } else {
+      // QR check-in: decrypt the token
+      const decryptedFloorId = decryptFloorId(qrToken);
+      if (decryptedFloorId) {
+        floor = await Floor.findById(decryptedFloorId);
+      }
+
+      if (!floor) {
+        floor = await Floor.findOne({ qrToken });
+      }
+
+      if (!floor) {
+        floor = await Floor.findById(qrToken);
+      }
     }
 
-    // If not found, try as qrToken (visitor QR token)
     if (!floor) {
-      floor = await Floor.findOne({ qrToken });
-    }
-
-    // If still not found, try as raw floor ID
-    if (!floor) {
-      floor = await Floor.findById(qrToken);
-    }
-
-    if (!floor) {
-      return badRequest("Kod QR tidak sah");
+      return badRequest(method === "manual" ? "Lantai tidak dijumpai" : "Kod QR tidak sah");
     }
 
     // Check if user already has an open attendance record on THIS floor (toggle behavior)

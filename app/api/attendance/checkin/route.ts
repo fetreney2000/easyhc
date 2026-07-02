@@ -80,9 +80,16 @@ export async function POST(request: Request) {
       return badRequest(method === "manual" ? "Lantai tidak dijumpai" : "Kod QR tidak sah");
     }
 
-    // Check if user already has an open attendance record on THIS floor (toggle behavior)
+    // For manual check-in, the target user is selected by the admin
+    const targetUserId = method === "manual" ? body.userId : user.id;
+
+    if (method === "manual" && !targetUserId) {
+      return badRequest("Pengguna diperlukan untuk daftar masuk manual");
+    }
+
+    // Check if target user already has an open attendance record on THIS floor (toggle behavior)
     const existingOnThisFloor = await Attendance.findOne({
-      userId: user.id,
+      userId: targetUserId,
       floorId: floor._id,
       checkedOutAt: null,
       type: "employee",
@@ -105,23 +112,23 @@ export async function POST(request: Request) {
     }
 
     // Not on this floor → CHECK IN
-    // First, auto-checkout from any other floor
+    // First, auto-checkout target user from any other floor
     const existingOnOtherFloor = await Attendance.findOne({
-      userId: user.id,
+      userId: targetUserId,
       checkedOutAt: null,
       type: "employee",
     });
 
     if (existingOnOtherFloor) {
       existingOnOtherFloor.checkedOutAt = new Date();
-      existingOnOtherFloor.checkedOutBy = "self";
+      existingOnOtherFloor.checkedOutBy = method === "manual" ? "self" : user.id;
       await existingOnOtherFloor.save();
     }
 
-    // Create new attendance record
+    // Create new attendance record for the target user
     const attendance = await Attendance.create({
       type: "employee",
-      userId: user.id,
+      userId: targetUserId,
       floorId: floor._id,
       checkedInAt: new Date(),
       method,
@@ -132,7 +139,7 @@ export async function POST(request: Request) {
       await AuditLog.create({
         actorUserId: user.id,
         action: "manual_checkin",
-        targetId: user.id,
+        targetId: targetUserId,
         metadata: {
           floorId: floor._id.toString(),
           floorName: floor.name,

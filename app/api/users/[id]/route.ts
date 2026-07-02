@@ -97,8 +97,8 @@ export async function PUT(
       user.name = data.name;
       user.phone = data.phone || undefined;
       user.role = data.role;
-      user.jabatanId = data.jabatanId ? new Types.ObjectId(data.jabatanId) : undefined;
-      user.unitId = data.unitId ? new Types.ObjectId(data.unitId) : undefined;
+      user.jabatanId = data.jabatanId && data.jabatanId !== "" ? new Types.ObjectId(data.jabatanId) : undefined;
+      user.unitId = data.unitId && data.unitId !== "" ? new Types.ObjectId(data.unitId) : undefined;
       user.status = data.status;
 
       // Update password if provided

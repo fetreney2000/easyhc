@@ -379,7 +379,7 @@ export default function UsersPage() {
             <TextInput
               label={strings.name}
               required
-              placeholder="Contoh: Ahmad Fetre Bin Mohammad Zime"
+              placeholder="Contoh: Ali Bin Abu"
               {...form.getInputProps("name")}
               onBlur={(e) => {
                 const titleCaseValue = toTitleCase(e.target.value);

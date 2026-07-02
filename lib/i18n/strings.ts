@@ -83,7 +83,7 @@ export const strings = {
   staffId: "No. Pekerja",
   phone: "No. Telefon",
   jawatanInfo: "Jawatan",
-  jawatanInfoPlaceholder: "Contoh: Jurutera Perisian",
+  jawatanInfoPlaceholder: "Contoh: Penolong Pegawai Farmasi",
   role: "Peranan",
   jabatan: "Jabatan",
   unit: "Unit",

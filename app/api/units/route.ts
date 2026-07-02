@@ -26,8 +26,8 @@ export async function GET(request: Request) {
     const Jabatan = (await import("@/lib/db/models/Jabatan")).default;
     const Floor = (await import("@/lib/db/models/Floor")).default;
 
-    const jabatanIds = [...new Set(units.map((u) => u.jabatanId?.toString()).filter(Boolean))];
-    const floorIds = [...new Set(units.map((u) => u.homeFloorId?.toString()).filter(Boolean))];
+    const jabatanIds = Array.from(new Set(units.map((u) => u.jabatanId?.toString()).filter(Boolean)));
+    const floorIds = Array.from(new Set(units.map((u) => u.homeFloorId?.toString()).filter(Boolean)));
 
     const [jabatans, floors] = await Promise.all([
       jabatanIds.length ? Jabatan.find({ _id: { $in: jabatanIds } }).select("name").lean() : [],

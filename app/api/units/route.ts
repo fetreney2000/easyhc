@@ -19,6 +19,8 @@ export async function GET(request: Request) {
 
   try {
     const units = await Unit.find(query)
+      .populate("jabatanId", "name")
+      .populate("homeFloorId", "name")
       .sort({ name: 1 })
       .lean();
     return success(units);

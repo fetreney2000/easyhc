@@ -65,15 +65,21 @@ export default function UsersPage() {
     fetcher
   );
 
-  const { data: jabatans } = useSWR<{ _id: string; name: string }[]>(
+  const { data: jabatans, mutate: mutateJabatans } = useSWR<{ _id: string; name: string }[]>(
     "/api/jabatans",
     fetcher
   );
 
-  const { data: units } = useSWR<{ _id: string; name: string }[]>(
+  const { data: units, mutate: mutateUnits } = useSWR<{ _id: string; name: string }[]>(
     "/api/units",
     fetcher
   );
+
+  // Reload jabatan/unit lists when modal opens
+  if (modalOpened) {
+    mutateJabatans();
+    mutateUnits();
+  }
 
   const form = useForm({
     initialValues: {
@@ -390,30 +396,42 @@ export default function UsersPage() {
               {...form.getInputProps("role")}
             />
             <Group grow>
-              <Select
-                label={strings.jabatan}
-                data={[
-                  { value: "", label: "—" },
-                  ...(jabatans?.map((j) => ({
-                    value: j._id,
-                    label: j.name,
-                  })) || []),
-                ]}
-                {...form.getInputProps("jabatanId")}
-                clearable
-              />
-              <Select
-                label={strings.unit}
-                data={[
-                  { value: "", label: "—" },
-                  ...(units?.map((u) => ({
-                    value: u._id,
-                    label: u.name,
-                  })) || []),
-                ]}
-                {...form.getInputProps("unitId")}
-                clearable
-              />
+            <Select
+              label={strings.jabatan}
+              placeholder={
+                jabatans?.length
+                  ? strings.jabatan
+                  : "Tiada jabatan tersedia. Sila tambah jabatan dahulu."
+              }
+              data={
+                jabatans?.map((j) => ({
+                  value: j._id,
+                  label: j.name,
+                })) || []
+              }
+              {...form.getInputProps("jabatanId")}
+              clearable
+              searchable
+              disabled={!jabatans?.length}
+            />
+            <Select
+              label={strings.unit}
+              placeholder={
+                units?.length
+                  ? strings.unit
+                  : "Tiada unit tersedia. Sila tambah unit dahulu."
+              }
+              data={
+                units?.map((u) => ({
+                  value: u._id,
+                  label: u.name,
+                })) || []
+              }
+              {...form.getInputProps("unitId")}
+              clearable
+              searchable
+              disabled={!units?.length}
+            />
             </Group>
             <Select
               label={strings.status}

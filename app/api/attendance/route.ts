@@ -34,25 +34,43 @@ export async function GET(request: Request) {
 
   // Scope based on role
   if (!can(user.role, "attendance:view_all")) {
-    if (can(user.role, "attendance:view_own_floor") && user.unitId) {
-      // Need to find the user's unit's home floor
+    if (can(user.role, "attendance:view_own_unit") && user.unitId) {
+      // Unit head: show attendance for ALL users in their unit (on any floor)
+      const Unit = (await import("@/lib/db/models/Unit")).default;
+      const User = (await import("@/lib/db/models/User")).default;
+
+      // Get unit users
+      const unitUsers = await User.find({ unitId: user.unitId })
+        .select("_id")
+        .lean();
+      const userIds = unitUsers.map((u) => u._id);
+
+      // Also include the unit's home floor
+      const unit = await Unit.findById(user.unitId).lean();
+
+      // Query: unit users on any floor + home floor visitors
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const orConditions: any[] = [
+        { userId: { $in: userIds } },
+      ];
+      if (unit?.homeFloorId) {
+        orConditions.push({
+          floorId: unit.homeFloorId.toString(),
+          type: "visitor",
+        });
+      } else {
+        orConditions.push({ type: "visitor" });
+      }
+
+      query.$or = orConditions;
+    } else if (can(user.role, "attendance:view_own_floor") && user.unitId) {
+      // Floor head: show attendance on their home floor only
       const Unit = (await import("@/lib/db/models/Unit")).default;
       const unit = await Unit.findById(user.unitId).lean();
       if (unit?.homeFloorId) {
         query.floorId = unit.homeFloorId.toString();
       }
-    } else if (can(user.role, "attendance:view_own_unit") && user.unitId) {
-      // Show staff from own unit + on any floor
-      const User = (await import("@/lib/db/models/User")).default;
-      const unitUsers = await User.find({ unitId: user.unitId })
-        .select("_id")
-        .lean();
-      const userIds = unitUsers.map((u) => u._id);
-      query.$or = [
-        { userId: { $in: userIds } },
-        { type: "visitor" },
-      ];
-    } else if (!can(user.role, "attendance:view_all")) {
+    } else {
       // Regular user - own data only
       const mongoose = await import("mongoose");
       query.userId = new mongoose.Types.ObjectId(user.id);

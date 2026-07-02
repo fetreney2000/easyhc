@@ -41,8 +41,10 @@ interface UserRecord {
   username: string;
   phone?: string;
   role: string;
-  jabatanId?: { _id: string; name: string };
-  unitId?: { _id: string; name: string };
+  jabatanId?: string | { _id: string; name: string };
+  unitId?: string | { _id: string; name: string };
+  jabatanName?: string | null;
+  unitName?: string | null;
   status: string;
 }
 
@@ -102,14 +104,16 @@ export default function UsersPage() {
 
   const handleEdit = (user: UserRecord) => {
     setEditingUser(user);
+    const jabatanIdVal = typeof user.jabatanId === "object" ? user.jabatanId?._id || "" : user.jabatanId || "";
+    const unitIdVal = typeof user.unitId === "object" ? user.unitId?._id || "" : user.unitId || "";
     form.setValues({
       name: user.name,
       username: user.username,
       password: "",
       phone: user.phone || "",
       role: user.role,
-      jabatanId: user.jabatanId?._id || "",
-      unitId: user.unitId?._id || "",
+      jabatanId: jabatanIdVal,
+      unitId: unitIdVal,
       status: user.status,
     });
     setModalOpened(true);

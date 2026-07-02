@@ -43,6 +43,7 @@ export interface IUser {
   username: string;
   passwordHash: string;
   phone?: string;
+  jawatanInfo?: string;
   role: Role;
   jabatanId?: Types.ObjectId;
   unitId?: Types.ObjectId;

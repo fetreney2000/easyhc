@@ -32,7 +32,7 @@ export async function GET(
 
   try {
     const user = await User.findById(params.id)
-      .select("name username phone role jabatanId unitId status createdAt")
+      .select("name username phone jawatanInfo role jabatanId unitId status createdAt")
       .populate("jabatanId", "name")
       .populate("unitId", "name")
       .lean();
@@ -96,6 +96,7 @@ export async function PUT(
 
       user.name = data.name;
       user.phone = data.phone || undefined;
+      user.jawatanInfo = data.jawatanInfo || undefined;
       user.role = data.role;
       user.jabatanId = data.jabatanId && data.jabatanId !== "" ? new Types.ObjectId(data.jabatanId) : undefined;
       user.unitId = data.unitId && data.unitId !== "" ? new Types.ObjectId(data.unitId) : undefined;

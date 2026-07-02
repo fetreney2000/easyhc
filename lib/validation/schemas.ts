@@ -17,7 +17,8 @@ export const createUserSchema = z.object({
   name: z
     .string()
     .min(1, strings.required)
-    .max(100, strings.maxLength(strings.name, 100)),
+    .max(100, strings.maxLength(strings.name, 100))
+    .transform((v) => v.trim()),
   username: z
     .string()
     .min(3, strings.minLength(strings.username, 3))
@@ -32,7 +33,14 @@ export const createUserSchema = z.object({
     .string()
     .max(20, strings.maxLength(strings.phone, 20))
     .optional()
-    .or(z.literal("")),
+    .or(z.literal(""))
+    .transform((v) => (v ? v.trim() : v)),
+  jawatanInfo: z
+    .string()
+    .max(100, strings.maxLength(strings.jawatanInfo, 100))
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => (v ? v.trim() : v)),
   role: z.enum(ROLES, {
     errorMap: () => ({ message: strings.required }),
   }),

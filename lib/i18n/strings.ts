@@ -82,6 +82,8 @@ export const strings = {
   name: "Nama",
   staffId: "No. Pekerja",
   phone: "No. Telefon",
+  jawatanInfo: "Jawatan",
+  jawatanInfoPlaceholder: "Contoh: Jurutera Perisian",
   role: "Peranan",
   jabatan: "Jabatan",
   unit: "Unit",

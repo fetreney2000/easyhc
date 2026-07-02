@@ -40,12 +40,18 @@ interface UserRecord {
   name: string;
   username: string;
   phone?: string;
+  jawatanInfo?: string;
   role: string;
   jabatanId?: string | { _id: string; name: string };
   unitId?: string | { _id: string; name: string };
   jabatanName?: string | null;
   unitName?: string | null;
   status: string;
+}
+
+// Title case helper: capitalize first letter of every word
+function toTitleCase(str: string): string {
+  return str.replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -89,6 +95,7 @@ export default function UsersPage() {
       username: "",
       password: "",
       phone: "",
+      jawatanInfo: "",
       role: "user" as string,
       jabatanId: "",
       unitId: "",
@@ -111,6 +118,7 @@ export default function UsersPage() {
       username: user.username,
       password: "",
       phone: user.phone || "",
+      jawatanInfo: user.jawatanInfo || "",
       role: user.role,
       jabatanId: jabatanIdVal,
       unitId: unitIdVal,
@@ -371,7 +379,12 @@ export default function UsersPage() {
             <TextInput
               label={strings.name}
               required
+              placeholder="Contoh: Ahmad Fetre Bin Mohammad Zime"
               {...form.getInputProps("name")}
+              onBlur={(e) => {
+                const titleCaseValue = toTitleCase(e.target.value);
+                form.setFieldValue("name", titleCaseValue);
+              }}
             />
             <TextInput
               label={strings.username}
@@ -388,7 +401,13 @@ export default function UsersPage() {
             )}
             <TextInput
               label={strings.phone}
+              placeholder={strings.phone}
               {...form.getInputProps("phone")}
+            />
+            <TextInput
+              label={strings.jawatanInfo}
+              placeholder={strings.jawatanInfoPlaceholder}
+              {...form.getInputProps("jawatanInfo")}
             />
             <Select
               label={strings.role}

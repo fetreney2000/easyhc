@@ -55,7 +55,7 @@ export async function GET(request: Request) {
     }
 
     const users = await User.find(query)
-      .select("name username phone role jabatanId unitId status createdAt")
+      .select("name username phone jawatanInfo role jabatanId unitId status createdAt")
       .sort({ name: 1 })
       .limit(500)
       .lean();
@@ -129,6 +129,7 @@ export async function POST(request: Request) {
       username: data.username,
       passwordHash,
       phone: data.phone || undefined,
+      jawatanInfo: data.jawatanInfo || undefined,
       role: data.role,
       jabatanId: data.jabatanId || undefined,
       unitId: data.unitId || undefined,

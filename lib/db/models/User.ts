@@ -23,6 +23,10 @@ const UserSchema = new Schema<IUser>(
       type: String,
       trim: true,
     },
+    jawatanInfo: {
+      type: String,
+      trim: true,
+    },
     role: {
       type: String,
       enum: ROLES,

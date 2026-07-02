@@ -19,11 +19,31 @@ export async function GET(request: Request) {
 
   try {
     const units = await Unit.find(query)
-      .populate("jabatanId", "name")
-      .populate("homeFloorId", "name")
       .sort({ name: 1 })
       .lean();
-    return success(units);
+
+    // Manually look up referenced names
+    const Jabatan = (await import("@/lib/db/models/Jabatan")).default;
+    const Floor = (await import("@/lib/db/models/Floor")).default;
+
+    const jabatanIds = [...new Set(units.map((u) => u.jabatanId?.toString()).filter(Boolean))];
+    const floorIds = [...new Set(units.map((u) => u.homeFloorId?.toString()).filter(Boolean))];
+
+    const [jabatans, floors] = await Promise.all([
+      jabatanIds.length ? Jabatan.find({ _id: { $in: jabatanIds } }).select("name").lean() : [],
+      floorIds.length ? Floor.find({ _id: { $in: floorIds } }).select("name").lean() : [],
+    ]);
+
+    const jabatanMap = new Map(jabatans.map((j) => [j._id.toString(), j.name]));
+    const floorMap = new Map(floors.map((f) => [f._id.toString(), f.name]));
+
+    const enrichedUnits = units.map((u) => ({
+      ...u,
+      jabatanName: (u.jabatanId ? jabatanMap.get(u.jabatanId.toString()) : null) || null,
+      homeFloorName: (u.homeFloorId ? floorMap.get(u.homeFloorId.toString()) : null) || null,
+    }));
+
+    return success(enrichedUnits);
   } catch (error) {
     console.error("Error fetching units:", error);
     return serverError();

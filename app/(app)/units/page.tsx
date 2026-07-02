@@ -140,8 +140,8 @@ export default function UnitsPage() {
               {units.map((item) => (
                 <Table.Tr key={item._id}>
                   <Table.Td><Text fw={500}>{item.name}</Text></Table.Td>
-                  <Table.Td><Text size="sm">{typeof item.jabatanId === "object" ? item.jabatanId?.name : "—"}</Text></Table.Td>
-                  <Table.Td><Text size="sm">{typeof item.homeFloorId === "object" ? item.homeFloorId?.name : "—"}</Text></Table.Td>
+                  <Table.Td><Text size="sm">{item.jabatanName || "—"}</Text></Table.Td>
+                  <Table.Td><Text size="sm">{item.homeFloorName || "—"}</Text></Table.Td>
                   <Table.Td>
                     <Group gap="xs">
                       <ActionIcon variant="subtle" onClick={() => handleEdit(item)} title={strings.edit}>

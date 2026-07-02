@@ -84,15 +84,11 @@ export default function MyUnitPage() {
                       {ROLE_LABELS[user.role as keyof typeof ROLE_LABELS] || user.role}
                     </Badge>
                   </Table.Td>
-                  <Table.Td>
-                    {user.currentFloor ? (
-                      <Badge size="xs" color="green" leftSection={<IconMapPin size={12} />}>
-                        {user.currentFloor}
-                      </Badge>
-                    ) : (
-                      <Text size="sm" c="dimmed">—</Text>
-                    )}
-                  </Table.Td>
+                    <Table.Td>
+                      <Text size="sm" c={user.currentFloor ? undefined : "dimmed"}>
+                        {user.currentFloor || "—"}
+                      </Text>
+                    </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>

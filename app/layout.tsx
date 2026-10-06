@@ -15,7 +15,11 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: strings.appName,
+  // `template` gives every child title a suffix ("Log Masuk · EasyHC")
+  title: {
+    default: strings.appName,
+    template: `%s · ${strings.appName}`,
+  },
   description: strings.appDescription,
   manifest: "/manifest.json",
   applicationName: strings.appName,
@@ -32,6 +36,20 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "default",
     title: strings.appName,
+  },
+  // Shared into WhatsApp/Teams/Slack previews — the visitor QR link is
+  // circulated as a plain URL, so the preview should not be blank.
+  openGraph: {
+    type: "website",
+    locale: "ms_MY",
+    siteName: strings.appName,
+    title: strings.appName,
+    description: strings.appDescription,
+  },
+  twitter: {
+    card: "summary",
+    title: strings.appName,
+    description: strings.appDescription,
   },
 };
 

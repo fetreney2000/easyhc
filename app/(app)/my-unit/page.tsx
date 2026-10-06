@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   Title,
   Paper,
@@ -52,23 +53,25 @@ export default function MyUnitPage() {
     { refreshInterval: 25000 }
   );
 
-  if (!session?.user) return <LoadingScreen />;
+  // Derived: memoised — two collections used to be rebuilt on every render
+  // (each 25s poll and every mount)
+  const userLocations = useMemo(() => {
+    const presenceByUser = new Map<string, { floorName: string; checkedInAt: string }>();
+    (attendanceData?.attendance ?? []).forEach((record) => {
+      if (record.type === "employee" && record.userId?._id) {
+        presenceByUser.set(record.userId._id, {
+          floorName: record.floorId?.name || "-",
+          checkedInAt: record.checkedInAt,
+        });
+      }
+    });
 
-  const attendanceMap = new Map<string, { floorName: string; checkedInAt: string }>();
-  (attendanceData?.attendance || []).forEach((record) => {
-    if (record.type === "employee" && record.userId?._id) {
-      attendanceMap.set(record.userId._id, {
-        floorName: record.floorId?.name || "-",
-        checkedInAt: record.checkedInAt,
-      });
-    }
-  });
-
-  const userLocations = (Array.isArray(users) ? users : []).map((user) => ({
-    ...user,
-    currentFloor: attendanceMap.get(user._id)?.floorName,
-    checkedInAt: attendanceMap.get(user._id)?.checkedInAt,
-  }));
+    return (users ?? []).map((user) => ({
+      ...user,
+      currentFloor: presenceByUser.get(user._id)?.floorName,
+      checkedInAt: presenceByUser.get(user._id)?.checkedInAt,
+    }));
+  }, [users, attendanceData?.attendance]);
 
   return (
     <Stack gap="lg">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Title,
   Paper,
@@ -52,106 +52,144 @@ export default function ReportsPage() {
   const [floorFilter, setFloorFilter] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
 
-  const queryParams = new URLSearchParams();
-  // Send absolute instants for the whole picked day in the USER's timezone;
-  // the server compares them as-is (it used to re-apply setHours() in UTC,
-  // which cut an MYT end date at 07:59 local).
-  if (fromDate) {
-    const start = new Date(fromDate);
-    start.setHours(0, 0, 0, 0);
-    queryParams.set("fromDate", start.toISOString());
-  }
-  if (toDate) {
-    const end = new Date(toDate);
-    end.setHours(23, 59, 59, 999);
-    queryParams.set("toDate", end.toISOString());
-  }
-  if (floorFilter) queryParams.set("floorId", floorFilter);
-  if (typeFilter) queryParams.set("type", typeFilter);
+  // Memoised: this builds the SWR key, so it only needs rebuilding when a
+  // filter actually changes.
+  const queryParams = useMemo(() => {
+    const params = new URLSearchParams();
+    // Send absolute instants for the whole picked day in the USER's timezone;
+    // the server compares them as-is (it used to re-apply setHours() in UTC,
+    // which cut an MYT end date at 07:59 local).
+    if (fromDate) {
+      const start = new Date(fromDate);
+      start.setHours(0, 0, 0, 0);
+      params.set("fromDate", start.toISOString());
+    }
+    if (toDate) {
+      const end = new Date(toDate);
+      end.setHours(23, 59, 59, 999);
+      params.set("toDate", end.toISOString());
+    }
+    if (floorFilter) params.set("floorId", floorFilter);
+    if (typeFilter) params.set("type", typeFilter);
+    return params;
+  }, [fromDate, toDate, floorFilter, typeFilter]);
+
+  // Server-side pagination: one page of rows per request plus the full match
+  // count, so the cap is lifted and the table never maps more than
+  // ROWS_PER_PAGE rows (mapping 1000 rows was a measurable INP cost).
+  const ROWS_PER_PAGE = 25;
+  const MAX_EXPORT_ROWS = 5000;
+  const [page, setPage] = useState(1);
+  const [exporting, setExporting] = useState(false);
+  // A new filter starts back at page 1
+  useEffect(() => {
+    setPage(1);
+  }, [fromDate, toDate, floorFilter, typeFilter]);
 
   const { data, error, isLoading, mutate } = useSWR<{
     records: ReportRecord[];
     rowCount: number;
     pageSize: number;
-  }>(`/api/reports?${queryParams.toString()}`, fetcher);
+    total: number;
+    page: number;
+  }>(
+    `/api/reports?${queryParams.toString()}&page=${page}&pageSize=${ROWS_PER_PAGE}`,
+    fetcher
+  );
 
   const { data: floors } = useSWR<{ _id: string; name: string }[]>(
     "/api/floors",
     fetcher
   );
 
-  // Client-side pagination: the API returns the full (capped) result set so
-  // the CSV export stays complete, but the table renders one page at a time —
-  // mapping 1000 rows is a measurable INP cost on a mid-range phone.
-  const ROWS_PER_PAGE = 25;
-  const [page, setPage] = useState(1);
-  useEffect(() => {
-    setPage(1);
-  }, [fromDate, toDate, floorFilter, typeFilter]);
+  const { totalRecords, pageCount, currentPage, pageStart, visibleRecords } =
+    useMemo(() => {
+      const total = data?.total ?? 0;
+      const count = Math.max(1, Math.ceil(total / ROWS_PER_PAGE));
+      const current = Math.min(page, count);
+      return {
+        totalRecords: total,
+        pageCount: count,
+        currentPage: current,
+        pageStart: (current - 1) * ROWS_PER_PAGE,
+        visibleRecords: data?.records ?? [],
+      };
+    }, [data, page]);
 
-  const totalRecords = data?.records.length ?? 0;
-  const pageCount = Math.max(1, Math.ceil(totalRecords / ROWS_PER_PAGE));
-  const currentPage = Math.min(page, pageCount);
-  const pageStart = (currentPage - 1) * ROWS_PER_PAGE;
-  const visibleRecords = data
-    ? data.records.slice(pageStart, pageStart + ROWS_PER_PAGE)
-    : [];
+  const handleExportCSV = async () => {
+    setExporting(true);
+    try {
+      // The table view is paginated — ask the API for the whole result set
+      const full = await fetcher<{ records: ReportRecord[]; total: number }>(
+        `/api/reports?${queryParams.toString()}&page=1&pageSize=${MAX_EXPORT_ROWS}`
+      );
+      if (!full.records.length) return;
 
-  const handleExportCSV = () => {
-    if (!data?.records?.length) return;
+      const headers = [
+        "Nama",
+        "Jenis",
+        "Lantai",
+        "Daftar Masuk",
+        "Daftar Keluar",
+        "Kaedah",
+      ];
 
-    const headers = [
-      "Nama",
-      "Jenis",
-      "Lantai",
-      "Daftar Masuk",
-      "Daftar Keluar",
-      "Kaedah",
-    ];
+      const rows = full.records.map((r) => [
+        r.type === "employee" ? r.userId?.name : r.visitorName,
+        r.type === "employee" ? strings.employee : strings.visitor,
+        r.floorId?.name || "-",
+        new Date(r.checkedInAt).toLocaleString("ms-MY"),
+        r.checkedOutAt
+          ? new Date(r.checkedOutAt).toLocaleString("ms-MY")
+          : "Masih aktif",
+        r.method === "qr" ? "QR" : "Manual",
+      ]);
 
-    const rows = data.records.map((r) => [
-      r.type === "employee" ? r.userId?.name : r.visitorName,
-      r.type === "employee" ? strings.employee : strings.visitor,
-      r.floorId?.name || "-",
-      new Date(r.checkedInAt).toLocaleString("ms-MY"),
-      r.checkedOutAt
-        ? new Date(r.checkedOutAt).toLocaleString("ms-MY")
-        : "Masih aktif",
-      r.method === "qr" ? "QR" : "Manual",
-    ]);
+      // RFC 4180 quoting, plus a guard against spreadsheet formula injection:
+      // visitor names are attacker-controlled, and a leading =, +, - or @
+      // would otherwise execute as a formula when the CSV is opened.
+      const csvCell = (value: unknown): string => {
+        const raw = value == null ? "" : String(value);
+        const guarded = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+        return /[",\r\n]/.test(guarded)
+          ? `"${guarded.replace(/"/g, '""')}"`
+          : guarded;
+      };
 
-    // RFC 4180 quoting, plus a guard against spreadsheet formula injection:
-    // visitor names are attacker-controlled, and a leading =, +, - or @
-    // would otherwise execute as a formula when the CSV is opened.
-    const csvCell = (value: unknown): string => {
-      const raw = value == null ? "" : String(value);
-      const guarded = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
-      return /[",\r\n]/.test(guarded)
-        ? `"${guarded.replace(/"/g, '""')}"`
-        : guarded;
-    };
+      const csv = [
+        headers.map(csvCell).join(","),
+        ...rows.map((r) => r.map(csvCell).join(",")),
+      ].join("\r\n");
 
-    const csv = [
-      headers.map(csvCell).join(","),
-      ...rows.map((r) => r.map(csvCell).join(",")),
-    ].join("\r\n");
+      const blob = new Blob(["\uFEFF" + csv], {
+        type: "text/csv;charset=utf-8;",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `laporan-kehadiran-${new Date().toISOString().split("T")[0]}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
 
-    const blob = new Blob(["\uFEFF" + csv], {
-      type: "text/csv;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `laporan-kehadiran-${new Date().toISOString().split("T")[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-
-    // The export is invisible otherwise (Nielsen #1: visibility of status)
-    notifications.show({
-      title: strings.success,
-      message: strings.csvExported,
-      color: "success",
-    });
+      // The export is invisible otherwise (Nielsen #1: visibility of status),
+      // and a capped export must say so instead of silently dropping rows.
+      const truncated = full.total > full.records.length;
+      notifications.show({
+        title: truncated ? strings.warning : strings.success,
+        message: truncated
+          ? strings.csvLimited(MAX_EXPORT_ROWS)
+          : strings.csvExported,
+        color: truncated ? "warning" : "success",
+      });
+    } catch {
+      notifications.show({
+        title: strings.error,
+        message: strings.serverError,
+        color: "danger",
+      });
+    } finally {
+      setExporting(false);
+    }
   };
 
   if (!session?.user) return <LoadingScreen />;
@@ -166,7 +204,8 @@ export default function ReportsPage() {
               variant="light"
               leftSection={<IconDownload size={16} />}
               onClick={handleExportCSV}
-              disabled={!data?.records?.length}
+              loading={exporting}
+              disabled={!exporting && !data?.records?.length}
             >
               {strings.exportCSV}
             </Button>

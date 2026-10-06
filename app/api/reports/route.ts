@@ -15,8 +15,20 @@ import { can, getReportsScope } from "@/lib/auth/rbac";
 import { scopeFilter } from "@/lib/auth/scope";
 import { strings } from "@/lib/i18n/strings";
 
-/** Row cap — returned to the UI so truncation is never silent. */
-const REPORT_PAGE_SIZE = 1000;
+/** Default page size for the table view; MAX also caps the CSV export. */
+const DEFAULT_PAGE_SIZE = 25;
+const MAX_PAGE_SIZE = 5000;
+
+function positiveInt(value: string | null, fallback: number): number {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function pageSizeParam(value: string | null): number {
+  const parsed = Number.parseInt(value ?? "", 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return DEFAULT_PAGE_SIZE;
+  return Math.min(parsed, MAX_PAGE_SIZE);
+}
 
 export async function GET(request: Request) {
   const user = await getAuthenticatedUser();
@@ -37,6 +49,8 @@ export async function GET(request: Request) {
   const toDate = searchParams.get("toDate");
   const floorId = searchParams.get("floorId");
   const type = searchParams.get("type") as "employee" | "visitor" | null;
+  const page = positiveInt(searchParams.get("page"), 1);
+  const pageSize = pageSizeParam(searchParams.get("pageSize"));
 
   const query: FilterQuery<IAttendance> = {};
 
@@ -68,23 +82,31 @@ export async function GET(request: Request) {
     // (e.g. floor head without a home floor) yields no records at all.
     const scoped = await scopeFilter(user, getReportsScope(user.role));
     if (!scoped) {
-      return success({ records: [] });
+      return success({ records: [], total: 0, rowCount: 0, pageSize, page });
     }
 
     // Scope is applied last so request params can only narrow the query
     Object.assign(query, scoped);
 
-    const records = await Attendance.find(query)
-      .populate("userId", "name role")
-      .populate("floorId", "name")
-      .sort({ checkedInAt: -1 })
-      .limit(REPORT_PAGE_SIZE)
-      .lean();
+    // One page of rows for the table + the total match count for the pager
+    const [records, total] = await Promise.all([
+      Attendance.find(query)
+        .populate("userId", "name role")
+        .populate("floorId", "name")
+        .sort({ checkedInAt: -1 })
+        .skip((page - 1) * pageSize)
+        .limit(pageSize)
+        .lean(),
+      Attendance.countDocuments(query),
+    ]);
 
     return success({
       records,
+      /** Rows matching the filters across ALL pages. */
+      total,
       rowCount: records.length,
-      pageSize: REPORT_PAGE_SIZE,
+      pageSize,
+      page,
     });
   } catch (error) {
     console.error("Error generating report:", error);

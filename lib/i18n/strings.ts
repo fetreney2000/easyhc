@@ -234,14 +234,12 @@ export const strings = {
   qrRegenerated: "Kod QR berjaya dijana semula",
 
   // Row counts / export feedback
-  showingXofY: (shown: number, total: number) =>
-    `Memaparkan ${shown} daripada ${total} rekod`,
-  showingLastX: (shown: number, cap: number) =>
-    `Memaparkan ${shown} rekod terakhir (had ${cap})`,
   recordsCount: (n: number) => `${n} rekod`,
+  usersTruncated: (n: number) => `Senarai pengguna dihadkan kepada ${n} orang.`,
   showingRange: (from: number, to: number, total: number) =>
     `Memaparkan ${from}–${to} daripada ${total} rekod`,
   csvExported: "Fail CSV berjaya dimuat turun",
+  csvLimited: (n: number) => `Eksport dihadkan kepada ${n} rekod`,
   invalidDate: "Tarikh tidak sah",
 
   // Tables, filters and forms (previously inline literals)

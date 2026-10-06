@@ -172,6 +172,10 @@ export default function FloorManagementPage() {
     <Stack gap="lg">
       <PageHeader
         title={strings.floorManagement}
+        breadcrumbs={[
+          { label: strings.floors, href: "/floors" },
+          { label: strings.floorManagement },
+        ]}
         actions={
           <>
             <Button

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Title,
   Paper,
@@ -18,7 +18,9 @@ import {
   Collapse,
   ThemeIcon,
   UnstyledButton,
+  Pagination,
 } from "@mantine/core";
+import { useDebouncedValue } from "@mantine/hooks";
 import {
   IconRefresh,
   IconLogout,
@@ -52,6 +54,10 @@ interface PresenceRecord {
 export default function AllFloorsPage() {
   const { data: session } = useSession();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  // Search runs SERVER-side (employee names live on the User document),
+  // debounced so typing does not fire a request per keystroke
+  const [debouncedQuery] = useDebouncedValue(search.trim(), 300);
   const [expandedFloors, setExpandedFloors] = useState<Set<string>>(new Set());
   const expandedInitialized = useRef(false);
 
@@ -62,10 +68,23 @@ export default function AllFloorsPage() {
     totalVisitors: number;
     rowCount: number;
     pageSize: number;
-  }>("/api/attendance?active=true", fetcher, {
-    refreshInterval: 25000,
-    revalidateOnFocus: true,
-  });
+    total: number;
+    page: number;
+  }>(
+    `/api/attendance?active=true&page=${page}${
+      debouncedQuery ? `&q=${encodeURIComponent(debouncedQuery)}` : ""
+    }`,
+    fetcher,
+    {
+      refreshInterval: 25000,
+      revalidateOnFocus: true,
+    }
+  );
+
+  // A new search term starts back at page 1
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQuery]);
 
   // Expand every floor once on first load (hooks must run unconditionally,
   // so this lives above the session guard — the old version called useState
@@ -82,6 +101,37 @@ export default function AllFloorsPage() {
     expandedInitialized.current = true;
     setExpandedFloors(ids);
   }, [data]);
+
+  // Group + sort the presence list. Memoised: this used to rebuild the
+  // entire structure on every render — each 25s poll, every keystroke in the
+  // search box, every floor expand/collapse. Search now filters server-side.
+  const sortedFloors = useMemo(() => {
+    const floorGroups = new Map<
+      string,
+      { name: string; records: PresenceRecord[]; employees: number; visitors: number }
+    >();
+
+    (data?.attendance ?? []).forEach((record) => {
+        const floorId = record.floorId?._id;
+        const floorName = record.floorId?.name || strings.unknownFloor;
+        if (!floorId) return;
+        if (!floorGroups.has(floorId)) {
+          floorGroups.set(floorId, { name: floorName, records: [], employees: 0, visitors: 0 });
+        }
+        const group = floorGroups.get(floorId)!;
+        group.records.push(record);
+        if (record.type === "employee") group.employees++;
+        else group.visitors++;
+      });
+
+    return Array.from(floorGroups.entries()).sort((a, b) =>
+      a[1].name.localeCompare(b[1].name)
+    );
+  }, [data?.attendance]);
+
+  const pageCount = data
+    ? Math.max(1, Math.ceil(data.total / data.pageSize))
+    : 1;
 
   if (!session?.user) return <LoadingScreen />;
 
@@ -140,34 +190,6 @@ export default function AllFloorsPage() {
     });
   };
 
-  // Group attendance by floor
-  const attendance = data?.attendance || [];
-  const floorGroups = new Map<string, { name: string; records: PresenceRecord[]; employees: number; visitors: number }>();
-
-  attendance
-    .filter((r) => {
-      if (!search) return true;
-      const name = r.type === "employee" ? r.userId?.name || "" : r.visitorName || "";
-      return name.toLowerCase().includes(search.toLowerCase());
-    })
-    .forEach((record) => {
-      const floorId = record.floorId?._id;
-      const floorName = record.floorId?.name || strings.unknownFloor;
-      if (!floorId) return;
-      if (!floorGroups.has(floorId)) {
-        floorGroups.set(floorId, { name: floorName, records: [], employees: 0, visitors: 0 });
-      }
-      const group = floorGroups.get(floorId)!;
-      group.records.push(record);
-      if (record.type === "employee") group.employees++;
-      else group.visitors++;
-    });
-
-  // Sort floors by name
-  const sortedFloors = Array.from(floorGroups.entries()).sort((a, b) =>
-    a[1].name.localeCompare(b[1].name)
-  );
-
   return (
     <Stack gap="lg">
       <PageHeader
@@ -186,7 +208,7 @@ export default function AllFloorsPage() {
             <IconBuildingSkyscraper size={20} color="var(--mantine-primary-color-filled)" />
             <div>
               <Text size="xs" c="var(--app-text-secondary)">{strings.floors}</Text>
-              <Text fw={700}>{floorGroups.size}</Text>
+              <Text fw={700}>{sortedFloors.length}</Text>
             </div>
           </Group>
         </Paper>
@@ -348,10 +370,26 @@ export default function AllFloorsPage() {
         </Stack>
       )}
 
-      {data && data.rowCount > data.attendance.length && (
-        <Text size="xs" c="var(--app-text-secondary)">
-          {strings.showingXofY(data.attendance.length, data.rowCount)}
-        </Text>
+      {data && (
+        <Group justify="space-between" gap="sm">
+          <Text size="xs" c="var(--app-text-secondary)">
+            {data.total === 0
+              ? strings.recordsCount(0)
+              : strings.showingRange(
+                  (data.page - 1) * data.pageSize + 1,
+                  Math.min(data.page * data.pageSize, data.total),
+                  data.total
+                )}
+          </Text>
+          {pageCount > 1 && (
+            <Pagination
+              total={pageCount}
+              value={data.page}
+              onChange={setPage}
+              size="sm"
+            />
+          )}
+        </Group>
       )}
     </Stack>
   );

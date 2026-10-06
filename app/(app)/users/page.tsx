@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Title,
   Paper,
@@ -74,9 +74,14 @@ export default function UsersPage() {
   const [resetTarget, setResetTarget] = useState<UserRecord | null>(null);
   const [resetLoading, setResetLoading] = useState(false);
 
-  const queryParams = new URLSearchParams();
-  if (debouncedSearch) queryParams.set("search", debouncedSearch);
-  if (roleFilter) queryParams.set("role", roleFilter);
+  // Memoised: this builds the SWR key, so it only needs rebuilding when the
+  // debounced search or the role filter changes (not on every render).
+  const queryParams = useMemo(() => {
+    const params = new URLSearchParams();
+    if (debouncedSearch) params.set("search", debouncedSearch);
+    if (roleFilter) params.set("role", roleFilter);
+    return params;
+  }, [debouncedSearch, roleFilter]);
 
   const { data: users, error, isLoading, mutate } = useSWR<UserRecord[]>(
     `/api/users?${queryParams.toString()}`,
@@ -96,6 +101,9 @@ export default function UsersPage() {
   // Client-side pagination: the API can return up to 500 users, which is far
   // more than fits on a screen (and cost time to map on mid-range phones).
   const ROWS_PER_PAGE = 25;
+  // Must match .limit() in app/api/users/route.ts — surfaced below so a full
+  // directory is never mistaken for a truncated one.
+  const USER_LIST_LIMIT = 500;
   const [page, setPage] = useState(1);
   useEffect(() => {
     setPage(1);
@@ -452,6 +460,14 @@ export default function UsersPage() {
             />
           )}
         </Group>
+      )}
+
+      {/* The API caps this list (USER_LIST_LIMIT) — say so instead of
+          letting a truncated directory look complete */}
+      {users && users.length >= USER_LIST_LIMIT && (
+        <Text size="xs" c="var(--app-text-secondary)">
+          {strings.usersTruncated(USER_LIST_LIMIT)}
+        </Text>
       )}
 
       {/* Create/Edit modal */}

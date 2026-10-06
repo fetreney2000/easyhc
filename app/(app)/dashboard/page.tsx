@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Title,
   SimpleGrid,
@@ -16,7 +16,9 @@ import {
   Button,
   Select,
   TextInput,
+  Pagination,
 } from "@mantine/core";
+import { useDebouncedValue } from "@mantine/hooks";
 import {
   IconUsers,
   IconUser,
@@ -61,24 +63,38 @@ interface DashboardData {
   totalVisitors: number;
   totalPresent: number;
   lastUpdated: string;
-  /** Full (scoped) result count vs the rows actually rendered. */
+  /** Rows on THIS page (capped at pageSize). */
   rowCount: number;
   pageSize: number;
+  /** Rows matching the filters across ALL pages. */
+  total: number;
+  page: number;
 }
 
 export default function DashboardPage() {
   const { data: session } = useSession();
   const [search, setSearch] = useState("");
   const [floorFilter, setFloorFilter] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  // Search runs SERVER-side (employee names live on the User document),
+  // debounced so typing does not fire a request per keystroke
+  const [debouncedQuery] = useDebouncedValue(search.trim(), 300);
 
   const { data, error, isLoading, mutate } = useSWR<DashboardData>(
-    `/api/attendance?active=true${floorFilter ? `&floorId=${floorFilter}` : ""}`,
+    `/api/attendance?active=true${floorFilter ? `&floorId=${floorFilter}` : ""}&page=${page}${
+      debouncedQuery ? `&q=${encodeURIComponent(debouncedQuery)}` : ""
+    }`,
     fetcher,
     {
       refreshInterval: 25000, // 25s polling per spec
       revalidateOnFocus: true,
     }
   );
+
+  // A new filter or search term starts back at page 1
+  useEffect(() => {
+    setPage(1);
+  }, [floorFilter, debouncedQuery]);
 
   // Fetch floors for filter
   const { data: floors } = useSWR<{ _id: string; name: string }[]>(
@@ -169,6 +185,12 @@ export default function DashboardPage() {
     });
   };
 
+  // Server-side filtered + paginated: this is simply the current page
+  const rows = useMemo(() => data?.attendance ?? [], [data?.attendance]);
+  const pageCount = data
+    ? Math.max(1, Math.ceil(data.total / data.pageSize))
+    : 1;
+
   if (!session?.user) return <LoadingScreen />;
 
   const canForceCheckout =
@@ -176,17 +198,6 @@ export default function DashboardPage() {
     can(session.user.role, "attendance:checkout_department") ||
     can(session.user.role, "attendance:checkout_own_floor") ||
     can(session.user.role, "attendance:checkout_own_unit");
-
-  // Filter by search
-  const filteredAttendance =
-    data?.attendance?.filter((record) => {
-      if (!search) return true;
-      const name =
-        record.type === "employee"
-          ? record.userId?.name || ""
-          : record.visitorName || "";
-      return name.toLowerCase().includes(search.toLowerCase());
-    }) || [];
 
   return (
     <Stack gap="lg">
@@ -308,7 +319,7 @@ export default function DashboardPage() {
         isLoading={isLoading}
         error={error}
         onRetry={mutate}
-        isEmpty={filteredAttendance.length === 0}
+        isEmpty={rows.length === 0}
         empty={strings.noOnePresent}
         minWidth={600}
       >
@@ -324,7 +335,7 @@ export default function DashboardPage() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {filteredAttendance.map((record) => (
+                {rows.map((record) => (
                   <Table.Tr key={record._id}>
                     <Table.Td>
                       <Group gap="xs">
@@ -378,10 +389,26 @@ export default function DashboardPage() {
               </Table.Tbody>
       </DataTable>
 
-      {data && data.rowCount > data.attendance.length && (
-        <Text size="xs" c="var(--app-text-secondary)" ta="right">
-          {strings.showingXofY(data.attendance.length, data.rowCount)}
-        </Text>
+      {data && (
+        <Group justify="space-between" gap="sm">
+          <Text size="xs" c="var(--app-text-secondary)">
+            {data.total === 0
+              ? strings.recordsCount(0)
+              : strings.showingRange(
+                  (data.page - 1) * data.pageSize + 1,
+                  Math.min(data.page * data.pageSize, data.total),
+                  data.total
+                )}
+          </Text>
+          {pageCount > 1 && (
+            <Pagination
+              total={pageCount}
+              value={data.page}
+              onChange={setPage}
+              size="sm"
+            />
+          )}
+        </Group>
       )}
 
       {data?.lastUpdated && (

@@ -22,7 +22,7 @@ import { strings } from "@/lib/i18n/strings";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable } from "@/components/ui/DataTable";
 import { ROLE_LABELS } from "@/lib/db/types";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { LoadingScreen } from "@/components/shell/LoadingScreen";
 
 interface UserLocation {
@@ -67,26 +67,29 @@ export default function AllStaffPage() {
     { refreshInterval: 25000 }
   );
 
+  // Derived: memoised — two collections used to be rebuilt on every render
+  // (each 25s poll and every role-filter change)
+  const userLocations = useMemo<UserLocation[]>(() => {
+    const attendanceMap = new Map<string, { floorName: string; checkedInAt: string }>();
+    (attendanceData?.attendance ?? []).forEach((record) => {
+      if (record.type === "employee" && record.userId?._id) {
+        attendanceMap.set(record.userId._id, {
+          floorName: record.floorId?.name || "-",
+          checkedInAt: record.checkedInAt,
+        });
+      }
+    });
+
+    return (users ?? []).map((user) => ({
+      _id: user._id,
+      name: user.name,
+      role: user.role,
+      currentFloor: attendanceMap.get(user._id)?.floorName,
+      checkedInAt: attendanceMap.get(user._id)?.checkedInAt,
+    }));
+  }, [attendanceData?.attendance, users]);
+
   if (!session?.user) return <LoadingScreen />;
-
-  // Map users to their current location
-  const attendanceMap = new Map<string, { floorName: string; checkedInAt: string }>();
-  (attendanceData?.attendance || []).forEach((record) => {
-    if (record.type === "employee" && record.userId?._id) {
-      attendanceMap.set(record.userId._id, {
-        floorName: record.floorId?.name || "-",
-        checkedInAt: record.checkedInAt,
-      });
-    }
-  });
-
-  const userLocations: UserLocation[] = (Array.isArray(users) ? users : []).map((user) => ({
-    _id: user._id,
-    name: user.name,
-    role: user.role,
-    currentFloor: attendanceMap.get(user._id)?.floorName,
-    checkedInAt: attendanceMap.get(user._id)?.checkedInAt,
-  }));
 
   return (
     <Stack gap="lg">

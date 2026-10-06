@@ -85,6 +85,10 @@ export default function QRCodesPage() {
     <Stack gap="lg">
       <PageHeader
         title={strings.qrCodes}
+        breadcrumbs={[
+          { label: strings.floors, href: "/floors" },
+          { label: strings.qrCodes },
+        ]}
         actions={
           <Button
             variant="light"

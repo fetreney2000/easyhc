@@ -42,10 +42,10 @@ interface ActiveAttendance {
 export default function MyUnitPage() {
   const { data: session } = useSession();
 
-  const { data: users, error, isLoading, mutate } = useSWR<StaffUser[]>(
-    session?.user?.unitId ? `/api/users?unitId=${session.user.unitId}` : null,
-    fetcher
-  );
+  const { data: usersData, error, isLoading, mutate } = useSWR<{
+    users: StaffUser[];
+    total: number;
+  }>(session?.user?.unitId ? `/api/users?unitId=${session.user.unitId}` : null, fetcher);
 
   const { data: attendanceData } = useSWR<{ attendance: ActiveAttendance[] }>(
     "/api/attendance?active=true",
@@ -66,12 +66,12 @@ export default function MyUnitPage() {
       }
     });
 
-    return (users ?? []).map((user) => ({
+    return (usersData?.users ?? []).map((user) => ({
       ...user,
       currentFloor: presenceByUser.get(user._id)?.floorName,
       checkedInAt: presenceByUser.get(user._id)?.checkedInAt,
     }));
-  }, [users, attendanceData?.attendance]);
+  }, [usersData?.users, attendanceData?.attendance]);
 
   return (
     <Stack gap="lg">

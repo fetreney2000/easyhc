@@ -83,8 +83,21 @@ export default function UsersPage() {
     return params;
   }, [debouncedSearch, roleFilter]);
 
-  const { data: users, error, isLoading, mutate } = useSWR<UserRecord[]>(
-    `/api/users?${queryParams.toString()}`,
+  // Server-side pagination: the API returns one page of rows plus the true
+  // total, so there is no row cap and the pager count is always correct.
+  const ROWS_PER_PAGE = 25;
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, roleFilter]);
+
+  const { data, error, isLoading, mutate } = useSWR<{
+    users: UserRecord[];
+    total: number;
+    page: number;
+    limit: number;
+  }>(
+    `/api/users?${queryParams.toString()}&page=${page}&limit=${ROWS_PER_PAGE}`,
     fetcher
   );
 
@@ -98,24 +111,13 @@ export default function UsersPage() {
     fetcher
   );
 
-  // Client-side pagination: the API can return up to 500 users, which is far
-  // more than fits on a screen (and cost time to map on mid-range phones).
-  const ROWS_PER_PAGE = 25;
-  // Must match .limit() in app/api/users/route.ts — surfaced below so a full
-  // directory is never mistaken for a truncated one.
-  const USER_LIST_LIMIT = 500;
-  const [page, setPage] = useState(1);
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch, roleFilter]);
-
-  const totalUsers = users?.length ?? 0;
+  const users = data?.users;
+  const totalUsers = data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(totalUsers / ROWS_PER_PAGE));
   const currentPage = Math.min(page, pageCount);
   const pageStart = (currentPage - 1) * ROWS_PER_PAGE;
-  const visibleUsers = users
-    ? users.slice(pageStart, pageStart + ROWS_PER_PAGE)
-    : [];
+  // Already the current page — the server sliced it
+  const visibleUsers = users ?? [];
 
   // Refresh jabatan/unit lists when the modal opens. This belongs in an
   // effect: called from the render body it fired on every single render
@@ -199,7 +201,13 @@ export default function UsersPage() {
             message: strings.deleteUserSuccess,
             color: "success",
           });
-          mutate();
+          // Deleting the only row on the last page would leave an empty page
+          // behind — step back instead of refetching the same (now empty) one.
+          if ((users?.length ?? 0) <= 1 && page > 1) {
+            setPage(page - 1);
+          } else {
+            mutate();
+          }
         } else {
           const data = await res.json();
           notifications.show({
@@ -460,14 +468,6 @@ export default function UsersPage() {
             />
           )}
         </Group>
-      )}
-
-      {/* The API caps this list (USER_LIST_LIMIT) — say so instead of
-          letting a truncated directory look complete */}
-      {users && users.length >= USER_LIST_LIMIT && (
-        <Text size="xs" c="var(--app-text-secondary)">
-          {strings.usersTruncated(USER_LIST_LIMIT)}
-        </Text>
       )}
 
       {/* Create/Edit modal */}

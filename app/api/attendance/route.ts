@@ -108,6 +108,9 @@ export async function GET(request: Request) {
 
     const [attendance, total, totalEmployees, totalVisitors] = await Promise.all([
       Attendance.find(query)
+        // Phone numbers are collected for identity/deduplication only — they
+        // are not needed to draw a presence list, so they are not returned.
+        .select("-visitorPhone")
         .populate("userId", "name role")
         .populate("floorId", "name")
         .sort({ checkedInAt: -1 })

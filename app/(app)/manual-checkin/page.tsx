@@ -37,7 +37,10 @@ export default function ManualCheckInPage() {
   const [selectedFloor, setSelectedFloor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const { data: users } = useSWR<SelectableUser[]>("/api/users", fetcher);
+  const { data: usersData } = useSWR<{ users: SelectableUser[]; total: number }>(
+    "/api/users",
+    fetcher
+  );
   const { data: floors } = useSWR<{ _id: string; name: string }[]>(
     "/api/floors",
     fetcher
@@ -114,7 +117,7 @@ export default function ManualCheckInPage() {
             label={strings.selectUser}
             placeholder={strings.selectUser}
             data={
-              users?.map((u) => ({
+              usersData?.users?.map((u) => ({
                 value: u._id,
                 label: `${u.name} (${u.username})`,
               })) || []

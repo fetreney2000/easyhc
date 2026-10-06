@@ -91,6 +91,8 @@ export async function GET(request: Request) {
     // One page of rows for the table + the total match count for the pager
     const [records, total] = await Promise.all([
       Attendance.find(query)
+        // Phone numbers are identity/deduplication data, not report content
+        .select("-visitorPhone")
         .populate("userId", "name role")
         .populate("floorId", "name")
         .sort({ checkedInAt: -1 })

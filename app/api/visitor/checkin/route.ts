@@ -7,9 +7,48 @@ import Floor from "@/lib/db/models/Floor";
 import { visitorCheckInSchema } from "@/lib/validation/schemas";
 import { checkRateLimit, clientIp } from "@/lib/security/rateLimit";
 import { issueVisitorToken } from "@/lib/security/visitorToken";
+import { IAttendance } from "@/lib/db/types";
 
 const MAX_ATTEMPTS = 60;
 const WINDOW_MS = 60 * 1000;
+
+/**
+ * The 409 body for "this phone is already checked in somewhere".
+ *
+ * Deliberately NO checkoutToken: this caller only proved they know a phone
+ * number, not that they are that person — minting a token would let anyone
+ * who knows a colleague's number sign them out mid-muster. Check-out stays
+ * scoped to the device that checked in, or to an admin force-checkout.
+ */
+async function alreadyCheckedInResponse(
+  existing: Pick<IAttendance, "_id" | "floorId" | "checkedInAt">,
+  requestedFloor: { _id: IAttendance["floorId"]; name: string }
+) {
+  const sameFloor =
+    existing.floorId.toString() === requestedFloor._id.toString();
+  const floor = sameFloor
+    ? requestedFloor
+    : await Floor.findById(existing.floorId).select("name").lean();
+  const floorName = floor?.name ?? "";
+
+  return NextResponse.json(
+    {
+      error: !floorName
+        ? strings.visitorAlreadyCheckedIn
+        : sameFloor
+          ? strings.visitorAlreadyOnThisFloor
+          : strings.visitorAlreadyOnFloor(floorName),
+      alreadyCheckedIn: true,
+      attendance: {
+        _id: existing._id,
+        floorId: existing.floorId,
+        floorName,
+        checkedInAt: existing.checkedInAt,
+      },
+    },
+    { status: 409 }
+  );
+}
 
 export async function POST(request: Request) {
   // Public endpoint → throttle per IP before touching the database
@@ -64,45 +103,45 @@ export async function POST(request: Request) {
       .lean();
 
     if (existing) {
-      const existingFloor = await Floor.findById(existing.floorId)
-        .select("name")
-        .lean();
-      const sameFloor = existing.floorId.toString() === floor._id.toString();
-      const floorName = existingFloor?.name ?? "";
-
-      // Deliberately NO checkoutToken here: this caller only proved they know
-      // a phone number, not that they are that person. Minting a token would
-      // let anyone who knows a colleague's number sign them out mid-muster.
-      // Check-out stays scoped to the device that checked in (its token is in
-      // that device's storage), or to an admin force-checkout.
-      return NextResponse.json(
-        {
-          error: !floorName
-            ? strings.visitorAlreadyCheckedIn
-            : sameFloor
-              ? strings.visitorAlreadyOnThisFloor
-              : strings.visitorAlreadyOnFloor(floorName),
-          alreadyCheckedIn: true,
-          attendance: {
-            _id: existing._id,
-            floorId: existing.floorId,
-            floorName,
-            checkedInAt: existing.checkedInAt,
-          },
-        },
-        { status: 409 }
-      );
+      return alreadyCheckedInResponse(existing, {
+        _id: floor._id,
+        name: floor.name,
+      });
     }
 
-    // Create visitor attendance record
-    const attendance = await Attendance.create({
-      type: "visitor",
-      visitorName,
-      visitorPhone,
-      floorId: floor._id,
-      checkedInAt: new Date(),
-      method: "qr",
-    });
+    // Create the visitor record. The partial unique index on
+    // {type, visitorPhone} over OPEN records (lib/db/models/Attendance.ts) is
+    // the atomic backstop: if both sides of a race got past the pre-check
+    // above, exactly one insert wins and the loser reports 409 — not a 500.
+    let attendance: IAttendance;
+    try {
+      attendance = await Attendance.create({
+        type: "visitor",
+        visitorName,
+        visitorPhone,
+        floorId: floor._id,
+        checkedInAt: new Date(),
+        method: "qr",
+      });
+    } catch (error) {
+      if ((error as { code?: number }).code === 11000) {
+        const winner = await Attendance.findOne({
+          type: "visitor",
+          visitorPhone,
+          checkedOutAt: null,
+        })
+          .sort({ checkedInAt: -1 })
+          .lean();
+
+        if (winner) {
+          return alreadyCheckedInResponse(winner, {
+            _id: floor._id,
+            name: floor.name,
+          });
+        }
+      }
+      throw error;
+    }
 
     const checkoutToken = issueVisitorToken({
       id: attendance._id.toString(),

@@ -1,5 +1,8 @@
 import mongoose, { Schema, Model } from "mongoose";
 import { IUser, ROLES } from "../types";
+// Populate safety: jabatanId/unitId reference these models — see Attendance.ts
+import "./Jabatan";
+import "./Unit";
 
 const UserSchema = new Schema<IUser>(
   {

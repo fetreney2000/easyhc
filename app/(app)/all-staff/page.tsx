@@ -56,10 +56,10 @@ export default function AllStaffPage() {
   const queryParams = new URLSearchParams();
   if (roleFilter) queryParams.set("role", roleFilter);
 
-  const { data: users, error, isLoading, mutate } = useSWR<StaffUser[]>(
-    `/api/users?${queryParams.toString()}`,
-    fetcher
-  );
+  const { data: usersData, error, isLoading, mutate } = useSWR<{
+    users: StaffUser[];
+    total: number;
+  }>(`/api/users?${queryParams.toString()}`, fetcher);
 
   const { data: attendanceData } = useSWR<{ attendance: ActiveAttendance[] }>(
     "/api/attendance?active=true",
@@ -80,14 +80,14 @@ export default function AllStaffPage() {
       }
     });
 
-    return (users ?? []).map((user) => ({
+    return (usersData?.users ?? []).map((user) => ({
       _id: user._id,
       name: user.name,
       role: user.role,
       currentFloor: attendanceMap.get(user._id)?.floorName,
       checkedInAt: attendanceMap.get(user._id)?.checkedInAt,
     }));
-  }, [attendanceData?.attendance, users]);
+  }, [attendanceData?.attendance, usersData?.users]);
 
   if (!session?.user) return <LoadingScreen />;
 

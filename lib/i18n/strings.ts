@@ -235,7 +235,6 @@ export const strings = {
 
   // Row counts / export feedback
   recordsCount: (n: number) => `${n} rekod`,
-  usersTruncated: (n: number) => `Senarai pengguna dihadkan kepada ${n} orang.`,
   showingRange: (from: number, to: number, total: number) =>
     `Memaparkan ${from}–${to} daripada ${total} rekod`,
   csvExported: "Fail CSV berjaya dimuat turun",

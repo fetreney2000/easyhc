@@ -19,6 +19,18 @@ import { usersScopeFilter } from "@/lib/auth/scope";
 import { createUserSchema } from "@/lib/validation/schemas";
 import { ROLES, IUser, Role } from "@/lib/db/types";
 
+/**
+ * Rows returned when no paging is requested (the "give me the directory"
+ * case used by the location maps and the manual check-in dropdown).
+ * `page` + `limit` opt into paging for the management list.
+ */
+const USER_LIST_MAX = 10000;
+
+function positiveInt(value: string | null, fallback: number): number {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 export async function GET(request: Request) {
   const user = await getAuthenticatedUser();
   if (!user) return unauthorized();
@@ -29,6 +41,11 @@ export async function GET(request: Request) {
   const role = searchParams.get("role");
   const search = searchParams.get("search");
   const unitId = searchParams.get("unitId");
+  const page = positiveInt(searchParams.get("page"), 1);
+  const limit = Math.min(
+    positiveInt(searchParams.get("limit"), USER_LIST_MAX),
+    USER_LIST_MAX
+  );
 
   const query: FilterQuery<IUser> = {};
 
@@ -57,11 +74,15 @@ export async function GET(request: Request) {
       await usersScopeFilter(user, getUsersScope(user.role))
     );
 
-    const users = await User.find(query)
-      .select("name username phone jawatanInfo role jabatanId unitId status createdAt")
-      .sort({ name: 1 })
-      .limit(500)
-      .lean();
+    const [users, total] = await Promise.all([
+      User.find(query)
+        .select("name username phone jawatanInfo role jabatanId unitId status createdAt")
+        .sort({ name: 1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      User.countDocuments(query),
+    ]);
 
     // Manually look up jabatan and unit names (more resilient than populate)
     const jabatanIds = Array.from(new Set(users.map((u) => u.jabatanId?.toString()).filter(Boolean)));
@@ -81,7 +102,9 @@ export async function GET(request: Request) {
       unitName: (u.unitId ? unitMap.get(u.unitId.toString()) : null) || null,
     }));
 
-    return success(enrichedUsers);
+    // Envelope (not a bare array) so `total` is always known and the list
+    // can be paged server-side instead of silently capping at 500.
+    return success({ users: enrichedUsers, total, page, limit });
   } catch (error) {
     console.error("Error fetching users:", error);
     return serverError();

@@ -42,6 +42,11 @@ export const strings = {
   checkInSuccess: "Berjaya daftar masuk ke lantai",
   checkInError: "Gagal daftar masuk. Sila cuba lagi.",
   qrInvalid: "Kod QR tidak sah atau telah pun ditukar.",
+  invalidCheckoutToken: "Token daftar keluar tidak sah. Sila imbas kod QR semula.",
+  visitorAlreadyOnThisFloor:
+    "Anda sudah berdaftar masuk di lantai ini. Sila daftar keluar dahulu.",
+  visitorAlreadyOnFloor: (floorName: string) =>
+    `Anda sudah berdaftar masuk di ${floorName}. Sila daftar keluar dahulu.`,
   checkOutSuccess: "Berjaya daftar keluar",
   checkOutError: "Gagal daftar keluar. Sila cuba lagi.",
   alreadyCheckedIn: "Anda sudah berdaftar masuk di lantai lain. Daftar masuk baru akan mendaftar keluar dari lantai sebelumnya.",
@@ -53,7 +58,7 @@ export const strings = {
   visitor: "Pelawat",
   visitorName: "Nama Pelawat",
   visitorDept: "Jabatan Pelawat",
-  visitorPhone: "No. Telefon (Pilihan)",
+  visitorPhone: "No. Telefon",
   visitorCheckInTitle: "Daftar Masuk Pelawat",
   visitorCheckInSuccess: "Berjaya daftar masuk sebagai pelawat",
   visitorCheckOutSuccess: "Berjaya daftar keluar",

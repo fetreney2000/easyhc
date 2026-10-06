@@ -1,31 +1,28 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/mongoose";
-import {
-  badRequest,
-  serverError,
-  success,
-  secureCompare,
-} from "@/lib/api/utils";
-import Attendance from "@/lib/db/models/Attendance";
-import Floor from "@/lib/db/models/Floor";
-import { visitorCheckOutSchema } from "@/lib/validation/schemas";
+import { badRequest, serverError, success } from "@/lib/api/utils";
 import { strings } from "@/lib/i18n/strings";
+import Attendance from "@/lib/db/models/Attendance";
+import { visitorCheckOutSchema } from "@/lib/validation/schemas";
 import { checkRateLimit, clientIp } from "@/lib/security/rateLimit";
+import { verifyVisitorToken } from "@/lib/security/visitorToken";
 
 const MAX_ATTEMPTS = 60;
 const WINDOW_MS = 60 * 1000;
 
 /**
- * Public visitor check-out (the visitor's own session, via the printed QR).
+ * Public visitor check-out (the visitor's own session, no account).
  *
  * POST /api/visitor/checkout
- * Body: { attendanceId, token }
+ * Body: { attendanceId, checkoutToken }
  *
- * Unauthenticated by design (visitors have no account), so:
- *  - `token` must match the qrToken of the floor the record belongs to, and
- *  - only visitor records can be closed here — employee records require an
- *    authenticated session and ownership/scope checks on
- *    /api/attendance/checkout.
+ * Unauthenticated by design, so the `checkoutToken` is an HMAC scoped to this
+ * one record, issued when they checked in (lib/security/visitorToken.ts).
+ * The floor's printed qrToken is deliberately NOT accepted here: it is public,
+ * and anyone holding it could otherwise close somebody else's record.
+ * Only visitor records can be closed through this endpoint; employee records
+ * require an authenticated session and ownership/scope checks on
+ * /api/attendance/checkout.
  */
 export async function POST(request: Request) {
   // Public endpoint → throttle per IP before touching the database
@@ -51,7 +48,7 @@ export async function POST(request: Request) {
       return badRequest(validation.error.errors[0].message);
     }
 
-    const { attendanceId, token } = validation.data;
+    const { attendanceId, checkoutToken } = validation.data;
 
     const record = await Attendance.findById(attendanceId);
     if (!record) return badRequest("Rekod tidak dijumpai");
@@ -62,10 +59,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: strings.unauthorized }, { status: 403 });
     }
 
-    // Capability check: the token must belong to the record's floor
-    const floor = await Floor.findById(record.floorId);
-    if (!floor || !secureCompare(token, floor.qrToken)) {
-      return NextResponse.json({ error: strings.qrInvalid }, { status: 403 });
+    // Capability check: only the token issued for THIS record works
+    const valid = verifyVisitorToken(checkoutToken, {
+      id: record._id.toString(),
+      floorId: record.floorId.toString(),
+      checkedInAt: record.checkedInAt,
+    });
+    if (!valid) {
+      return NextResponse.json(
+        { error: strings.invalidCheckoutToken },
+        { status: 403 }
+      );
     }
 
     record.checkedOutAt = new Date();

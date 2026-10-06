@@ -16,6 +16,12 @@ const AttendanceSchema = new Schema<IAttendance>(
       type: String,
       trim: true,
     },
+    // Normalised (digits only, local format) — the identity used to stop a
+    // visitor from being checked in twice while already present
+    visitorPhone: {
+      type: String,
+      trim: true,
+    },
     floorId: {
       type: Schema.Types.ObjectId,
       ref: "Floor",
@@ -48,6 +54,8 @@ const AttendanceSchema = new Schema<IAttendance>(
 AttendanceSchema.index({ floorId: 1, checkedOutAt: 1 });
 AttendanceSchema.index({ userId: 1, checkedOutAt: 1 });
 AttendanceSchema.index({ type: 1, checkedOutAt: 1 });
+// "is this phone already checked in?" runs on every visitor check-in
+AttendanceSchema.index({ type: 1, visitorPhone: 1, checkedOutAt: 1 });
 // Reports filter and sort on checkedInAt
 AttendanceSchema.index({ checkedInAt: -1 });
 

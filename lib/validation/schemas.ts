@@ -90,17 +90,46 @@ export const createUnitSchema = z.object({
   homeFloorId: z.string().optional().or(z.literal("")),
 });
 
+/**
+ * Normalise a phone number so it can be used as an identity: digits only, in
+ * Malaysian local format — "012-345 6789", "+60123456789" and "60123456789"
+ * must all resolve to the same value.
+ */
+export function normalizeVisitorPhone(value: string): string {
+  let digits = value.replace(/\D/g, "");
+  digits = digits.replace(/^00/, ""); // international dialling prefix
+  if (/^60\d{9,10}$/.test(digits)) {
+    digits = `0${digits.slice(2)}`; // +60… → 0…
+  }
+  return digits;
+}
+
 export const visitorCheckInSchema = z.object({
   visitorName: z
     .string()
     .min(1, strings.required)
     .max(100, strings.maxLength(strings.visitorName, 100))
     .trim(),
+  /**
+   * Required and stored normalised: it is the only identity we have for a
+   * visitor, and the "one open check-in per phone" rule depends on it.
+   */
   visitorPhone: z
-    .string()
-    .max(20, strings.maxLength(strings.visitorPhone, 20))
-    .optional()
-    .or(z.literal("")),
+    .string({
+      required_error: strings.required,
+      invalid_type_error: strings.required,
+    })
+    .transform((value, ctx) => {
+      const phone = normalizeVisitorPhone(value);
+      if (phone.length < 7) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: strings.invalidPhone,
+        });
+        return z.NEVER;
+      }
+      return phone;
+    }),
   floorId: z.string().min(1, strings.required),
   /**
    * The floor's rotating qrToken, taken from the `?token=` of the scanned
@@ -114,8 +143,11 @@ export const visitorCheckInSchema = z.object({
 
 export const visitorCheckOutSchema = z.object({
   attendanceId: z.string().min(1, strings.required),
-  /** Same capability token the visitor checked in with. */
-  token: z
+  /**
+   * Per-attendance token issued at check-in — only the device that checked in
+   * can close this record (lib/security/visitorToken.ts).
+   */
+  checkoutToken: z
     .string({ required_error: strings.qrInvalid, invalid_type_error: strings.qrInvalid })
     .min(1, strings.qrInvalid),
 });

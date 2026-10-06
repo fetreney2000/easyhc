@@ -6,6 +6,7 @@ import Attendance from "@/lib/db/models/Attendance";
 import Floor from "@/lib/db/models/Floor";
 import { visitorCheckInSchema } from "@/lib/validation/schemas";
 import { checkRateLimit, clientIp } from "@/lib/security/rateLimit";
+import { issueVisitorToken } from "@/lib/security/visitorToken";
 
 const MAX_ATTEMPTS = 60;
 const WINDOW_MS = 60 * 1000;
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
       return badRequest(validation.error.errors[0].message);
     }
 
+    // visitorPhone arrives already normalised by the schema
     const { visitorName, visitorPhone, floorId, token } = validation.data;
 
     // Validate floor exists
@@ -49,13 +51,61 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: strings.qrInvalid }, { status: 403 });
     }
 
+    // One open check-in per phone, building-wide: a visitor cannot be
+    // "present" twice without checking out first (they may only be in one
+    // place during a muster). Returns the existing record so the client can
+    // offer a check-out instead of just failing.
+    const existing = await Attendance.findOne({
+      type: "visitor",
+      visitorPhone,
+      checkedOutAt: null,
+    })
+      .sort({ checkedInAt: -1 })
+      .lean();
+
+    if (existing) {
+      const existingFloor = await Floor.findById(existing.floorId)
+        .select("name")
+        .lean();
+      const sameFloor = existing.floorId.toString() === floor._id.toString();
+
+      return NextResponse.json(
+        {
+          error: sameFloor
+            ? strings.visitorAlreadyOnThisFloor
+            : strings.visitorAlreadyOnFloor(existingFloor?.name ?? ""),
+          alreadyCheckedIn: true,
+          attendance: {
+            _id: existing._id,
+            floorId: existing.floorId,
+            floorName: existingFloor?.name ?? "",
+            visitorName: existing.visitorName,
+            checkedInAt: existing.checkedInAt,
+          },
+          checkoutToken: issueVisitorToken({
+            id: existing._id.toString(),
+            floorId: existing.floorId.toString(),
+            checkedInAt: existing.checkedInAt,
+          }),
+        },
+        { status: 409 }
+      );
+    }
+
     // Create visitor attendance record
     const attendance = await Attendance.create({
       type: "visitor",
       visitorName,
+      visitorPhone,
       floorId: floor._id,
       checkedInAt: new Date(),
       method: "qr",
+    });
+
+    const checkoutToken = issueVisitorToken({
+      id: attendance._id.toString(),
+      floorId: floor._id.toString(),
+      checkedInAt: attendance.checkedInAt,
     });
 
     return success(
@@ -66,6 +116,7 @@ export async function POST(request: Request) {
           floorName: floor.name,
           checkedInAt: attendance.checkedInAt,
         },
+        checkoutToken,
       },
       201
     );

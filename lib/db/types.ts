@@ -83,6 +83,7 @@ export interface IAttendance {
   type: AttendanceType;
   userId?: Types.ObjectId;
   visitorName?: string;
+  visitorPhone?: string; // normalised; dedupes open visitor check-ins
   floorId: Types.ObjectId;
   checkedInAt: Date;
   checkedOutAt?: Date;

@@ -19,6 +19,7 @@ import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 interface Floor {
   _id: string;
@@ -82,16 +83,19 @@ export default function QRCodesPage() {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between">
-        <Title order={1} size="h2">{strings.qrCodes}</Title>
-        <Button
-          variant="light"
-          leftSection={<IconRefresh size={16} />}
-          onClick={() => mutate()}
-        >
-          {strings.refresh}
-        </Button>
-      </Group>
+      <PageHeader
+        title={strings.qrCodes}
+        actions={
+          <Button
+            variant="light"
+            leftSection={<IconRefresh size={16} />}
+            onClick={() => mutate()}
+            loading={isLoading}
+          >
+            {strings.refresh}
+          </Button>
+        }
+      />
 
       <Text size="sm" c="var(--app-text-secondary)">
         {strings.qrIntro}
@@ -118,7 +122,7 @@ export default function QRCodesPage() {
                   </Badge>
                   <Image
                     src={`/api/qr/${floor._id}?type=employee`}
-                    alt={`Employee QR for ${floor.name}`}
+                    alt={`${strings.qrEmployeeAlt} — ${floor.name}`}
                     width={180}
                     height={180}
                     fit="contain"
@@ -139,12 +143,12 @@ export default function QRCodesPage() {
 
                 {/* Visitor QR */}
                 <Stack align="center" gap="sm">
-                  <Badge color="orange" size="lg" leftSection={<IconUserStar size={14} />}>
+                  <Badge color="warning" size="lg" leftSection={<IconUserStar size={14} />}>
                     {strings.qrVisitorLabel}
                   </Badge>
                   <Image
                     src={`/api/qr/${floor._id}?type=visitor`}
-                    alt={`Visitor QR for ${floor.name}`}
+                    alt={`${strings.qrVisitorAlt} — ${floor.name}`}
                     width={180}
                     height={180}
                     fit="contain"
@@ -155,7 +159,7 @@ export default function QRCodesPage() {
                   <Button
                     size="xs"
                     variant="light"
-                    color="orange"
+                    color="warning"
                     leftSection={<IconPrinter size={14} />}
                     onClick={() => handlePrintSingle(floor, "visitor")}
                   >

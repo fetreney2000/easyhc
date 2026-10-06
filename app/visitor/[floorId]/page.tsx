@@ -215,7 +215,7 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
         notifications.show({
           title: strings.success,
           message: strings.visitorCheckInSuccess,
-          color: "green",
+          color: "success",
         });
       } else if (res.status === 409 && data.alreadyCheckedIn) {
         // Already present somewhere in the building → switch to the
@@ -260,7 +260,7 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
         notifications.show({
           title: strings.success,
           message: strings.visitorCheckOutSuccess,
-          color: "green",
+          color: "success",
         });
         resetToForm();
       } else {
@@ -268,7 +268,7 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
         notifications.show({
           title: strings.error,
           message: data.error || strings.checkOutError,
-          color: "red",
+          color: "danger",
         });
         // The record is no longer usable (closed by the daily cron, or the
         // token no longer matches): drop the local marker so the form works
@@ -279,7 +279,7 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
       notifications.show({
         title: strings.error,
         message: strings.serverError,
-        color: "red",
+        color: "danger",
       });
     } finally {
       setCheckoutLoading(false);
@@ -301,7 +301,7 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
         </Title>
 
         {error && (
-          <Alert icon={<IconAlertCircle size={16} />} color="red" mb="md">
+          <Alert icon={<IconAlertCircle size={16} />} color="danger" mb="md">
             {error}
           </Alert>
         )}
@@ -309,11 +309,11 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
         {checkedIn ? (
           <Stack gap="md">
             {panelNote ? (
-              <Alert icon={<IconAlertCircle size={16} />} color="orange">
+              <Alert icon={<IconAlertCircle size={16} />} color="warning">
                 {panelNote}
               </Alert>
             ) : (
-              <Alert icon={<IconCheck size={16} />} color="green">
+              <Alert icon={<IconCheck size={16} />} color="success">
                 {strings.visitorCheckInSuccess}
               </Alert>
             )}
@@ -328,7 +328,7 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
             {checkoutToken ? (
               <Button
                 fullWidth
-                color="red"
+                color="danger"
                 variant="light"
                 loading={checkoutLoading}
                 onClick={handleCheckOut}

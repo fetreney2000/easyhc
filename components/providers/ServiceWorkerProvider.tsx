@@ -31,21 +31,21 @@ export function ServiceWorkerProvider() {
   }, []);
 
   useEffect(() => {
-    const show = (color: "orange" | "green", message: string, icon: React.ReactNode) => {
+    const show = (color: "warning" | "success", message: string, icon: React.ReactNode) => {
       notifications.show({
         id: "connection",
-        title: color === "orange" ? strings.warning : strings.success,
+        title: color === "warning" ? strings.warning : strings.success,
         message,
         color,
         icon,
-        autoClose: color === "orange" ? false : 4000,
+        autoClose: color === "warning" ? false : 4000,
       });
     };
 
     const handleOffline = () =>
-      show("orange", strings.offlineMessage, <IconWifiOff size={16} />);
+      show("warning", strings.offlineMessage, <IconWifiOff size={16} />);
     const handleOnline = () =>
-      show("green", strings.backOnline, <IconWifi size={16} />);
+      show("success", strings.backOnline, <IconWifi size={16} />);
 
     window.addEventListener("offline", handleOffline);
     window.addEventListener("online", handleOnline);

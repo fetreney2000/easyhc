@@ -80,7 +80,7 @@ export default function LoginPage() {
         {error && (
           <Alert
             icon={<IconAlertCircle size={16} />}
-            color="red"
+            color="danger"
             mb="md"
             radius="md"
           >

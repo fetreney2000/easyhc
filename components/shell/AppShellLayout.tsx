@@ -276,7 +276,7 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
       </a>
 
       {/* Header */}
-      <AppShell.Header>
+      <AppShell.Header className="no-print">
         <Group h="100%" px="md" justify="space-between">
           <Group>
             <Burger
@@ -352,7 +352,7 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
                 </Menu.Item>
                 <Menu.Divider />
                 <Menu.Item
-                  color="red"
+                  color="danger"
                   leftSection={<IconLogout size={16} />}
                   onClick={handleLogout}
                 >
@@ -365,7 +365,7 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
       </AppShell.Header>
 
       {/* Navbar (Desktop sidebar) */}
-      <AppShell.Navbar p="md" hiddenFrom="md" style={{ overflowY: "auto" }}>
+      <AppShell.Navbar p="md" hiddenFrom="md" className="no-print" style={{ overflowY: "auto" }}>
         {navItems.map((item) => (
           <NavbarLink
             key={item.href}
@@ -377,7 +377,7 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
       </AppShell.Navbar>
 
       {/* Navbar (Desktop persistent) */}
-      <AppShell.Navbar p="md" visibleFrom="md" style={{ overflowY: "auto" }}>
+      <AppShell.Navbar p="md" visibleFrom="md" className="no-print" style={{ overflowY: "auto" }}>
         {navItems.map((item) => (
           <NavbarLink
             key={item.href}
@@ -394,10 +394,10 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
       </AppShell.Main>
 
       {/* Footer (Mobile tab bar) */}
-      <AppShell.Footer hiddenFrom="md" p={0} style={{ 
+      <AppShell.Footer hiddenFrom="md" className="no-print" p={0} style={{ 
         background: "var(--mantine-color-body)",
         borderTop: "1px solid var(--mantine-color-default-border)",
-        boxShadow: "0 -2px 10px rgba(0, 0, 0, 0.05)",
+        boxShadow: "var(--app-shadow-footer)",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}>
         <Group

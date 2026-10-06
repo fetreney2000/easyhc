@@ -31,6 +31,9 @@ import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { FormModal } from "@/components/ui/FormModal";
+import { DataTable } from "@/components/ui/DataTable";
 import { notifications } from "@mantine/notifications";
 import { modals } from "@mantine/modals";
 
@@ -77,7 +80,7 @@ export default function FloorManagementPage() {
       title: strings.deleteFloor,
       children: <Text size="sm">{strings.deleteFloorConfirm}</Text>,
       labels: { confirm: strings.confirm, cancel: strings.cancel },
-      confirmProps: { color: "red" },
+      confirmProps: { color: "danger" },
       onConfirm: async () => {
         const res = await fetch(`/api/floors/${floor._id}`, {
           method: "DELETE",
@@ -86,7 +89,7 @@ export default function FloorManagementPage() {
           notifications.show({
             title: strings.success,
             message: strings.floorDeleted,
-            color: "green",
+            color: "success",
           });
           mutate();
         } else {
@@ -95,7 +98,7 @@ export default function FloorManagementPage() {
           notifications.show({
             title: strings.error,
             message: data.error || strings.serverError,
-            color: "red",
+            color: "danger",
           });
         }
       },
@@ -120,7 +123,7 @@ export default function FloorManagementPage() {
         notifications.show({
           title: strings.success,
           message: strings.floorSaved,
-          color: "green",
+          color: "success",
         });
         setModalOpened(false);
         mutate();
@@ -129,14 +132,14 @@ export default function FloorManagementPage() {
         notifications.show({
           title: strings.error,
           message: data.error || strings.floorSaveError,
-          color: "red",
+          color: "danger",
         });
       }
     } catch {
       notifications.show({
         title: strings.error,
         message: strings.serverError,
-        color: "red",
+        color: "danger",
       });
     } finally {
       setLoading(false);
@@ -148,7 +151,7 @@ export default function FloorManagementPage() {
       title: strings.regenerateQR,
       children: <Text size="sm">{strings.regenerateQRConfirm}</Text>,
       labels: { confirm: strings.confirm, cancel: strings.cancel },
-      confirmProps: { color: "orange" },
+      confirmProps: { color: "warning" },
       onConfirm: async () => {
         const res = await fetch(`/api/floors/${floor._id}`, {
           method: "PATCH",
@@ -157,7 +160,7 @@ export default function FloorManagementPage() {
           notifications.show({
             title: strings.success,
             message: strings.qrRegenerated,
-            color: "green",
+            color: "success",
           });
           mutate();
         }
@@ -167,46 +170,41 @@ export default function FloorManagementPage() {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between">
-        <Title order={1} size="h2">{strings.floorManagement}</Title>
-        <Group>
-          <Button
-            variant="light"
-            leftSection={<IconRefresh size={16} />}
-            onClick={() => mutate()}
-          >
-            {strings.refresh}
-          </Button>
-          <Button
-            leftSection={<IconPlus size={16} />}
-            onClick={handleCreate}
-          >
-            {strings.addFloor}
-          </Button>
-        </Group>
-      </Group>
+      <PageHeader
+        title={strings.floorManagement}
+        actions={
+          <>
+            <Button
+              variant="light"
+              leftSection={<IconRefresh size={16} />}
+              onClick={() => mutate()}
+              loading={isLoading}
+            >
+              {strings.refresh}
+            </Button>
+            <Button leftSection={<IconPlus size={16} />} onClick={handleCreate}>
+              {strings.addFloor}
+            </Button>
+          </>
+        }
+      />
 
-      <Paper p="md" radius="md" withBorder>
-        {isLoading ? (
-          <Center py="xl">
-            <Loader />
-          </Center>
-        ) : error ? (
-          <ErrorState error={error} onRetry={mutate} />
-        ) : !floors?.length ? (
-          <Center py="xl">
-            <Text c="var(--app-text-secondary)">{strings.noDataAvailable}</Text>
-          </Center>
-        ) : (
-          <Table>
-            <Table.Thead>
+      <DataTable
+        isLoading={isLoading}
+        error={error}
+        onRetry={mutate}
+        isEmpty={!floors?.length}
+        empty={strings.noDataAvailable}
+        minWidth={700}
+      >
+        <Table.Thead>
               <Table.Tr>
                 <Table.Th>{strings.floorName}</Table.Th>
                 <Table.Th>{strings.actions}</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {floors.map((floor) => (
+              {(floors ?? []).map((floor) => (
                 <Table.Tr key={floor._id}>
                   <Table.Td>
                     <Text fw={500}>{floor.name}</Text>
@@ -230,7 +228,7 @@ export default function FloorManagementPage() {
                       </ActionIcon>
                       <ActionIcon
                         variant="subtle"
-                        color="orange"
+                        color="warning"
                         onClick={() => handleRegenerateQR(floor)}
                         title={strings.regenerateQR}
                       >
@@ -238,7 +236,7 @@ export default function FloorManagementPage() {
                       </ActionIcon>
                       <ActionIcon
                         variant="subtle"
-                        color="red"
+                        color="danger"
                         onClick={() => handleDelete(floor)}
                         title={strings.delete}
                       >
@@ -249,35 +247,23 @@ export default function FloorManagementPage() {
                 </Table.Tr>
               ))}
             </Table.Tbody>
-          </Table>
-        )}
-      </Paper>
+      </DataTable>
 
       {/* Create/Edit modal */}
-      <Modal
+      <FormModal
         opened={modalOpened}
         onClose={() => setModalOpened(false)}
         title={editingFloor ? strings.editFloor : strings.addFloor}
+        onSubmit={form.onSubmit(handleSubmit)}
+        loading={loading}
       >
-        <form onSubmit={form.onSubmit(handleSubmit)}>
-          <Stack gap="md">
-            <TextInput
-              label={strings.floorName}
-              placeholder={strings.floorName}
-              required
-              {...form.getInputProps("name")}
-            />
-            <Group justify="flex-end">
-              <Button variant="subtle" onClick={() => setModalOpened(false)}>
-                {strings.cancel}
-              </Button>
-              <Button type="submit" loading={loading}>
-                {strings.save}
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </Modal>
+        <TextInput
+          label={strings.floorName}
+          placeholder={strings.floorName}
+          required
+          {...form.getInputProps("name")}
+        />
+      </FormModal>
 
       {/* QR Code modal */}
       <Modal
@@ -289,10 +275,10 @@ export default function FloorManagementPage() {
         {qrModalFloor && (
           <SimpleGrid cols={2} spacing="md">
             <Stack align="center" gap="xs">
-              <Badge color="blue" size="sm">Kakitangan</Badge>
+              <Badge color="blue" size="sm">{strings.employee}</Badge>
               <Image
                 src={`/api/qr/${qrModalFloor._id}?type=employee`}
-                alt={`Employee QR`}
+                alt={strings.qrEmployeeAlt}
                 width={150}
                 height={150}
                 fit="contain"
@@ -303,15 +289,15 @@ export default function FloorManagementPage() {
               </Button>
             </Stack>
             <Stack align="center" gap="xs">
-              <Badge color="orange" size="sm">Pelawat</Badge>
+              <Badge color="warning" size="sm">{strings.visitor}</Badge>
               <Image
                 src={`/api/qr/${qrModalFloor._id}?type=visitor`}
-                alt={`Visitor QR`}
+                alt={strings.qrVisitorAlt}
                 width={150}
                 height={150}
                 fit="contain"
               />
-              <Button size="xs" variant="light" color="orange" leftSection={<IconPrinter size={14} />}
+              <Button size="xs" variant="light" color="warning" leftSection={<IconPrinter size={14} />}
                 onClick={() => window.open(`/api/qr/${qrModalFloor._id}?type=visitor`, "_blank")}>
                 {strings.printQR}
               </Button>

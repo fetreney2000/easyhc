@@ -109,12 +109,12 @@ export default function HakciptaPage() {
                 </Group>
 
                 <Group justify="center" gap="sm">
-                  <IconPhone size={16} color="var(--mantine-color-green-6)" />
+                  <IconPhone size={16} color="var(--mantine-color-success-6)" />
                   <Text
                     size="sm"
                     component="a"
                     href="tel:+60168813920"
-                    c="green"
+                    c="success"
                     style={{ textDecoration: "none" }}
                   >
                     016-881 3920

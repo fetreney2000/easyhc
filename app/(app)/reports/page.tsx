@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Title,
   Paper,
@@ -14,6 +14,7 @@ import {
   Center,
   Badge,
   TextInput,
+  Pagination,
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import {
@@ -27,6 +28,9 @@ import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
+import { notifications } from "@mantine/notifications";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { DataTable } from "@/components/ui/DataTable";
 import { LoadingScreen } from "@/components/shell/LoadingScreen";
 
 interface ReportRecord {
@@ -49,20 +53,49 @@ export default function ReportsPage() {
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
 
   const queryParams = new URLSearchParams();
-  if (fromDate) queryParams.set("fromDate", fromDate.toISOString());
-  if (toDate) queryParams.set("toDate", toDate.toISOString());
+  // Send absolute instants for the whole picked day in the USER's timezone;
+  // the server compares them as-is (it used to re-apply setHours() in UTC,
+  // which cut an MYT end date at 07:59 local).
+  if (fromDate) {
+    const start = new Date(fromDate);
+    start.setHours(0, 0, 0, 0);
+    queryParams.set("fromDate", start.toISOString());
+  }
+  if (toDate) {
+    const end = new Date(toDate);
+    end.setHours(23, 59, 59, 999);
+    queryParams.set("toDate", end.toISOString());
+  }
   if (floorFilter) queryParams.set("floorId", floorFilter);
   if (typeFilter) queryParams.set("type", typeFilter);
 
-  const { data, error, isLoading, mutate } = useSWR<{ records: ReportRecord[] }>(
-    `/api/reports?${queryParams.toString()}`,
-    fetcher
-  );
+  const { data, error, isLoading, mutate } = useSWR<{
+    records: ReportRecord[];
+    rowCount: number;
+    pageSize: number;
+  }>(`/api/reports?${queryParams.toString()}`, fetcher);
 
   const { data: floors } = useSWR<{ _id: string; name: string }[]>(
     "/api/floors",
     fetcher
   );
+
+  // Client-side pagination: the API returns the full (capped) result set so
+  // the CSV export stays complete, but the table renders one page at a time —
+  // mapping 1000 rows is a measurable INP cost on a mid-range phone.
+  const ROWS_PER_PAGE = 25;
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    setPage(1);
+  }, [fromDate, toDate, floorFilter, typeFilter]);
+
+  const totalRecords = data?.records.length ?? 0;
+  const pageCount = Math.max(1, Math.ceil(totalRecords / ROWS_PER_PAGE));
+  const currentPage = Math.min(page, pageCount);
+  const pageStart = (currentPage - 1) * ROWS_PER_PAGE;
+  const visibleRecords = data
+    ? data.records.slice(pageStart, pageStart + ROWS_PER_PAGE)
+    : [];
 
   const handleExportCSV = () => {
     if (!data?.records?.length) return;
@@ -112,32 +145,41 @@ export default function ReportsPage() {
     link.download = `laporan-kehadiran-${new Date().toISOString().split("T")[0]}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+
+    // The export is invisible otherwise (Nielsen #1: visibility of status)
+    notifications.show({
+      title: strings.success,
+      message: strings.csvExported,
+      color: "success",
+    });
   };
 
   if (!session?.user) return <LoadingScreen />;
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between">
-        <Title order={1} size="h2">{strings.reports}</Title>
-        <Group>
-          <Button
-            variant="light"
-            leftSection={<IconDownload size={16} />}
-            onClick={handleExportCSV}
-            disabled={!data?.records?.length}
-          >
-            {strings.exportCSV}
-          </Button>
-          <Button
-            variant="light"
-            leftSection={<IconPrinter size={16} />}
-            onClick={() => window.print()}
-          >
-            {strings.printReport}
-          </Button>
-        </Group>
-      </Group>
+      <PageHeader
+        title={strings.reports}
+        actions={
+          <>
+            <Button
+              variant="light"
+              leftSection={<IconDownload size={16} />}
+              onClick={handleExportCSV}
+              disabled={!data?.records?.length}
+            >
+              {strings.exportCSV}
+            </Button>
+            <Button
+              variant="light"
+              leftSection={<IconPrinter size={16} />}
+              onClick={() => window.print()}
+            >
+              {strings.printReport}
+            </Button>
+          </>
+        }
+      />
 
       {/* Filters */}
       <Paper p="md" radius="md" withBorder className="no-print">
@@ -157,9 +199,9 @@ export default function ReportsPage() {
             w={160}
           />
           <Select
-            label="Lantai"
+            label={strings.floors}
             data={[
-              { value: "", label: "Semua" },
+              { value: "", label: strings.all },
               ...(floors?.map((f) => ({
                 value: f._id,
                 label: f.name,
@@ -171,7 +213,7 @@ export default function ReportsPage() {
             w={160}
           />
           <Select
-            label="Jenis"
+            label={strings.typeLabel}
             data={[
               { value: "employee", label: strings.employee },
               { value: "visitor", label: strings.visitor },
@@ -192,31 +234,25 @@ export default function ReportsPage() {
       </Paper>
 
       {/* Report table */}
-      <Paper p="md" radius="md" withBorder>
-        {isLoading ? (
-          <Center py="xl">
-            <Loader />
-          </Center>
-        ) : error ? (
-          <ErrorState error={error} onRetry={mutate} />
-        ) : !data?.records?.length ? (
-          <Center py="xl">
-            <Text c="var(--app-text-secondary)">{strings.noReportData}</Text>
-          </Center>
-        ) : (
-          <Table.ScrollContainer minWidth={700}>
-            <Table>
-              <Table.Thead>
+      <DataTable
+        isLoading={isLoading}
+        error={error}
+        onRetry={mutate}
+        isEmpty={!data?.records?.length}
+        empty={strings.noReportData}
+        minWidth={700}
+      >
+        <Table.Thead>
                 <Table.Tr>
                   <Table.Th>{strings.name}</Table.Th>
-                  <Table.Th>Jenis</Table.Th>
+                  <Table.Th>{strings.typeLabel}</Table.Th>
                   <Table.Th>{strings.floors}</Table.Th>
                   <Table.Th>{strings.checkIn}</Table.Th>
                   <Table.Th>{strings.checkOut}</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {data.records.map((record) => (
+                {visibleRecords.map((record) => (
                   <Table.Tr key={record._id}>
                     <Table.Td>
                       {record.type === "employee"
@@ -260,14 +296,29 @@ export default function ReportsPage() {
                   </Table.Tr>
                 ))}
               </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        )}
-      </Paper>
+      </DataTable>
 
-      <Text size="xs" c="var(--app-text-secondary)" ta="right">
-        {data?.records?.length || 0} rekod
-      </Text>
+      {data && (
+        <Group justify="space-between" gap="sm">
+          <Text size="xs" c="var(--app-text-secondary)">
+            {totalRecords === 0
+              ? strings.recordsCount(0)
+              : strings.showingRange(
+                  pageStart + 1,
+                  Math.min(pageStart + ROWS_PER_PAGE, totalRecords),
+                  totalRecords
+                )}
+          </Text>
+          {pageCount > 1 && (
+            <Pagination
+              total={pageCount}
+              value={currentPage}
+              onChange={setPage}
+              size="sm"
+            />
+          )}
+        </Group>
+      )}
     </Stack>
   );
 }

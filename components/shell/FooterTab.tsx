@@ -53,7 +53,7 @@ export function FooterTab({ label, icon, href, active, isPrimary }: FooterTabPro
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              boxShadow: "0 4px 14px rgba(37, 99, 235, 0.45)",
+              boxShadow: "var(--app-shadow-lift)",
               marginTop: "-20px",
               color: "white",
             }}

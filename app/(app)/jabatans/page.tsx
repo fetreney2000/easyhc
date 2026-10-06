@@ -21,6 +21,9 @@ import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { FormModal } from "@/components/ui/FormModal";
+import { DataTable } from "@/components/ui/DataTable";
 import { notifications } from "@mantine/notifications";
 import { modals } from "@mantine/modals";
 
@@ -62,16 +65,16 @@ export default function JabatansPage() {
       title: strings.deleteJabatan,
       children: <Text size="sm">{strings.deleteJabatanConfirm(item.name)}</Text>,
       labels: { confirm: strings.confirm, cancel: strings.cancel },
-      confirmProps: { color: "red" },
+      confirmProps: { color: "danger" },
       onConfirm: async () => {
         const res = await fetch(`/api/jabatans/${item._id}`, { method: "DELETE" });
         if (res.ok) {
-          notifications.show({ title: strings.success, message: strings.jabatanDeleted, color: "green" });
+          notifications.show({ title: strings.success, message: strings.jabatanDeleted, color: "success" });
           mutate();
         } else {
           // The API blocks deleting a jabatan that is still referenced
           const data = await res.json();
-          notifications.show({ title: strings.error, message: data.error || strings.serverError, color: "red" });
+          notifications.show({ title: strings.error, message: data.error || strings.serverError, color: "danger" });
         }
       },
     });
@@ -88,15 +91,15 @@ export default function JabatansPage() {
         body: JSON.stringify(values),
       });
       if (res.ok) {
-        notifications.show({ title: strings.success, message: "Jabatan berjaya disimpan", color: "green" });
+        notifications.show({ title: strings.success, message: strings.jabatanSaved, color: "success" });
         setModalOpened(false);
         mutate();
       } else {
         const data = await res.json();
-        notifications.show({ title: strings.error, message: data.error || strings.serverError, color: "red" });
+        notifications.show({ title: strings.error, message: data.error || strings.serverError, color: "danger" });
       }
     } catch {
-      notifications.show({ title: strings.error, message: strings.serverError, color: "red" });
+      notifications.show({ title: strings.error, message: strings.serverError, color: "danger" });
     } finally {
       setLoading(false);
     }
@@ -104,36 +107,37 @@ export default function JabatansPage() {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between">
-        <Title order={1} size="h2">{strings.jabatan}</Title>
-        <Group>
-          <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={() => mutate()}>
-            {strings.refresh}
-          </Button>
-          <Button leftSection={<IconPlus size={16} />} onClick={handleCreate}>
-            Tambah Jabatan
-          </Button>
-        </Group>
-      </Group>
+      <PageHeader
+        title={strings.jabatan}
+        actions={
+          <>
+            <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={() => mutate()} loading={isLoading}>
+              {strings.refresh}
+            </Button>
+            <Button leftSection={<IconPlus size={16} />} onClick={handleCreate}>
+              {strings.addJabatan}
+            </Button>
+          </>
+        }
+      />
 
-      <Paper p="md" radius="md" withBorder>
-        {isLoading ? (
-          <Center py="xl"><Loader /></Center>
-        ) : error ? (
-          <ErrorState error={error} onRetry={mutate} />
-        ) : !jabatans?.length ? (
-          <Center py="xl"><Text c="var(--app-text-secondary)">Tiada jabatan. Sila tambah jabatan baharu.</Text></Center>
-        ) : (
-          <Table>
-            <Table.Thead>
+      <DataTable
+        isLoading={isLoading}
+        error={error}
+        onRetry={mutate}
+        isEmpty={!jabatans?.length}
+        empty={strings.noJabatansYet}
+        minWidth={700}
+      >
+        <Table.Thead>
               <Table.Tr>
-                <Table.Th>Nama Jabatan</Table.Th>
-                <Table.Th>Tarikh Dicipta</Table.Th>
+                <Table.Th>{strings.jabatanName}</Table.Th>
+                <Table.Th>{strings.createdAt}</Table.Th>
                 <Table.Th>{strings.actions}</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {jabatans.map((item) => (
+              {(jabatans ?? []).map((item) => (
                 <Table.Tr key={item._id}>
                   <Table.Td><Text fw={500}>{item.name}</Text></Table.Td>
                   <Table.Td>
@@ -146,7 +150,7 @@ export default function JabatansPage() {
                       <ActionIcon variant="subtle" onClick={() => handleEdit(item)} title={strings.edit}>
                         <IconEdit size={16} />
                       </ActionIcon>
-                      <ActionIcon variant="subtle" color="red" onClick={() => handleDelete(item)} title={strings.delete}>
+                      <ActionIcon variant="subtle" color="danger" onClick={() => handleDelete(item)} title={strings.delete}>
                         <IconTrash size={16} />
                       </ActionIcon>
                     </Group>
@@ -154,30 +158,22 @@ export default function JabatansPage() {
                 </Table.Tr>
               ))}
             </Table.Tbody>
-          </Table>
-        )}
-      </Paper>
+      </DataTable>
 
-      <Modal
+      <FormModal
         opened={modalOpened}
         onClose={() => setModalOpened(false)}
-        title={editing ? "Sunting Jabatan" : "Tambah Jabatan"}
+        title={editing ? strings.editJabatan : strings.addJabatan}
+        onSubmit={form.onSubmit(handleSubmit)}
+        loading={loading}
       >
-        <form onSubmit={form.onSubmit(handleSubmit)}>
-          <Stack gap="md">
-            <TextInput
-              label="Nama Jabatan"
-              placeholder={strings.jabatanPlaceholder}
-              required
-              {...form.getInputProps("name")}
-            />
-            <Group justify="flex-end">
-              <Button variant="subtle" onClick={() => setModalOpened(false)}>{strings.cancel}</Button>
-              <Button type="submit" loading={loading}>{strings.save}</Button>
-            </Group>
-          </Stack>
-        </form>
-      </Modal>
+        <TextInput
+          label={strings.jabatanName}
+          placeholder={strings.jabatanPlaceholder}
+          required
+          {...form.getInputProps("name")}
+        />
+      </FormModal>
     </Stack>
   );
 }

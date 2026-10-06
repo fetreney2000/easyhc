@@ -19,6 +19,7 @@ import {
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
 import { strings } from "@/lib/i18n/strings";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { notifications } from "@mantine/notifications";
 import { useSession } from "next-auth/react";
 import { can } from "@/lib/auth/rbac";
@@ -47,8 +48,8 @@ export default function ManualCheckInPage() {
   if (!can(session.user.role, "attendance:manual_checkin")) {
     return (
       <Stack gap="lg">
-        <Title order={1} size="h2">{strings.manualCheckIn}</Title>
-        <Alert icon={<IconAlertCircle size={16} />} color="red">
+        <PageHeader title={strings.manualCheckIn} />
+        <Alert icon={<IconAlertCircle size={16} />} color="danger">
           {strings.unauthorized}
         </Alert>
       </Stack>
@@ -76,7 +77,7 @@ export default function ManualCheckInPage() {
         notifications.show({
           title: strings.success,
           message: strings.manualCheckInSuccess,
-          color: "green",
+          color: "success",
           icon: <IconCheck size={16} />,
         });
         setSelectedUser(null);
@@ -85,14 +86,14 @@ export default function ManualCheckInPage() {
         notifications.show({
           title: strings.error,
           message: data.error || strings.manualCheckInError,
-          color: "red",
+          color: "danger",
         });
       }
     } catch {
       notifications.show({
         title: strings.error,
         message: strings.serverError,
-        color: "red",
+        color: "danger",
       });
     } finally {
       setLoading(false);
@@ -101,7 +102,7 @@ export default function ManualCheckInPage() {
 
   return (
     <Stack gap="lg">
-      <Title order={1} size="h2">{strings.manualCheckIn}</Title>
+      <PageHeader title={strings.manualCheckIn} />
 
       <Paper p="xl" radius="md" withBorder>
         <Stack gap="md">

@@ -5,6 +5,7 @@ import {
   getAuthenticatedUser,
   unauthorized,
   forbidden,
+  badRequest,
   serverError,
   success,
 } from "@/lib/api/utils";
@@ -12,6 +13,10 @@ import Attendance from "@/lib/db/models/Attendance";
 import { IAttendance } from "@/lib/db/types";
 import { can, getReportsScope } from "@/lib/auth/rbac";
 import { scopeFilter } from "@/lib/auth/scope";
+import { strings } from "@/lib/i18n/strings";
+
+/** Row cap — returned to the UI so truncation is never silent. */
+const REPORT_PAGE_SIZE = 1000;
 
 export async function GET(request: Request) {
   const user = await getAuthenticatedUser();
@@ -36,13 +41,21 @@ export async function GET(request: Request) {
   const query: FilterQuery<IAttendance> = {};
 
   if (fromDate || toDate) {
-    query.checkedInAt = {} as FilterQuery<IAttendance>["checkedInAt"];
-    if (fromDate) query.checkedInAt.$gte = new Date(fromDate);
-    if (toDate) {
-      const end = new Date(toDate);
-      end.setHours(23, 59, 59, 999);
-      query.checkedInAt.$lte = end;
+    // The client sends absolute instants (start/end of the picked day in the
+    // USER's timezone). Re-applying setHours() here would use the server's
+    // timezone — UTC on Vercel — which cut an MYT end date at 07:59 local.
+    const from = fromDate ? new Date(fromDate) : null;
+    const to = toDate ? new Date(toDate) : null;
+    if (
+      (from && Number.isNaN(from.getTime())) ||
+      (to && Number.isNaN(to.getTime()))
+    ) {
+      return badRequest(strings.invalidDate);
     }
+
+    query.checkedInAt = {} as FilterQuery<IAttendance>["checkedInAt"];
+    if (from) query.checkedInAt.$gte = from;
+    if (to) query.checkedInAt.$lte = to;
   }
 
   if (floorId) query.floorId = floorId;
@@ -65,10 +78,14 @@ export async function GET(request: Request) {
       .populate("userId", "name role")
       .populate("floorId", "name")
       .sort({ checkedInAt: -1 })
-      .limit(1000)
+      .limit(REPORT_PAGE_SIZE)
       .lean();
 
-    return success({ records });
+    return success({
+      records,
+      rowCount: records.length,
+      pageSize: REPORT_PAGE_SIZE,
+    });
   } catch (error) {
     console.error("Error generating report:", error);
     return serverError();

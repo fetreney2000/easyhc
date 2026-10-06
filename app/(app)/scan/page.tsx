@@ -16,9 +16,11 @@ import {
   IconCamera,
   IconCheck,
   IconQrcode,
+  IconRefresh,
 } from "@tabler/icons-react";
 import type { Html5Qrcode } from "html5-qrcode";
 import { strings } from "@/lib/i18n/strings";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { notifications } from "@mantine/notifications";
 import { useRouter } from "next/navigation";
 
@@ -30,8 +32,16 @@ export default function ScanPage() {
   const processingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
-  const [lastResult, setLastResult] = useState<string | null>(null);
+  // Bumping this restarts the camera effect (the only recovery path after a
+  // failed start — previously the page required a full reload)
+  const [startAttempt, setStartAttempt] = useState(0);
   const router = useRouter();
+
+  const retryScan = () => {
+    setError(null);
+    setScanning(false);
+    setStartAttempt((attempt) => attempt + 1);
+  };
 
   const handleCheckIn = useCallback(
     async (qrToken: string) => {
@@ -54,7 +64,7 @@ export default function ScanPage() {
           notifications.show({
             title: strings.success,
             message: data.message,
-            color: "green",
+            color: "success",
             icon: <IconCheck size={16} />,
           });
           // Redirect to dashboard after successful check-in
@@ -64,7 +74,7 @@ export default function ScanPage() {
           notifications.show({
             title: strings.error,
             message: data.error || strings.checkInError,
-            color: "red",
+            color: "danger",
           });
         }
 
@@ -80,7 +90,7 @@ export default function ScanPage() {
         notifications.show({
           title: strings.error,
           message: strings.serverError,
-          color: "red",
+          color: "danger",
         });
         // Resume scanner
         const scanner = html5QrCodeRef.current;
@@ -178,23 +188,27 @@ export default function ScanPage() {
         scanner.stop().catch(() => {});
       }
     };
-    // handleCheckIn is memoised on the stable router, so the camera starts once
-  }, [handleCheckIn]);
+    // handleCheckIn is memoised on the stable router; startAttempt re-runs
+    // this after retryScan() so a camera failure is recoverable
+  }, [handleCheckIn, startAttempt]);
 
   return (
     <Stack gap="lg">
-      <Title order={1} size="h2">{strings.scanQRTitle}</Title>
+      <PageHeader title={strings.scanQRTitle} />
 
       {error && (
-        <Alert icon={<IconAlertCircle size={16} />} color="red">
-          {error}
-        </Alert>
-      )}
-
-      {lastResult && (
-        <Alert icon={<IconCheck size={16} />} color="green">
-          {lastResult}
-        </Alert>
+        <Stack gap="sm">
+          <Alert icon={<IconAlertCircle size={16} />} color="danger">
+            {error}
+          </Alert>
+          <Button
+            variant="light"
+            leftSection={<IconRefresh size={16} />}
+            onClick={retryScan}
+          >
+            {strings.retry}
+          </Button>
+        </Stack>
       )}
 
       <Paper p="md" radius="md" withBorder>

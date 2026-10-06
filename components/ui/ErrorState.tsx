@@ -26,7 +26,7 @@ export function ErrorState({
       <Stack align="center" gap="md" w="100%">
         <Alert
           icon={<IconAlertCircle size={16} />}
-          color="red"
+          color="danger"
           variant="light"
           w="100%"
         >

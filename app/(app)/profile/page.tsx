@@ -18,6 +18,7 @@ import { useForm } from "@mantine/form";
 import { IconCheck, IconKey, IconUser } from "@tabler/icons-react";
 import { signOut, useSession } from "next-auth/react";
 import { strings } from "@/lib/i18n/strings";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { LoadingScreen } from "@/components/shell/LoadingScreen";
 import { ROLE_LABELS } from "@/lib/db/types";
 import { notifications } from "@mantine/notifications";
@@ -88,21 +89,21 @@ export default function ProfilePage() {
         notifications.show({
           title: strings.success,
           message: strings.profileUpdated,
-          color: "green",
+          color: "success",
         });
       } else {
         const data = await res.json();
         notifications.show({
           title: strings.error,
           message: data.error || strings.profileUpdateError,
-          color: "red",
+          color: "danger",
         });
       }
     } catch {
       notifications.show({
         title: strings.error,
         message: strings.serverError,
-        color: "red",
+        color: "danger",
       });
     } finally {
       setProfileLoading(false);
@@ -123,7 +124,7 @@ export default function ProfilePage() {
         notifications.show({
           title: strings.success,
           message: `${strings.passwordChanged}. ${strings.reloginRequired}`,
-          color: "green",
+          color: "success",
         });
         // Changing the password bumps sessionVersion, which revokes every
         // session for this user — sign out immediately and explicitly rather
@@ -135,14 +136,14 @@ export default function ProfilePage() {
         notifications.show({
           title: strings.error,
           message: data.error || strings.passwordChangeError,
-          color: "red",
+          color: "danger",
         });
       }
     } catch {
       notifications.show({
         title: strings.error,
         message: strings.serverError,
-        color: "red",
+        color: "danger",
       });
     } finally {
       setPasswordLoading(false);
@@ -153,7 +154,7 @@ export default function ProfilePage() {
 
   return (
     <Stack gap="lg">
-      <Title order={1} size="h2">{strings.profile}</Title>
+      <PageHeader title={strings.profile} />
 
       {/* User info card */}
       <Paper p="xl" radius="md" withBorder>

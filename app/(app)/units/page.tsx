@@ -22,6 +22,9 @@ import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { FormModal } from "@/components/ui/FormModal";
+import { DataTable } from "@/components/ui/DataTable";
 import { notifications } from "@mantine/notifications";
 import { modals } from "@mantine/modals";
 
@@ -74,16 +77,16 @@ export default function UnitsPage() {
       title: strings.deleteUnit,
       children: <Text size="sm">{strings.deleteUnitConfirm(item.name)}</Text>,
       labels: { confirm: strings.confirm, cancel: strings.cancel },
-      confirmProps: { color: "red" },
+      confirmProps: { color: "danger" },
       onConfirm: async () => {
         const res = await fetch(`/api/units/${item._id}`, { method: "DELETE" });
         if (res.ok) {
-          notifications.show({ title: strings.success, message: strings.unitDeleted, color: "green" });
+          notifications.show({ title: strings.success, message: strings.unitDeleted, color: "success" });
           mutate();
         } else {
           // The API blocks deleting a unit that still has members
           const data = await res.json();
-          notifications.show({ title: strings.error, message: data.error || strings.serverError, color: "red" });
+          notifications.show({ title: strings.error, message: data.error || strings.serverError, color: "danger" });
         }
       },
     });
@@ -100,15 +103,15 @@ export default function UnitsPage() {
         body: JSON.stringify(values),
       });
       if (res.ok) {
-        notifications.show({ title: strings.success, message: "Unit berjaya disimpan", color: "green" });
+        notifications.show({ title: strings.success, message: strings.unitSaved, color: "success" });
         setModalOpened(false);
         mutate();
       } else {
         const data = await res.json();
-        notifications.show({ title: strings.error, message: data.error || strings.serverError, color: "red" });
+        notifications.show({ title: strings.error, message: data.error || strings.serverError, color: "danger" });
       }
     } catch {
-      notifications.show({ title: strings.error, message: strings.serverError, color: "red" });
+      notifications.show({ title: strings.error, message: strings.serverError, color: "danger" });
     } finally {
       setLoading(false);
     }
@@ -116,37 +119,38 @@ export default function UnitsPage() {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between">
-        <Title order={1} size="h2">{strings.unit}</Title>
-        <Group>
-          <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={() => mutate()}>
-            {strings.refresh}
-          </Button>
-          <Button leftSection={<IconPlus size={16} />} onClick={handleCreate}>
-            Tambah Unit
-          </Button>
-        </Group>
-      </Group>
+      <PageHeader
+        title={strings.unit}
+        actions={
+          <>
+            <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={() => mutate()} loading={isLoading}>
+              {strings.refresh}
+            </Button>
+            <Button leftSection={<IconPlus size={16} />} onClick={handleCreate}>
+              {strings.addUnit}
+            </Button>
+          </>
+        }
+      />
 
-      <Paper p="md" radius="md" withBorder>
-        {isLoading ? (
-          <Center py="xl"><Loader /></Center>
-        ) : error ? (
-          <ErrorState error={error} onRetry={mutate} />
-        ) : !units?.length ? (
-          <Center py="xl"><Text c="var(--app-text-secondary)">{strings.noUnitsYet}</Text></Center>
-        ) : (
-          <Table>
-            <Table.Thead>
+      <DataTable
+        isLoading={isLoading}
+        error={error}
+        onRetry={mutate}
+        isEmpty={!units?.length}
+        empty={strings.noUnitsYet}
+        minWidth={700}
+      >
+        <Table.Thead>
               <Table.Tr>
-                <Table.Th>Nama Unit</Table.Th>
-                <Table.Th>Jabatan</Table.Th>
-                <Table.Th>Lantai Asal</Table.Th>
+                <Table.Th>{strings.unitName}</Table.Th>
+                <Table.Th>{strings.jabatan}</Table.Th>
+                <Table.Th>{strings.homeFloor}</Table.Th>
                 <Table.Th>{strings.actions}</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {units.map((item) => (
+              {(units ?? []).map((item) => (
                 <Table.Tr key={item._id}>
                   <Table.Td><Text fw={500}>{item.name}</Text></Table.Td>
                   <Table.Td><Text size="sm">{item.jabatanName || "—"}</Text></Table.Td>
@@ -156,7 +160,7 @@ export default function UnitsPage() {
                       <ActionIcon variant="subtle" onClick={() => handleEdit(item)} title={strings.edit}>
                         <IconEdit size={16} />
                       </ActionIcon>
-                      <ActionIcon variant="subtle" color="red" onClick={() => handleDelete(item)} title={strings.delete}>
+                      <ActionIcon variant="subtle" color="danger" onClick={() => handleDelete(item)} title={strings.delete}>
                         <IconTrash size={16} />
                       </ActionIcon>
                     </Group>
@@ -164,46 +168,38 @@ export default function UnitsPage() {
                 </Table.Tr>
               ))}
             </Table.Tbody>
-          </Table>
-        )}
-      </Paper>
+      </DataTable>
 
-      <Modal
+      <FormModal
         opened={modalOpened}
         onClose={() => setModalOpened(false)}
-        title={editing ? "Sunting Unit" : "Tambah Unit"}
+        title={editing ? strings.editUnit : strings.addUnit}
+        onSubmit={form.onSubmit(handleSubmit)}
+        loading={loading}
       >
-        <form onSubmit={form.onSubmit(handleSubmit)}>
-          <Stack gap="md">
-            <TextInput
-              label="Nama Unit"
-              placeholder={strings.unitPlaceholder}
-              required
-              {...form.getInputProps("name")}
-            />
-            <Select
-              label={strings.jabatan}
-              placeholder="Pilih jabatan"
-              required
-              data={jabatans?.map((j) => ({ value: j._id, label: j.name })) || []}
-              {...form.getInputProps("jabatanId")}
-              searchable
-            />
-            <Select
-              label="Lantai Asal"
-              placeholder="Pilih lantai (pilihan)"
-              data={floors?.map((f) => ({ value: f._id, label: f.name })) || []}
-              {...form.getInputProps("homeFloorId")}
-              clearable
-              searchable
-            />
-            <Group justify="flex-end">
-              <Button variant="subtle" onClick={() => setModalOpened(false)}>{strings.cancel}</Button>
-              <Button type="submit" loading={loading}>{strings.save}</Button>
-            </Group>
-          </Stack>
-        </form>
-      </Modal>
+        <TextInput
+          label={strings.unitName}
+          placeholder={strings.unitPlaceholder}
+          required
+          {...form.getInputProps("name")}
+        />
+        <Select
+          label={strings.jabatan}
+          placeholder={strings.pickJabatan}
+          required
+          data={jabatans?.map((j) => ({ value: j._id, label: j.name })) || []}
+          {...form.getInputProps("jabatanId")}
+          searchable
+        />
+        <Select
+          label={strings.homeFloor}
+          placeholder={strings.pickFloorOptional}
+          data={floors?.map((f) => ({ value: f._id, label: f.name })) || []}
+          {...form.getInputProps("homeFloorId")}
+          clearable
+          searchable
+        />
+      </FormModal>
     </Stack>
   );
 }

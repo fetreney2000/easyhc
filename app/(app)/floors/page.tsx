@@ -33,8 +33,10 @@ import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { can } from "@/lib/auth/rbac";
 import { notifications } from "@mantine/notifications";
+import { modals } from "@mantine/modals";
 import { LoadingScreen } from "@/components/shell/LoadingScreen";
 
 interface PresenceRecord {
@@ -58,6 +60,8 @@ export default function AllFloorsPage() {
     totalPresent: number;
     totalEmployees: number;
     totalVisitors: number;
+    rowCount: number;
+    pageSize: number;
   }>("/api/attendance?active=true", fetcher, {
     refreshInterval: 25000,
     revalidateOnFocus: true,
@@ -87,20 +91,44 @@ export default function AllFloorsPage() {
     can(session.user.role, "attendance:checkout_own_floor") ||
     can(session.user.role, "attendance:checkout_own_unit");
 
-  const handleForceCheckout = async (attendanceId: string) => {
-    try {
-      const res = await fetch("/api/attendance/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attendanceId, force: true }),
-      });
-      if (res.ok) {
-        notifications.show({ title: strings.success, message: strings.forceCheckoutSuccess, color: "green" });
-        mutate();
-      }
-    } catch {
-      notifications.show({ title: strings.error, message: strings.serverError, color: "red" });
-    }
+  /** Destructive: confirm first, and surface failures (it used to swallow them). */
+  const handleForceCheckout = (attendanceId: string) => {
+    modals.openConfirmModal({
+      title: strings.forceCheckout,
+      children: <Text size="sm">{strings.forceCheckoutConfirm}</Text>,
+      labels: { confirm: strings.confirm, cancel: strings.cancel },
+      confirmProps: { color: "danger" },
+      onConfirm: async () => {
+        try {
+          const res = await fetch("/api/attendance/checkout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ attendanceId, force: true }),
+          });
+          if (res.ok) {
+            notifications.show({
+              title: strings.success,
+              message: strings.forceCheckoutSuccess,
+              color: "success",
+            });
+            mutate();
+          } else {
+            const errData = await res.json();
+            notifications.show({
+              title: strings.error,
+              message: errData.error || strings.serverError,
+              color: "danger",
+            });
+          }
+        } catch {
+          notifications.show({
+            title: strings.error,
+            message: strings.serverError,
+            color: "danger",
+          });
+        }
+      },
+    });
   };
 
   const toggleFloor = (floorId: string) => {
@@ -142,14 +170,14 @@ export default function AllFloorsPage() {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between">
-        <Title order={1} size="h2">{strings.allFloors}</Title>
-        <Group>
+      <PageHeader
+        title={strings.allFloors}
+        actions={
           <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={() => mutate()} loading={isLoading}>
             {strings.refresh}
           </Button>
-        </Group>
-      </Group>
+        }
+      />
 
       {/* Summary cards */}
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
@@ -157,7 +185,7 @@ export default function AllFloorsPage() {
           <Group gap="xs">
             <IconBuildingSkyscraper size={20} color="var(--mantine-primary-color-filled)" />
             <div>
-              <Text size="xs" c="var(--app-text-secondary)">Lantai</Text>
+              <Text size="xs" c="var(--app-text-secondary)">{strings.floors}</Text>
               <Text fw={700}>{floorGroups.size}</Text>
             </div>
           </Group>
@@ -182,7 +210,7 @@ export default function AllFloorsPage() {
         </Paper>
         <Paper p="sm" radius="md" withBorder>
           <Group gap="xs">
-            <IconUsers size={20} color="orange" />
+            <IconUsers size={20} color="var(--mantine-color-warning-6)" />
             <div>
               <Text size="xs" c="var(--app-text-secondary)">{strings.totalVisitors}</Text>
               <Text fw={700}>{data?.totalVisitors ?? "—"}</Text>
@@ -193,7 +221,7 @@ export default function AllFloorsPage() {
 
       {/* Search */}
       <TextInput
-        placeholder="Cari mengikut nama..."
+        placeholder={strings.searchByName}
         leftSection={<IconSearch size={16} />}
         value={search}
         onChange={(e) => setSearch(e.currentTarget.value)}
@@ -234,12 +262,12 @@ export default function AllFloorsPage() {
                   <Group gap="xs">
                     {group.employees > 0 && (
                       <Badge size="xs" color="blue" variant="light">
-                        {group.employees} kakitangan
+                        {strings.countStaff(group.employees)}
                       </Badge>
                     )}
                     {group.visitors > 0 && (
-                      <Badge size="xs" color="orange" variant="light">
-                        {group.visitors} pelawat
+                      <Badge size="xs" color="warning" variant="light">
+                        {strings.countVisitors(group.visitors)}
                       </Badge>
                     )}
                     <span
@@ -258,11 +286,12 @@ export default function AllFloorsPage() {
 
               {/* Expandable presence table for this floor */}
               <Collapse in={expandedFloors.has(floorId)} id={`floor-${floorId}`}>
-                <Table mt="sm">
+                <Table.ScrollContainer minWidth={600}>
+                  <Table mt="sm">
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th>{strings.name}</Table.Th>
-                      <Table.Th>Jenis</Table.Th>
+                      <Table.Th>{strings.typeLabel}</Table.Th>
                       <Table.Th>{strings.checkIn}</Table.Th>
                       {canForceCheckout && <Table.Th>{strings.actions}</Table.Th>}
                     </Table.Tr>
@@ -276,7 +305,7 @@ export default function AllFloorsPage() {
                               {record.type === "employee" ? record.userId?.name : record.visitorName}
                             </Text>
                             {record.type === "visitor" && (
-                              <Badge size="xs" color="orange">{strings.visitor}</Badge>
+                              <Badge size="xs" color="warning">{strings.visitor}</Badge>
                             )}
                           </Group>
                         </Table.Td>
@@ -298,7 +327,7 @@ export default function AllFloorsPage() {
                         {canForceCheckout && (
                           <Table.Td>
                             <ActionIcon
-                              color="red"
+                              color="danger"
                               variant="subtle"
                               size="sm"
                               onClick={() => handleForceCheckout(record._id)}
@@ -311,11 +340,18 @@ export default function AllFloorsPage() {
                       </Table.Tr>
                     ))}
                   </Table.Tbody>
-                </Table>
+                  </Table>
+                </Table.ScrollContainer>
               </Collapse>
             </Paper>
           ))}
         </Stack>
+      )}
+
+      {data && data.rowCount > data.attendance.length && (
+        <Text size="xs" c="var(--app-text-secondary)">
+          {strings.showingXofY(data.attendance.length, data.rowCount)}
+        </Text>
       )}
     </Stack>
   );

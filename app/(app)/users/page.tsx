@@ -17,6 +17,7 @@ import {
   PasswordInput,
   Select,
   Badge,
+  Pagination,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import {
@@ -28,9 +29,13 @@ import {
   IconKey,
 } from "@tabler/icons-react";
 import useSWR from "swr";
+import { useDebouncedValue } from "@mantine/hooks";
 import { fetcher } from "@/lib/api/fetcher";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { FormModal } from "@/components/ui/FormModal";
+import { DataTable } from "@/components/ui/DataTable";
 import { ROLES, ROLE_LABELS } from "@/lib/db/types";
 import { notifications } from "@mantine/notifications";
 import { modals } from "@mantine/modals";
@@ -62,13 +67,15 @@ export default function UsersPage() {
   const [modalOpened, setModalOpened] = useState(false);
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
   const [search, setSearch] = useState("");
+  // Debounced: typing must not fire a request per keystroke
+  const [debouncedSearch] = useDebouncedValue(search, 300);
   const [roleFilter, setRoleFilter] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resetTarget, setResetTarget] = useState<UserRecord | null>(null);
   const [resetLoading, setResetLoading] = useState(false);
 
   const queryParams = new URLSearchParams();
-  if (search) queryParams.set("search", search);
+  if (debouncedSearch) queryParams.set("search", debouncedSearch);
   if (roleFilter) queryParams.set("role", roleFilter);
 
   const { data: users, error, isLoading, mutate } = useSWR<UserRecord[]>(
@@ -85,6 +92,22 @@ export default function UsersPage() {
     "/api/units",
     fetcher
   );
+
+  // Client-side pagination: the API can return up to 500 users, which is far
+  // more than fits on a screen (and cost time to map on mid-range phones).
+  const ROWS_PER_PAGE = 25;
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, roleFilter]);
+
+  const totalUsers = users?.length ?? 0;
+  const pageCount = Math.max(1, Math.ceil(totalUsers / ROWS_PER_PAGE));
+  const currentPage = Math.min(page, pageCount);
+  const pageStart = (currentPage - 1) * ROWS_PER_PAGE;
+  const visibleUsers = users
+    ? users.slice(pageStart, pageStart + ROWS_PER_PAGE)
+    : [];
 
   // Refresh jabatan/unit lists when the modal opens. This belongs in an
   // effect: called from the render body it fired on every single render
@@ -157,7 +180,7 @@ export default function UsersPage() {
         </Text>
       ),
       labels: { confirm: strings.confirm, cancel: strings.cancel },
-      confirmProps: { color: "red" },
+      confirmProps: { color: "danger" },
       onConfirm: async () => {
         const res = await fetch(`/api/users/${user._id}`, {
           method: "DELETE",
@@ -166,7 +189,7 @@ export default function UsersPage() {
           notifications.show({
             title: strings.success,
             message: strings.deleteUserSuccess,
-            color: "green",
+            color: "success",
           });
           mutate();
         } else {
@@ -174,7 +197,7 @@ export default function UsersPage() {
           notifications.show({
             title: strings.error,
             message: data.error || strings.serverError,
-            color: "red",
+            color: "danger",
           });
         }
       },
@@ -202,7 +225,7 @@ export default function UsersPage() {
         notifications.show({
           title: strings.success,
           message: strings.resetPasswordSuccess,
-          color: "green",
+          color: "success",
         });
         setResetTarget(null);
         mutate();
@@ -210,14 +233,14 @@ export default function UsersPage() {
         notifications.show({
           title: strings.error,
           message: data.error || strings.serverError,
-          color: "red",
+          color: "danger",
         });
       }
     } catch {
       notifications.show({
         title: strings.error,
         message: strings.serverError,
-        color: "red",
+        color: "danger",
       });
     } finally {
       setResetLoading(false);
@@ -248,7 +271,7 @@ export default function UsersPage() {
         notifications.show({
           title: strings.success,
           message: strings.userSaved,
-          color: "green",
+          color: "success",
         });
         setModalOpened(false);
         mutate();
@@ -257,14 +280,14 @@ export default function UsersPage() {
         notifications.show({
           title: strings.error,
           message: data.error || strings.userSaveError,
-          color: "red",
+          color: "danger",
         });
       }
     } catch {
       notifications.show({
         title: strings.error,
         message: strings.serverError,
-        color: "red",
+        color: "danger",
       });
     } finally {
       setLoading(false);
@@ -290,24 +313,24 @@ export default function UsersPage() {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between">
-        <Title order={1} size="h2">{strings.userManagement}</Title>
-        <Group>
-          <Button
-            variant="light"
-            leftSection={<IconRefresh size={16} />}
-            onClick={() => mutate()}
-          >
-            {strings.refresh}
-          </Button>
-          <Button
-            leftSection={<IconPlus size={16} />}
-            onClick={handleCreate}
-          >
-            {strings.addUser}
-          </Button>
-        </Group>
-      </Group>
+      <PageHeader
+        title={strings.userManagement}
+        actions={
+          <>
+            <Button
+              variant="light"
+              leftSection={<IconRefresh size={16} />}
+              onClick={() => mutate()}
+              loading={isLoading}
+            >
+              {strings.refresh}
+            </Button>
+            <Button leftSection={<IconPlus size={16} />} onClick={handleCreate}>
+              {strings.addUser}
+            </Button>
+          </>
+        }
+      />
 
       {/* Filters */}
       <Group>
@@ -334,21 +357,15 @@ export default function UsersPage() {
         />
       </Group>
 
-      <Paper p="md" radius="md" withBorder>
-        {isLoading ? (
-          <Center py="xl">
-            <Loader />
-          </Center>
-        ) : error ? (
-          <ErrorState error={error} onRetry={mutate} />
-        ) : !users?.length ? (
-          <Center py="xl">
-            <Text c="var(--app-text-secondary)">{strings.noDataAvailable}</Text>
-          </Center>
-        ) : (
-          <Table.ScrollContainer minWidth={800}>
-            <Table>
-              <Table.Thead>
+      <DataTable
+        isLoading={isLoading}
+        error={error}
+        onRetry={mutate}
+        isEmpty={!users?.length}
+        empty={strings.noDataAvailable}
+        minWidth={800}
+      >
+        <Table.Thead>
                 <Table.Tr>
                   <Table.Th>{strings.name}</Table.Th>
                   <Table.Th>{strings.username}</Table.Th>
@@ -358,7 +375,7 @@ export default function UsersPage() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {users.map((user) => (
+                {visibleUsers.map((user) => (
                   <Table.Tr key={user._id}>
                     <Table.Td>
                       <Text fw={500}>{user.name}</Text>
@@ -391,7 +408,7 @@ export default function UsersPage() {
                           </ActionIcon>
                           <ActionIcon
                             variant="subtle"
-                            color="orange"
+                            color="warning"
                             onClick={() => handleResetPassword(user)}
                             title={strings.resetPassword}
                           >
@@ -399,7 +416,7 @@ export default function UsersPage() {
                           </ActionIcon>
                           <ActionIcon
                             variant="subtle"
-                            color="red"
+                            color="danger"
                             onClick={() => handleDelete(user)}
                             title={strings.delete}
                           >
@@ -415,20 +432,37 @@ export default function UsersPage() {
                   </Table.Tr>
                 ))}
               </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        )}
-      </Paper>
+      </DataTable>
+
+      {users && users.length > 0 && (
+        <Group justify="space-between" gap="sm">
+          <Text size="xs" c="var(--app-text-secondary)">
+            {strings.showingRange(
+              pageStart + 1,
+              Math.min(pageStart + ROWS_PER_PAGE, totalUsers),
+              totalUsers
+            )}
+          </Text>
+          {pageCount > 1 && (
+            <Pagination
+              total={pageCount}
+              value={currentPage}
+              onChange={setPage}
+              size="sm"
+            />
+          )}
+        </Group>
+      )}
 
       {/* Create/Edit modal */}
-      <Modal
+      <FormModal
         opened={modalOpened}
         onClose={() => setModalOpened(false)}
         title={editingUser ? strings.editUser : strings.addUser}
         size="lg"
+        onSubmit={form.onSubmit(handleSubmit)}
+        loading={loading}
       >
-        <form onSubmit={form.onSubmit(handleSubmit)}>
-          <Stack gap="md">
             <TextInput
               label={strings.name}
               required
@@ -517,17 +551,7 @@ export default function UsersPage() {
               ]}
               {...form.getInputProps("status")}
             />
-            <Group justify="flex-end">
-              <Button variant="subtle" onClick={() => setModalOpened(false)}>
-                {strings.cancel}
-              </Button>
-              <Button type="submit" loading={loading}>
-                {strings.save}
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </Modal>
+      </FormModal>
 
       {/* Reset password modal */}
       <Modal
@@ -566,7 +590,7 @@ export default function UsersPage() {
               </Button>
               <Button
                 type="submit"
-                color="orange"
+                color="warning"
                 loading={resetLoading}
                 leftSection={<IconKey size={16} />}
               >

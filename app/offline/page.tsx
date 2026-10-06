@@ -20,7 +20,7 @@ export default function OfflinePage() {
         mx="md"
       >
         <Stack align="center" gap="md">
-          <IconWifiOff size={40} color="var(--mantine-color-orange-6)" />
+          <IconWifiOff size={40} color="var(--mantine-color-warning-6)" />
           <Text fw={700} ta="center">
             {strings.offlineTitle}
           </Text>

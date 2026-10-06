@@ -31,9 +31,12 @@ import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { DataTable } from "@/components/ui/DataTable";
 import { can } from "@/lib/auth/rbac";
 import { LoadingScreen } from "@/components/shell/LoadingScreen";
 import { notifications } from "@mantine/notifications";
+import { modals } from "@mantine/modals";
 
 interface PresenceRecord {
   _id: string;
@@ -58,6 +61,9 @@ interface DashboardData {
   totalVisitors: number;
   totalPresent: number;
   lastUpdated: string;
+  /** Full (scoped) result count vs the rows actually rendered. */
+  rowCount: number;
+  pageSize: number;
 }
 
 export default function DashboardPage() {
@@ -98,7 +104,7 @@ export default function DashboardPage() {
         notifications.show({
           title: strings.success,
           message: strings.checkOutSuccess,
-          color: "green",
+          color: "success",
         });
         mutate();
       } else {
@@ -106,48 +112,61 @@ export default function DashboardPage() {
         notifications.show({
           title: strings.error,
           message: errData.error || strings.checkOutError,
-          color: "red",
+          color: "danger",
         });
       }
     } catch {
       notifications.show({
         title: strings.error,
         message: strings.serverError,
-        color: "red",
+        color: "danger",
       });
     }
   };
 
-  const handleForceCheckout = async (attendanceId: string) => {
-    try {
-      const res = await fetch("/api/attendance/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attendanceId, force: true }),
-      });
+  /**
+   * Force check-out is destructive (it removes someone from the muster), so
+   * it now asks first — strings.forceCheckoutConfirm had been defined since
+   * the first release but never used.
+   */
+  const handleForceCheckout = (attendanceId: string) => {
+    modals.openConfirmModal({
+      title: strings.forceCheckout,
+      children: <Text size="sm">{strings.forceCheckoutConfirm}</Text>,
+      labels: { confirm: strings.confirm, cancel: strings.cancel },
+      confirmProps: { color: "danger" },
+      onConfirm: async () => {
+        try {
+          const res = await fetch("/api/attendance/checkout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ attendanceId, force: true }),
+          });
 
-      if (res.ok) {
-        notifications.show({
-          title: strings.success,
-          message: strings.forceCheckoutSuccess,
-          color: "green",
-        });
-        mutate();
-      } else {
-        const errData = await res.json();
-        notifications.show({
-          title: strings.error,
-          message: errData.error || strings.serverError,
-          color: "red",
-        });
-      }
-    } catch {
-      notifications.show({
-        title: strings.error,
-        message: strings.serverError,
-        color: "red",
-      });
-    }
+          if (res.ok) {
+            notifications.show({
+              title: strings.success,
+              message: strings.forceCheckoutSuccess,
+              color: "success",
+            });
+            mutate();
+          } else {
+            const errData = await res.json();
+            notifications.show({
+              title: strings.error,
+              message: errData.error || strings.serverError,
+              color: "danger",
+            });
+          }
+        } catch {
+          notifications.show({
+            title: strings.error,
+            message: strings.serverError,
+            color: "danger",
+          });
+        }
+      },
+    });
   };
 
   if (!session?.user) return <LoadingScreen />;
@@ -171,17 +190,19 @@ export default function DashboardPage() {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between">
-        <Title order={1} size="h2">{strings.dashboard}</Title>
-        <Button
-          variant="light"
-          leftSection={<IconRefresh size={16} />}
-          onClick={() => mutate()}
-          loading={isLoading}
-        >
-          {strings.refresh}
-        </Button>
-      </Group>
+      <PageHeader
+        title={strings.dashboard}
+        actions={
+          <Button
+            variant="light"
+            leftSection={<IconRefresh size={16} />}
+            onClick={() => mutate()}
+            loading={isLoading}
+          >
+            {strings.refresh}
+          </Button>
+        }
+      />
 
       {/* Stats */}
       <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
@@ -213,7 +234,7 @@ export default function DashboardPage() {
         </Paper>
         <Paper p="md" radius="md" withBorder>
           <Group>
-            <IconUserStar size={32} color="orange" />
+            <IconUserStar size={32} color="var(--mantine-color-warning-6)" />
             <div>
               <Text size="xs" c="var(--app-text-secondary)">
                 {strings.totalVisitors}
@@ -246,7 +267,7 @@ export default function DashboardPage() {
               </Text>
             </div>
             <Button
-              color="orange"
+              color="warning"
               variant="filled"
               leftSection={<IconDoorExit size={18} />}
               onClick={handleSelfCheckout}
@@ -267,7 +288,7 @@ export default function DashboardPage() {
           style={{ flex: 1 }}
         />
         <Select
-          placeholder="Semua Lantai"
+          placeholder={strings.allFloors}
           data={[
             { value: "", label: strings.allFloors },
             ...(floors?.map((f) => ({
@@ -283,21 +304,15 @@ export default function DashboardPage() {
       </Group>
 
       {/* Presence Table */}
-      <Paper p="md" radius="md" withBorder>
-        {isLoading ? (
-          <Center py="xl">
-            <Loader />
-          </Center>
-        ) : error ? (
-          <ErrorState error={error} onRetry={mutate} />
-        ) : filteredAttendance.length === 0 ? (
-          <Center py="xl">
-            <Text c="var(--app-text-secondary)">{strings.noOnePresent}</Text>
-          </Center>
-        ) : (
-          <Table.ScrollContainer minWidth={600}>
-            <Table>
-              <Table.Thead>
+      <DataTable
+        isLoading={isLoading}
+        error={error}
+        onRetry={mutate}
+        isEmpty={filteredAttendance.length === 0}
+        empty={strings.noOnePresent}
+        minWidth={600}
+      >
+        <Table.Thead>
                 <Table.Tr>
                   <Table.Th>{strings.name}</Table.Th>
                   <Table.Th>{strings.floors}</Table.Th>
@@ -319,7 +334,7 @@ export default function DashboardPage() {
                             : record.visitorName}
                         </Text>
                         {record.type === "visitor" && (
-                          <Badge size="xs" color="orange">
+                          <Badge size="xs" color="warning">
                             {strings.visitor}
                           </Badge>
                         )}
@@ -349,7 +364,7 @@ export default function DashboardPage() {
                     {canForceCheckout && (
                       <Table.Td>
                         <ActionIcon
-                          color="red"
+                          color="danger"
                           variant="subtle"
                           onClick={() => handleForceCheckout(record._id)}
                           title={strings.forceCheckout}
@@ -361,10 +376,13 @@ export default function DashboardPage() {
                   </Table.Tr>
                 ))}
               </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        )}
-      </Paper>
+      </DataTable>
+
+      {data && data.rowCount > data.attendance.length && (
+        <Text size="xs" c="var(--app-text-secondary)" ta="right">
+          {strings.showingXofY(data.attendance.length, data.rowCount)}
+        </Text>
+      )}
 
       {data?.lastUpdated && (
         <Text size="xs" c="var(--app-text-secondary)" ta="right">

@@ -18,6 +18,8 @@ import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { DataTable } from "@/components/ui/DataTable";
 import { ROLE_LABELS } from "@/lib/db/types";
 import { LoadingScreen } from "@/components/shell/LoadingScreen";
 
@@ -70,28 +72,29 @@ export default function MyUnitPage() {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between">
-        <Title order={1} size="h2">{strings.myUnit}</Title>
-        <Button
-          variant="light"
-          leftSection={<IconRefresh size={16} />}
-          onClick={() => mutate()}
-          loading={isLoading}
-        >
-          {strings.refresh}
-        </Button>
-      </Group>
+      <PageHeader
+        title={strings.myUnit}
+        actions={
+          <Button
+            variant="light"
+            leftSection={<IconRefresh size={16} />}
+            onClick={() => mutate()}
+            loading={isLoading}
+          >
+            {strings.refresh}
+          </Button>
+        }
+      />
 
-      <Paper p="md" radius="md" withBorder>
-        {isLoading ? (
-          <Center py="xl"><Loader /></Center>
-        ) : error ? (
-          <ErrorState error={error} onRetry={mutate} />
-        ) : !userLocations.length ? (
-          <Center py="xl"><Text c="var(--app-text-secondary)">{strings.noDataAvailable}</Text></Center>
-        ) : (
-          <Table>
-            <Table.Thead>
+      <DataTable
+        isLoading={isLoading}
+        error={error}
+        onRetry={mutate}
+        isEmpty={!userLocations.length}
+        empty={strings.noDataAvailable}
+        minWidth={600}
+      >
+        <Table.Thead>
               <Table.Tr>
                 <Table.Th>{strings.name}</Table.Th>
                 <Table.Th>{strings.role}</Table.Th>
@@ -108,16 +111,18 @@ export default function MyUnitPage() {
                     </Badge>
                   </Table.Td>
                     <Table.Td>
-                      <Text size="sm" c={user.currentFloor ? undefined : "dimmed"}>
-                        {user.currentFloor || "—"}
-                      </Text>
+                      {user.currentFloor ? (
+                        <Badge size="xs" color="success" leftSection={<IconMapPin size={12} />}>
+                          {user.currentFloor}
+                        </Badge>
+                      ) : (
+                        <Text size="sm" c="var(--app-text-secondary)">—</Text>
+                      )}
                     </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
-          </Table>
-        )}
-      </Paper>
+      </DataTable>
     </Stack>
   );
 }

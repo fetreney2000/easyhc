@@ -1,8 +1,18 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import { MantineProvider } from "@/components/providers/MantineProvider";
 import { ServiceWorkerProvider } from "@/components/providers/ServiceWorkerProvider";
 import "./globals.css";
 import { strings } from "@/lib/i18n/strings";
+
+// Self-hosted at build time: no render-blocking request to Google Fonts, and
+// the font is served from /_next/static so it works offline too.
+const inter = Inter({
+  subsets: ["latin", "latin-ext"],
+  display: "swap",
+  variable: "--font-inter",
+  preload: true,
+});
 
 export const metadata: Metadata = {
   title: strings.appName,
@@ -41,7 +51,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ms" suppressHydrationWarning>
+    <html lang="ms" className={inter.variable} suppressHydrationWarning>
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
       </head>

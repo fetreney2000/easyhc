@@ -24,7 +24,7 @@ export default function GlobalError({
     <Center mih="100vh" bg="var(--mantine-color-default-bg)">
       <Paper shadow="md" p="xl" radius="md" w={{ base: "100%", xs: 420 }} maw={420} mx="md">
         <Stack align="center" gap="md">
-          <IconAlertCircle size={40} color="red" />
+          <IconAlertCircle size={40} color="var(--mantine-color-danger-6)" />
           <Text fw={700} ta="center">
             {strings.pageError}
           </Text>

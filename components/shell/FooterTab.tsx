@@ -9,6 +9,8 @@ interface FooterTabProps {
   href: string;
   active: boolean;
   isPrimary?: boolean;
+  /** Group colour for the active tab (matches the sidebar). */
+  color?: string;
 }
 
 /**
@@ -23,7 +25,14 @@ interface FooterTabProps {
  * (WCAG 1.4.1), and inactive items use a contrast-safe secondary colour
  * instead of opacity 0.5 (~1.7:1 → ~7:1).
  */
-export function FooterTab({ label, icon, href, active, isPrimary }: FooterTabProps) {
+export function FooterTab({
+  label,
+  icon,
+  href,
+  active,
+  isPrimary,
+  color = "brandPrimary",
+}: FooterTabProps) {
   if (isPrimary) {
     // Raised scan button: no room for a text label, so the link is named
     // explicitly and the tooltip is only a sighted-user affordance.
@@ -81,8 +90,10 @@ export function FooterTab({ label, icon, href, active, isPrimary }: FooterTabPro
         height: "100%",
         padding: "0 var(--mantine-spacing-xs)",
         textDecoration: "none",
+        // Active tabs take their group colour so the mobile bar matches the
+        // sidebar (Mantine emits -filled for every theme colour)
         color: active
-          ? "var(--mantine-primary-color-filled)"
+          ? `var(--mantine-color-${color}-filled)`
           : "var(--app-text-secondary)",
         transition: "color 0.15s ease",
       }}

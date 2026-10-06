@@ -56,6 +56,35 @@ interface NavLinkItem {
   action?: string;
 }
 
+/**
+ * One colour per nav group (mirrors the GROUP comments below): the sidebar
+ * icon is tinted in both states instead of every entry being grey, and the
+ * active mobile tab takes the same colour so both bars tell the same story.
+ * Unknown hrefs fall back to the brand colour.
+ */
+const NAV_COLORS: Record<string, string> = {
+  // GROUP 1 — Kehadiran
+  "/dashboard": "brandPrimary",
+  "/scan": "brandPrimary",
+  // GROUP 2 — Lantai & Lokasi
+  "/floors": "teal",
+  "/my-unit": "teal",
+  "/all-staff": "teal",
+  // GROUP 3 — Laporan
+  "/reports": "violet",
+  // GROUP 4 — Pentadbiran
+  "/users": "orange",
+  "/floors/manage": "orange",
+  "/manual-checkin": "orange",
+  "/jabatans": "orange",
+  "/units": "orange",
+  "/floors/qr": "orange",
+  // GROUP 5 — Info
+  "/hakcipta": "gray",
+};
+
+const colorFor = (href: string): string => NAV_COLORS[href] ?? "brandPrimary";
+
 export function AppShellLayout({ children, user }: AppShellLayoutProps) {
   const [opened, { toggle, close }] = useDisclosure();
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
@@ -370,7 +399,11 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
           <NavbarLink
             key={item.href}
             {...item}
-            active={pathname === item.href || pathname.startsWith(item.href + "/")}
+            color={colorFor(item.href)}
+            // EXACT match on purpose: /floors and /floors/manage are
+            // siblings in this list, so prefix matching lit up both when
+            // "Pengurusan Lantai" was opened (reported bug).
+            active={pathname === item.href}
             onClick={handleNavClick}
           />
         ))}
@@ -382,7 +415,11 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
           <NavbarLink
             key={item.href}
             {...item}
-            active={pathname === item.href || pathname.startsWith(item.href + "/")}
+            color={colorFor(item.href)}
+            // EXACT match on purpose: /floors and /floors/manage are
+            // siblings in this list, so prefix matching lit up both when
+            // "Pengurusan Lantai" was opened (reported bug).
+            active={pathname === item.href}
             onClick={handleNavClick}
           />
         ))}
@@ -411,10 +448,8 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
               label={item.label}
               icon={item.icon}
               href={item.href}
-              active={
-                pathname === item.href ||
-                pathname.startsWith(item.href + "/")
-              }
+              color={colorFor(item.href)}
+              active={pathname === item.href}
               isPrimary={item.isPrimary}
             />
           ))}

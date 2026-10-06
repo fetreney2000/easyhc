@@ -23,6 +23,7 @@ import { ROLE_LABELS } from "@/lib/db/types";
 import { notifications } from "@mantine/notifications";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
+import { ErrorState } from "@/components/ui/ErrorState";
 
 interface ProfileUser {
   _id: string;
@@ -37,7 +38,8 @@ export default function ProfilePage() {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
 
-  const { data: user } = useSWR<ProfileUser>(
+  const { data: user, error: userError, mutate: mutateUser } =
+    useSWR<ProfileUser>(
     session?.user?.id ? `/api/users/${session.user.id}` : null,
     fetcher
   );
@@ -151,7 +153,7 @@ export default function ProfilePage() {
 
   return (
     <Stack gap="lg">
-      <Title order={2}>{strings.profile}</Title>
+      <Title order={1} size="h2">{strings.profile}</Title>
 
       {/* User info card */}
       <Paper p="xl" radius="md" withBorder>
@@ -163,7 +165,7 @@ export default function ProfilePage() {
             <Text fw={700} size="lg">
               {session.user.name}
             </Text>
-            <Text c="dimmed" size="sm">
+            <Text c="var(--app-text-secondary)" size="sm">
               @{session.user.username}
             </Text>
             <Badge mt={4} variant="light">
@@ -173,9 +175,12 @@ export default function ProfilePage() {
         </Group>
       </Paper>
 
+      {/* Profile data failed to load — say so instead of showing an empty form */}
+      {userError && <ErrorState error={userError} onRetry={mutateUser} />}
+
       {/* Edit profile */}
       <Paper p="xl" radius="md" withBorder>
-        <Title order={4} mb="md">
+        <Title order={2} size="h4" mb="md">
           {strings.editProfile}
         </Title>
         <form onSubmit={profileForm.onSubmit(handleProfileUpdate)}>
@@ -203,7 +208,7 @@ export default function ProfilePage() {
 
       {/* Change password */}
       <Paper p="xl" radius="md" withBorder>
-        <Title order={4} mb="md">
+        <Title order={2} size="h4" mb="md">
           {strings.changePassword}
         </Title>
         <form onSubmit={passwordForm.onSubmit(handlePasswordChange)}>

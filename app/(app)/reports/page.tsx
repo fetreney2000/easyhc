@@ -25,6 +25,7 @@ import {
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
 import { LoadingScreen } from "@/components/shell/LoadingScreen";
 
@@ -53,7 +54,7 @@ export default function ReportsPage() {
   if (floorFilter) queryParams.set("floorId", floorFilter);
   if (typeFilter) queryParams.set("type", typeFilter);
 
-  const { data, isLoading, mutate } = useSWR<{ records: ReportRecord[] }>(
+  const { data, error, isLoading, mutate } = useSWR<{ records: ReportRecord[] }>(
     `/api/reports?${queryParams.toString()}`,
     fetcher
   );
@@ -118,7 +119,7 @@ export default function ReportsPage() {
   return (
     <Stack gap="lg">
       <Group justify="space-between">
-        <Title order={2}>{strings.reports}</Title>
+        <Title order={1} size="h2">{strings.reports}</Title>
         <Group>
           <Button
             variant="light"
@@ -196,9 +197,11 @@ export default function ReportsPage() {
           <Center py="xl">
             <Loader />
           </Center>
+        ) : error ? (
+          <ErrorState error={error} onRetry={mutate} />
         ) : !data?.records?.length ? (
           <Center py="xl">
-            <Text c="dimmed">{strings.noReportData}</Text>
+            <Text c="var(--app-text-secondary)">{strings.noReportData}</Text>
           </Center>
         ) : (
           <Table.ScrollContainer minWidth={700}>
@@ -262,7 +265,7 @@ export default function ReportsPage() {
         )}
       </Paper>
 
-      <Text size="xs" c="dimmed" ta="right">
+      <Text size="xs" c="var(--app-text-secondary)" ta="right">
         {data?.records?.length || 0} rekod
       </Text>
     </Stack>

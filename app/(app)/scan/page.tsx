@@ -183,7 +183,7 @@ export default function ScanPage() {
 
   return (
     <Stack gap="lg">
-      <Title order={2}>{strings.scanQRTitle}</Title>
+      <Title order={1} size="h2">{strings.scanQRTitle}</Title>
 
       {error && (
         <Alert icon={<IconAlertCircle size={16} />} color="red">
@@ -198,7 +198,7 @@ export default function ScanPage() {
       )}
 
       <Paper p="md" radius="md" withBorder>
-        <Text size="sm" c="dimmed" ta="center" mb="md">
+        <Text size="sm" c="var(--app-text-secondary)" ta="center" mb="md">
           {strings.scanQRInstruction}
         </Text>
 
@@ -219,7 +219,7 @@ export default function ScanPage() {
           <Center py="xl">
             <Stack align="center" gap="sm">
               <Loader />
-              <Text size="sm" c="dimmed">
+              <Text size="sm" c="var(--app-text-secondary)">
                 {strings.loading}
               </Text>
             </Stack>

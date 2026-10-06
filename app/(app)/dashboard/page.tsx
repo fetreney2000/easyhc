@@ -29,6 +29,7 @@ import {
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
 import { can } from "@/lib/auth/rbac";
 import { LoadingScreen } from "@/components/shell/LoadingScreen";
@@ -171,7 +172,7 @@ export default function DashboardPage() {
   return (
     <Stack gap="lg">
       <Group justify="space-between">
-        <Title order={2}>{strings.dashboard}</Title>
+        <Title order={1} size="h2">{strings.dashboard}</Title>
         <Button
           variant="light"
           leftSection={<IconRefresh size={16} />}
@@ -188,7 +189,7 @@ export default function DashboardPage() {
           <Group>
             <IconUsers size={32} color="var(--mantine-primary-color-filled)" />
             <div>
-              <Text size="xs" c="dimmed">
+              <Text size="xs" c="var(--app-text-secondary)">
                 {strings.totalPresent}
               </Text>
               <Text fw={700} size="xl">
@@ -201,7 +202,7 @@ export default function DashboardPage() {
           <Group>
             <IconUser size={32} color="blue" />
             <div>
-              <Text size="xs" c="dimmed">
+              <Text size="xs" c="var(--app-text-secondary)">
                 {strings.totalEmployees}
               </Text>
               <Text fw={700} size="xl">
@@ -214,7 +215,7 @@ export default function DashboardPage() {
           <Group>
             <IconUserStar size={32} color="orange" />
             <div>
-              <Text size="xs" c="dimmed">
+              <Text size="xs" c="var(--app-text-secondary)">
                 {strings.totalVisitors}
               </Text>
               <Text fw={700} size="xl">
@@ -240,7 +241,7 @@ export default function DashboardPage() {
                   )?.floorId?.name}
                 </Text>
               </Text>
-              <Text size="xs" c="dimmed">
+              <Text size="xs" c="var(--app-text-secondary)">
                 {strings.pressButtonToCheckOut}
               </Text>
             </div>
@@ -288,12 +289,10 @@ export default function DashboardPage() {
             <Loader />
           </Center>
         ) : error ? (
-          <Center py="xl">
-            <Text c="red">{strings.serverError}</Text>
-          </Center>
+          <ErrorState error={error} onRetry={mutate} />
         ) : filteredAttendance.length === 0 ? (
           <Center py="xl">
-            <Text c="dimmed">{strings.noOnePresent}</Text>
+            <Text c="var(--app-text-secondary)">{strings.noOnePresent}</Text>
           </Center>
         ) : (
           <Table.ScrollContainer minWidth={600}>
@@ -333,7 +332,7 @@ export default function DashboardPage() {
                           {record.userId?.role}
                         </Badge>
                       ) : (
-                        <Text size="sm" c="dimmed">—</Text>
+                        <Text size="sm" c="var(--app-text-secondary)">—</Text>
                       )}
                     </Table.Td>
                     <Table.Td>
@@ -368,7 +367,7 @@ export default function DashboardPage() {
       </Paper>
 
       {data?.lastUpdated && (
-        <Text size="xs" c="dimmed" ta="right">
+        <Text size="xs" c="var(--app-text-secondary)" ta="right">
           {strings.lastUpdated}:{" "}
           {new Date(data.lastUpdated).toLocaleString("ms-MY", {
             day: "2-digit",

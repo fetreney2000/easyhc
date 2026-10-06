@@ -17,6 +17,7 @@ import {
 import { IconPrinter, IconRefresh, IconQrcode, IconUsers, IconUserStar } from "@tabler/icons-react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
 
 interface Floor {
@@ -25,7 +26,7 @@ interface Floor {
 }
 
 export default function QRCodesPage() {
-  const { data: floors, isLoading, mutate } = useSWR<Floor[]>(
+  const { data: floors, error, isLoading, mutate } = useSWR<Floor[]>(
     "/api/floors",
     fetcher
   );
@@ -82,7 +83,7 @@ export default function QRCodesPage() {
   return (
     <Stack gap="lg">
       <Group justify="space-between">
-        <Title order={2}>{strings.qrCodes}</Title>
+        <Title order={1} size="h2">{strings.qrCodes}</Title>
         <Button
           variant="light"
           leftSection={<IconRefresh size={16} />}
@@ -92,21 +93,23 @@ export default function QRCodesPage() {
         </Button>
       </Group>
 
-      <Text size="sm" c="dimmed">
+      <Text size="sm" c="var(--app-text-secondary)">
         {strings.qrIntro}
       </Text>
 
       {isLoading ? (
         <Center py="xl"><Loader /></Center>
+      ) : error ? (
+        <ErrorState error={error} onRetry={mutate} />
       ) : !floors?.length ? (
         <Center py="xl">
-          <Text c="dimmed">{strings.noFloorsYet}</Text>
+          <Text c="var(--app-text-secondary)">{strings.noFloorsYet}</Text>
         </Center>
       ) : (
         <Stack gap="xl">
           {floors.map((floor) => (
             <Paper key={floor._id} p="lg" radius="md" withBorder>
-              <Title order={3} mb="md">{floor.name}</Title>
+              <Title order={2} size="h3" mb="md">{floor.name}</Title>
               <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
                 {/* Employee QR */}
                 <Stack align="center" gap="sm">
@@ -120,7 +123,7 @@ export default function QRCodesPage() {
                     height={180}
                     fit="contain"
                   />
-                  <Text size="xs" c="dimmed" ta="center">
+                  <Text size="xs" c="var(--app-text-secondary)" ta="center">
                     {strings.qrStaffScanHint}
                   </Text>
                   <Button
@@ -146,7 +149,7 @@ export default function QRCodesPage() {
                     height={180}
                     fit="contain"
                   />
-                  <Text size="xs" c="dimmed" ta="center">
+                  <Text size="xs" c="var(--app-text-secondary)" ta="center">
                     {strings.qrVisitorScanHint}
                   </Text>
                   <Button

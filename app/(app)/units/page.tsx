@@ -20,6 +20,7 @@ import { useForm } from "@mantine/form";
 import { IconPlus, IconEdit, IconTrash, IconRefresh } from "@tabler/icons-react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
 import { notifications } from "@mantine/notifications";
 import { modals } from "@mantine/modals";
@@ -40,7 +41,7 @@ export default function UnitsPage() {
   const [editing, setEditing] = useState<Unit | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const { data: units, isLoading, mutate } = useSWR<Unit[]>("/api/units", fetcher);
+  const { data: units, error, isLoading, mutate } = useSWR<Unit[]>("/api/units", fetcher);
   const { data: jabatans } = useSWR<{ _id: string; name: string }[]>("/api/jabatans", fetcher);
   const { data: floors } = useSWR<{ _id: string; name: string }[]>("/api/floors", fetcher);
 
@@ -116,7 +117,7 @@ export default function UnitsPage() {
   return (
     <Stack gap="lg">
       <Group justify="space-between">
-        <Title order={2}>{strings.unit}</Title>
+        <Title order={1} size="h2">{strings.unit}</Title>
         <Group>
           <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={() => mutate()}>
             {strings.refresh}
@@ -130,8 +131,10 @@ export default function UnitsPage() {
       <Paper p="md" radius="md" withBorder>
         {isLoading ? (
           <Center py="xl"><Loader /></Center>
+        ) : error ? (
+          <ErrorState error={error} onRetry={mutate} />
         ) : !units?.length ? (
-          <Center py="xl"><Text c="dimmed">{strings.noUnitsYet}</Text></Center>
+          <Center py="xl"><Text c="var(--app-text-secondary)">{strings.noUnitsYet}</Text></Center>
         ) : (
           <Table>
             <Table.Thead>

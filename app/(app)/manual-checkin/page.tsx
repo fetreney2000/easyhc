@@ -47,7 +47,7 @@ export default function ManualCheckInPage() {
   if (!can(session.user.role, "attendance:manual_checkin")) {
     return (
       <Stack gap="lg">
-        <Title order={2}>{strings.manualCheckIn}</Title>
+        <Title order={1} size="h2">{strings.manualCheckIn}</Title>
         <Alert icon={<IconAlertCircle size={16} />} color="red">
           {strings.unauthorized}
         </Alert>
@@ -101,7 +101,7 @@ export default function ManualCheckInPage() {
 
   return (
     <Stack gap="lg">
-      <Title order={2}>{strings.manualCheckIn}</Title>
+      <Title order={1} size="h2">{strings.manualCheckIn}</Title>
 
       <Paper p="xl" radius="md" withBorder>
         <Stack gap="md">

@@ -29,6 +29,7 @@ import {
 } from "@tabler/icons-react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
 import { ROLES, ROLE_LABELS } from "@/lib/db/types";
 import { notifications } from "@mantine/notifications";
@@ -70,7 +71,7 @@ export default function UsersPage() {
   if (search) queryParams.set("search", search);
   if (roleFilter) queryParams.set("role", roleFilter);
 
-  const { data: users, isLoading, mutate } = useSWR<UserRecord[]>(
+  const { data: users, error, isLoading, mutate } = useSWR<UserRecord[]>(
     `/api/users?${queryParams.toString()}`,
     fetcher
   );
@@ -290,7 +291,7 @@ export default function UsersPage() {
   return (
     <Stack gap="lg">
       <Group justify="space-between">
-        <Title order={2}>{strings.userManagement}</Title>
+        <Title order={1} size="h2">{strings.userManagement}</Title>
         <Group>
           <Button
             variant="light"
@@ -338,9 +339,11 @@ export default function UsersPage() {
           <Center py="xl">
             <Loader />
           </Center>
+        ) : error ? (
+          <ErrorState error={error} onRetry={mutate} />
         ) : !users?.length ? (
           <Center py="xl">
-            <Text c="dimmed">{strings.noDataAvailable}</Text>
+            <Text c="var(--app-text-secondary)">{strings.noDataAvailable}</Text>
           </Center>
         ) : (
           <Table.ScrollContainer minWidth={800}>
@@ -404,7 +407,7 @@ export default function UsersPage() {
                           </ActionIcon>
                         </Group>
                       ) : (
-                        <Text size="sm" c="dimmed">
+                        <Text size="sm" c="var(--app-text-secondary)">
                           —
                         </Text>
                       )}
@@ -543,7 +546,7 @@ export default function UsersPage() {
             <Text size="sm" fw={500}>
               {resetTarget?.name} (@{resetTarget?.username})
             </Text>
-            <Text size="xs" c="dimmed">
+            <Text size="xs" c="var(--app-text-secondary)">
               {strings.resetPasswordConfirm}
             </Text>
             <PasswordInput

@@ -29,6 +29,7 @@ import {
 } from "@tabler/icons-react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
 import { notifications } from "@mantine/notifications";
 import { modals } from "@mantine/modals";
@@ -46,7 +47,7 @@ export default function FloorManagementPage() {
   const [qrModalFloor, setQrModalFloor] = useState<Floor | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const { data: floors, isLoading, mutate } = useSWR<Floor[]>(
+  const { data: floors, error, isLoading, mutate } = useSWR<Floor[]>(
     "/api/floors",
     fetcher
   );
@@ -167,7 +168,7 @@ export default function FloorManagementPage() {
   return (
     <Stack gap="lg">
       <Group justify="space-between">
-        <Title order={2}>{strings.floorManagement}</Title>
+        <Title order={1} size="h2">{strings.floorManagement}</Title>
         <Group>
           <Button
             variant="light"
@@ -190,9 +191,11 @@ export default function FloorManagementPage() {
           <Center py="xl">
             <Loader />
           </Center>
+        ) : error ? (
+          <ErrorState error={error} onRetry={mutate} />
         ) : !floors?.length ? (
           <Center py="xl">
-            <Text c="dimmed">{strings.noDataAvailable}</Text>
+            <Text c="var(--app-text-secondary)">{strings.noDataAvailable}</Text>
           </Center>
         ) : (
           <Table>

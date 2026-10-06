@@ -296,7 +296,7 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
         maw={400}
         mx="md"
       >
-        <Title order={3} ta="center" mb="lg">
+        <Title order={1} size="h3" ta="center" mb="lg">
           {strings.visitorCheckInTitle}
         </Title>
 

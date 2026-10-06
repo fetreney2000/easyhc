@@ -19,6 +19,7 @@ import { useForm } from "@mantine/form";
 import { IconPlus, IconEdit, IconTrash, IconRefresh } from "@tabler/icons-react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
 import { notifications } from "@mantine/notifications";
 import { modals } from "@mantine/modals";
@@ -34,7 +35,7 @@ export default function JabatansPage() {
   const [editing, setEditing] = useState<Jabatan | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const { data: jabatans, isLoading, mutate } = useSWR<Jabatan[]>(
+  const { data: jabatans, error, isLoading, mutate } = useSWR<Jabatan[]>(
     "/api/jabatans",
     fetcher
   );
@@ -104,7 +105,7 @@ export default function JabatansPage() {
   return (
     <Stack gap="lg">
       <Group justify="space-between">
-        <Title order={2}>{strings.jabatan}</Title>
+        <Title order={1} size="h2">{strings.jabatan}</Title>
         <Group>
           <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={() => mutate()}>
             {strings.refresh}
@@ -118,8 +119,10 @@ export default function JabatansPage() {
       <Paper p="md" radius="md" withBorder>
         {isLoading ? (
           <Center py="xl"><Loader /></Center>
+        ) : error ? (
+          <ErrorState error={error} onRetry={mutate} />
         ) : !jabatans?.length ? (
-          <Center py="xl"><Text c="dimmed">Tiada jabatan. Sila tambah jabatan baharu.</Text></Center>
+          <Center py="xl"><Text c="var(--app-text-secondary)">Tiada jabatan. Sila tambah jabatan baharu.</Text></Center>
         ) : (
           <Table>
             <Table.Thead>
@@ -134,7 +137,7 @@ export default function JabatansPage() {
                 <Table.Tr key={item._id}>
                   <Table.Td><Text fw={500}>{item.name}</Text></Table.Td>
                   <Table.Td>
-                    <Text size="sm" c="dimmed">
+                    <Text size="sm" c="var(--app-text-secondary)">
                       {new Date(item.createdAt).toLocaleDateString("ms-MY")}
                     </Text>
                   </Table.Td>

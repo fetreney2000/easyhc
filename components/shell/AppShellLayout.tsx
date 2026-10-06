@@ -253,8 +253,9 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
     await signOut({ callbackUrl: "/login" });
   };
 
-  const handleNavClick = (href: string) => {
-    router.push(href);
+  const handleNavClick = () => {
+    // NavbarLink is a real <Link> now — it navigates on its own;
+    // this only has to dismiss the mobile drawer.
     close();
   };
 
@@ -269,6 +270,11 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
       footer={{ height: { base: 50, md: 0 } }}
       padding="md"
     >
+      {/* WCAG 2.4.1 — first focusable element, jumps past nav to the content */}
+      <a className="skip-link" href="#main-content">
+        {strings.skipToContent}
+      </a>
+
       {/* Header */}
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
@@ -278,6 +284,7 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
               onClick={toggle}
               hiddenFrom="md"
               size="sm"
+              aria-label={strings.menu}
             />
             <Group gap="xs">
               <Image
@@ -302,6 +309,7 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
               onClick={() => router.push("/scan")}
               visibleFrom="md"
               title={strings.scanQR}
+              aria-label={strings.scanQR}
             >
               <IconQrcode size={20} />
             </ActionIcon>
@@ -311,6 +319,7 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
               variant="subtle"
               onClick={() => toggleColorScheme()}
               title={colorScheme === "dark" ? strings.lightMode : strings.darkMode}
+              aria-label={colorScheme === "dark" ? strings.lightMode : strings.darkMode}
             >
               {colorScheme === "dark" ? (
                 <IconSun size={20} />
@@ -322,9 +331,9 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
             {/* User menu */}
             <Menu shadow="md" width={200}>
               <Menu.Target>
-                <UnstyledButton>
+                <UnstyledButton aria-label={`${user.name} — ${strings.profile}`}>
                   <Group gap="xs">
-                    <Avatar size="sm" radius="xl" color="brandPrimary">
+                    <Avatar size="sm" radius="xl" color="brandPrimary" aria-hidden>
                       {user.name.charAt(0).toUpperCase()}
                     </Avatar>
                     <Text size="sm" fw={500} visibleFrom="sm">
@@ -362,7 +371,7 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
             key={item.href}
             {...item}
             active={pathname === item.href || pathname.startsWith(item.href + "/")}
-            onClick={() => handleNavClick(item.href)}
+            onClick={handleNavClick}
           />
         ))}
       </AppShell.Navbar>
@@ -374,13 +383,15 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
             key={item.href}
             {...item}
             active={pathname === item.href || pathname.startsWith(item.href + "/")}
-            onClick={() => handleNavClick(item.href)}
+            onClick={handleNavClick}
           />
         ))}
       </AppShell.Navbar>
 
       {/* Main content */}
-      <AppShell.Main>{children}</AppShell.Main>
+      <AppShell.Main id="main-content" tabIndex={-1}>
+        {children}
+      </AppShell.Main>
 
       {/* Footer (Mobile tab bar) */}
       <AppShell.Footer hiddenFrom="md" p={0} style={{ 
@@ -400,9 +411,11 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
               label={item.label}
               icon={item.icon}
               href={item.href}
-              active={pathname === item.href}
+              active={
+                pathname === item.href ||
+                pathname.startsWith(item.href + "/")
+              }
               isPrimary={item.isPrimary}
-              onClick={() => router.push(item.href)}
             />
           ))}
         </Group>

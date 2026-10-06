@@ -16,6 +16,7 @@ import { IconRefresh, IconMapPin } from "@tabler/icons-react";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
 import { ROLE_LABELS } from "@/lib/db/types";
 import { LoadingScreen } from "@/components/shell/LoadingScreen";
@@ -38,7 +39,7 @@ interface ActiveAttendance {
 export default function MyUnitPage() {
   const { data: session } = useSession();
 
-  const { data: users, isLoading } = useSWR<StaffUser[]>(
+  const { data: users, error, isLoading, mutate } = useSWR<StaffUser[]>(
     session?.user?.unitId ? `/api/users?unitId=${session.user.unitId}` : null,
     fetcher
   );
@@ -70,8 +71,13 @@ export default function MyUnitPage() {
   return (
     <Stack gap="lg">
       <Group justify="space-between">
-        <Title order={2}>{strings.myUnit}</Title>
-        <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={() => {}}>
+        <Title order={1} size="h2">{strings.myUnit}</Title>
+        <Button
+          variant="light"
+          leftSection={<IconRefresh size={16} />}
+          onClick={() => mutate()}
+          loading={isLoading}
+        >
           {strings.refresh}
         </Button>
       </Group>
@@ -79,8 +85,10 @@ export default function MyUnitPage() {
       <Paper p="md" radius="md" withBorder>
         {isLoading ? (
           <Center py="xl"><Loader /></Center>
+        ) : error ? (
+          <ErrorState error={error} onRetry={mutate} />
         ) : !userLocations.length ? (
-          <Center py="xl"><Text c="dimmed">{strings.noDataAvailable}</Text></Center>
+          <Center py="xl"><Text c="var(--app-text-secondary)">{strings.noDataAvailable}</Text></Center>
         ) : (
           <Table>
             <Table.Thead>

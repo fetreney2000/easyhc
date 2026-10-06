@@ -51,10 +51,10 @@ export default function HakciptaPage() {
             </Avatar>
 
             <div>
-              <Title order={2} c="brandPrimary" mb={4}>
+              <Title order={1} size="h2" c="brandPrimary" mb={4}>
                 EasyHC
               </Title>
-              <Text size="sm" c="dimmed">
+              <Text size="sm" c="var(--app-text-secondary)">
                 Sistem Kehadiran Lantai
               </Text>
             </div>
@@ -71,7 +71,7 @@ export default function HakciptaPage() {
                 Hak Cipta Terpelihara
               </Text>
 
-              <Text size="sm" c="dimmed" ta="center" maw={500}>
+              <Text size="sm" c="var(--app-text-secondary)" ta="center" maw={500}>
                 Aplikasi ini adalah hak milik pembangun. Sebarang penggunaan, pengeluaran semula,
                 atau pengagihan semula tanpa kebenaran bertulis adalah dilarang.
               </Text>
@@ -85,7 +85,7 @@ export default function HakciptaPage() {
                 bg="var(--mantine-color-default-bg)"
               >
                 <Stack align="center" gap="sm">
-                  <Text size="sm" fw={600} tt="uppercase" c="dimmed" style={{ letterSpacing: "0.1em" }}>
+                  <Text size="sm" fw={600} tt="uppercase" c="var(--app-text-secondary)" style={{ letterSpacing: "0.1em" }}>
                     Pembangun Aplikasi
                   </Text>
                   <Text size="lg" fw={700} ta="center">
@@ -126,7 +126,7 @@ export default function HakciptaPage() {
         </Paper>
 
         {/* Footer */}
-        <Text size="xs" c="dimmed" ta="center">
+        <Text size="xs" c="var(--app-text-secondary)" ta="center">
           &copy; {currentYear} EasyHC. Semua hak cipta terpelihara.
         </Text>
       </Stack>

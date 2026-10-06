@@ -17,6 +17,7 @@ import {
   TextInput,
   Collapse,
   ThemeIcon,
+  UnstyledButton,
 } from "@mantine/core";
 import {
   IconRefresh,
@@ -30,6 +31,7 @@ import {
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
 import { can } from "@/lib/auth/rbac";
 import { notifications } from "@mantine/notifications";
@@ -51,7 +53,7 @@ export default function AllFloorsPage() {
   const [expandedFloors, setExpandedFloors] = useState<Set<string>>(new Set());
   const expandedInitialized = useRef(false);
 
-  const { data, isLoading, mutate } = useSWR<{
+  const { data, error, isLoading, mutate } = useSWR<{
     attendance: PresenceRecord[];
     totalPresent: number;
     totalEmployees: number;
@@ -141,7 +143,7 @@ export default function AllFloorsPage() {
   return (
     <Stack gap="lg">
       <Group justify="space-between">
-        <Title order={2}>{strings.allFloors}</Title>
+        <Title order={1} size="h2">{strings.allFloors}</Title>
         <Group>
           <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={() => mutate()} loading={isLoading}>
             {strings.refresh}
@@ -155,7 +157,7 @@ export default function AllFloorsPage() {
           <Group gap="xs">
             <IconBuildingSkyscraper size={20} color="var(--mantine-primary-color-filled)" />
             <div>
-              <Text size="xs" c="dimmed">Lantai</Text>
+              <Text size="xs" c="var(--app-text-secondary)">Lantai</Text>
               <Text fw={700}>{floorGroups.size}</Text>
             </div>
           </Group>
@@ -164,7 +166,7 @@ export default function AllFloorsPage() {
           <Group gap="xs">
             <IconUsers size={20} color="var(--mantine-primary-color-filled)" />
             <div>
-              <Text size="xs" c="dimmed">{strings.totalPresent}</Text>
+              <Text size="xs" c="var(--app-text-secondary)">{strings.totalPresent}</Text>
               <Text fw={700}>{data?.totalPresent ?? "—"}</Text>
             </div>
           </Group>
@@ -173,7 +175,7 @@ export default function AllFloorsPage() {
           <Group gap="xs">
             <IconUsers size={20} color="blue" />
             <div>
-              <Text size="xs" c="dimmed">{strings.totalEmployees}</Text>
+              <Text size="xs" c="var(--app-text-secondary)">{strings.totalEmployees}</Text>
               <Text fw={700}>{data?.totalEmployees ?? "—"}</Text>
             </div>
           </Group>
@@ -182,7 +184,7 @@ export default function AllFloorsPage() {
           <Group gap="xs">
             <IconUsers size={20} color="orange" />
             <div>
-              <Text size="xs" c="dimmed">{strings.totalVisitors}</Text>
+              <Text size="xs" c="var(--app-text-secondary)">{strings.totalVisitors}</Text>
               <Text fw={700}>{data?.totalVisitors ?? "—"}</Text>
             </div>
           </Group>
@@ -201,46 +203,61 @@ export default function AllFloorsPage() {
       {/* Floor-grouped presence */}
       {isLoading ? (
         <Center py="xl"><Loader /></Center>
+      ) : error ? (
+        <ErrorState error={error} onRetry={mutate} />
       ) : sortedFloors.length === 0 ? (
-        <Center py="xl"><Text c="dimmed">{strings.noOnePresent}</Text></Center>
+        <Center py="xl"><Text c="var(--app-text-secondary)">{strings.noOnePresent}</Text></Center>
       ) : (
         <Stack gap="md">
           {sortedFloors.map(([floorId, group]) => (
             <Paper key={floorId} p="md" radius="md" withBorder>
-              {/* Floor header - clickable to expand/collapse */}
-              <Group
-                justify="space-between"
-                style={{ cursor: "pointer" }}
+              {/* Floor header — a real <button> so it is keyboard-operable
+                  (WCAG 2.1.1) and announces its state (WCAG 4.1.2). The old
+                  version was a Group with onClick: not focusable, and the
+                  chevron ActionIcon inside it was a button with no handler. */}
+              <UnstyledButton
                 onClick={() => toggleFloor(floorId)}
+                aria-expanded={expandedFloors.has(floorId)}
+                aria-controls={`floor-${floorId}`}
+                style={{ width: "100%", display: "block", borderRadius: "var(--mantine-radius-md)" }}
               >
-                <Group gap="sm">
-                  <ThemeIcon size="md" variant="light" color="brandPrimary">
-                    <IconBuildingSkyscraper size={16} />
-                  </ThemeIcon>
-                  <Text fw={600}>{group.name}</Text>
-                  <Badge size="sm" variant="light">
-                    {group.employees + group.visitors}
-                  </Badge>
-                </Group>
-                <Group gap="xs">
-                  {group.employees > 0 && (
-                    <Badge size="xs" color="blue" variant="light">
-                      {group.employees} kakitangan
+                <Group justify="space-between" wrap="nowrap">
+                  <Group gap="sm" style={{ minWidth: 0 }}>
+                    <ThemeIcon size="md" variant="light" color="brandPrimary" aria-hidden>
+                      <IconBuildingSkyscraper size={16} />
+                    </ThemeIcon>
+                    <Text fw={600}>{group.name}</Text>
+                    <Badge size="sm" variant="light">
+                      {group.employees + group.visitors}
                     </Badge>
-                  )}
-                  {group.visitors > 0 && (
-                    <Badge size="xs" color="orange" variant="light">
-                      {group.visitors} pelawat
-                    </Badge>
-                  )}
-                  <ActionIcon variant="subtle" size="sm">
-                    {expandedFloors.has(floorId) ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
-                  </ActionIcon>
+                  </Group>
+                  <Group gap="xs">
+                    {group.employees > 0 && (
+                      <Badge size="xs" color="blue" variant="light">
+                        {group.employees} kakitangan
+                      </Badge>
+                    )}
+                    {group.visitors > 0 && (
+                      <Badge size="xs" color="orange" variant="light">
+                        {group.visitors} pelawat
+                      </Badge>
+                    )}
+                    <span
+                      aria-hidden
+                      style={{ display: "flex", alignItems: "center" }}
+                    >
+                      {expandedFloors.has(floorId) ? (
+                        <IconChevronUp size={16} />
+                      ) : (
+                        <IconChevronDown size={16} />
+                      )}
+                    </span>
+                  </Group>
                 </Group>
-              </Group>
+              </UnstyledButton>
 
               {/* Expandable presence table for this floor */}
-              <Collapse in={expandedFloors.has(floorId)}>
+              <Collapse in={expandedFloors.has(floorId)} id={`floor-${floorId}`}>
                 <Table mt="sm">
                   <Table.Thead>
                     <Table.Tr>
@@ -267,7 +284,7 @@ export default function AllFloorsPage() {
                           {record.type === "employee" ? (
                             <Badge size="xs" variant="light">{record.userId?.role}</Badge>
                           ) : (
-                            <Text size="sm" c="dimmed">—</Text>
+                            <Text size="sm" c="var(--app-text-secondary)">—</Text>
                           )}
                         </Table.Td>
                         <Table.Td>

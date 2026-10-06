@@ -17,6 +17,7 @@ import { IconRefresh, IconMapPin } from "@tabler/icons-react";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
 import { ROLE_LABELS } from "@/lib/db/types";
 import { useState } from "react";
@@ -53,7 +54,7 @@ export default function AllStaffPage() {
   const queryParams = new URLSearchParams();
   if (roleFilter) queryParams.set("role", roleFilter);
 
-  const { data: users, isLoading } = useSWR<StaffUser[]>(
+  const { data: users, error, isLoading, mutate } = useSWR<StaffUser[]>(
     `/api/users?${queryParams.toString()}`,
     fetcher
   );
@@ -88,8 +89,13 @@ export default function AllStaffPage() {
   return (
     <Stack gap="lg">
       <Group justify="space-between">
-        <Title order={2}>{strings.allStaffLocations}</Title>
-        <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={() => {}}>
+        <Title order={1} size="h2">{strings.allStaffLocations}</Title>
+        <Button
+          variant="light"
+          leftSection={<IconRefresh size={16} />}
+          onClick={() => mutate()}
+          loading={isLoading}
+        >
           {strings.refresh}
         </Button>
       </Group>
@@ -111,8 +117,10 @@ export default function AllStaffPage() {
       <Paper p="md" radius="md" withBorder>
         {isLoading ? (
           <Center py="xl"><Loader /></Center>
+        ) : error ? (
+          <ErrorState error={error} onRetry={mutate} />
         ) : !userLocations.length ? (
-          <Center py="xl"><Text c="dimmed">{strings.noDataAvailable}</Text></Center>
+          <Center py="xl"><Text c="var(--app-text-secondary)">{strings.noDataAvailable}</Text></Center>
         ) : (
           <Table.ScrollContainer minWidth={700}>
             <Table>
@@ -138,7 +146,7 @@ export default function AllStaffPage() {
                           {user.currentFloor}
                         </Badge>
                       ) : (
-                        <Text size="sm" c="dimmed">—</Text>
+                        <Text size="sm" c="var(--app-text-secondary)">—</Text>
                       )}
                     </Table.Td>
                   </Table.Tr>

@@ -10,7 +10,9 @@ import {
   success,
 } from "@/lib/api/utils";
 import User from "@/lib/db/models/User";
-import { can } from "@/lib/auth/rbac";
+import { can, getUsersScope } from "@/lib/auth/rbac";
+import { usersScopeFilter } from "@/lib/auth/scope";
+import { escapeRegex } from "@/lib/api/utils";
 import { createUserSchema } from "@/lib/validation/schemas";
 import { ROLES } from "@/lib/db/types";
 
@@ -33,9 +35,11 @@ export async function GET(request: Request) {
   }
 
   if (search) {
+    // Escape regex metacharacters: user input must never be a pattern
+    const pattern = escapeRegex(search);
     query.$or = [
-      { name: { $regex: search, $options: "i" } },
-      { username: { $regex: search, $options: "i" } },
+      { name: { $regex: pattern, $options: "i" } },
+      { username: { $regex: pattern, $options: "i" } },
     ];
   }
 
@@ -44,15 +48,12 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Scope based on role
-    if (!can(user.role, "users:view_all")) {
-      if (can(user.role, "users:view_own_unit") && user.unitId) {
-        query.unitId = user.unitId;
-      } else {
-        // Regular user can only see themselves
-        query._id = user.id;
-      }
-    }
+    // Role scope, applied LAST so it always wins over request filters.
+    // A scope that cannot be resolved matches nothing (never everything).
+    Object.assign(
+      query,
+      await usersScopeFilter(user, getUsersScope(user.role))
+    );
 
     const users = await User.find(query)
       .select("name username phone jawatanInfo role jabatanId unitId status createdAt")

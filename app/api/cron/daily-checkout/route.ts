@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/mongoose";
+import { bearerToken, secureCompare } from "@/lib/api/utils";
 import Attendance from "@/lib/db/models/Attendance";
 
 /**
@@ -13,11 +14,11 @@ import Attendance from "@/lib/db/models/Attendance";
  * Protected by CRON_SECRET to prevent unauthorized access.
  */
 export async function GET(request: Request) {
-  // Verify cron secret
-  const authHeader = request.headers.get("authorization");
+  // Verify cron secret — fail CLOSED when CRON_SECRET is not configured
   const cronSecret = process.env.CRON_SECRET;
+  const provided = bearerToken(request);
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!secureCompare(provided, cronSecret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

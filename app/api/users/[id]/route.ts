@@ -11,7 +11,7 @@ import {
 } from "@/lib/api/utils";
 import User from "@/lib/db/models/User";
 import { can } from "@/lib/auth/rbac";
-import { updateUserSchema } from "@/lib/validation/schemas";
+import { updateUserSchema, updateProfileSchema } from "@/lib/validation/schemas";
 
 export async function GET(
   request: Request,
@@ -76,9 +76,15 @@ export async function PUT(
     }
 
     if (isOwnProfile) {
-      // Self-edit: only phone and name
-      if (body.name) user.name = body.name;
-      if (body.phone !== undefined) user.phone = body.phone || undefined;
+      // Self-edit: validated and limited to name + phone. Role, status,
+      // unit and jabatan can only be changed by someone with users:manage.
+      const validation = updateProfileSchema.safeParse(body);
+      if (!validation.success) {
+        return badRequest(validation.error.errors[0].message);
+      }
+
+      user.name = validation.data.name;
+      user.phone = validation.data.phone || undefined;
     } else {
       const validation = updateUserSchema.safeParse(body);
       if (!validation.success) {

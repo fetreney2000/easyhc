@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/mongoose";
 import { getAuthenticatedUser, unauthorized, serverError, success } from "@/lib/api/utils";
 import Attendance from "@/lib/db/models/Attendance";
-import { can } from "@/lib/auth/rbac";
+import { getAttendanceScope } from "@/lib/auth/rbac";
+import { scopeFilter } from "@/lib/auth/scope";
 
 export async function GET(request: Request) {
   const user = await getAuthenticatedUser();
@@ -32,52 +33,30 @@ export async function GET(request: Request) {
     query.type = type;
   }
 
-  // Scope based on role
-  if (!can(user.role, "attendance:view_all")) {
-    if (can(user.role, "attendance:view_own_unit") && user.unitId) {
-      // Unit head: show attendance for ALL users in their unit (on any floor)
-      const Unit = (await import("@/lib/db/models/Unit")).default;
-      const User = (await import("@/lib/db/models/User")).default;
-
-      // Get unit users
-      const unitUsers = await User.find({ unitId: user.unitId })
-        .select("_id")
-        .lean();
-      const userIds = unitUsers.map((u) => u._id);
-
-      // Also include the unit's home floor
-      const unit = await Unit.findById(user.unitId).lean();
-
-      // Query: unit users on any floor + home floor visitors
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const orConditions: any[] = [
-        { userId: { $in: userIds } },
-      ];
-      if (unit?.homeFloorId) {
-        orConditions.push({
-          floorId: unit.homeFloorId.toString(),
-          type: "visitor",
-        });
-      } else {
-        orConditions.push({ type: "visitor" });
-      }
-
-      query.$or = orConditions;
-    } else if (can(user.role, "attendance:view_own_floor") && user.unitId) {
-      // Floor head: show attendance on their home floor only
-      const Unit = (await import("@/lib/db/models/Unit")).default;
-      const unit = await Unit.findById(user.unitId).lean();
-      if (unit?.homeFloorId) {
-        query.floorId = unit.homeFloorId.toString();
-      }
-    } else {
-      // Regular user - own data only
-      const mongoose = await import("mongoose");
-      query.userId = new mongoose.Types.ObjectId(user.id);
-    }
-  }
+  // Scope based on role. Applied AFTER the request filters so query params
+  // can only narrow a scoped query, never widen it. A scope that cannot be
+  // resolved (no unit, no jabatan, no home floor) returns no data at all.
+  const emptyResult = {
+    attendance: [],
+    totalEmployees: 0,
+    totalVisitors: 0,
+    totalPresent: 0,
+    lastUpdated: new Date().toISOString(),
+  };
 
   try {
+    const scoped = await scopeFilter(user, getAttendanceScope(user.role));
+
+    if (!scoped) {
+      return success(emptyResult);
+    }
+
+    if (scoped.$or) {
+      query.$or = scoped.$or;
+    } else {
+      Object.assign(query, scoped);
+    }
+
     const attendance = await Attendance.find(query)
       .populate("userId", "name role")
       .populate("floorId", "name")

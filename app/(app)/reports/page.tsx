@@ -98,7 +98,7 @@ export default function ReportsPage() {
     URL.revokeObjectURL(url);
   };
 
-  if (!session) return null;
+  if (!session?.user) return null;
 
   return (
     <Stack gap="lg">

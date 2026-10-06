@@ -36,24 +36,49 @@ export default function QRCodesPage() {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
-    const label = type === "visitor" ? "PELAWAT / VISITOR" : "KAKITANGAN / STAFF";
-    const desc = type === "visitor"
+    const isVisitor = type === "visitor";
+    const label = isVisitor ? "PELAWAT / VISITOR" : "KAKITANGAN / STAFF";
+    const desc = isVisitor
       ? "Imbas menggunakan kamera telefon anda untuk daftar masuk sebagai pelawat"
       : "Imbas menggunakan aplikasi EasyHC untuk daftar masuk";
 
-    printWindow.document.write(`
-      <html>
-        <head><title>Kod QR ${type === "visitor" ? "Pelawat" : "Kakitangan"} - ${floor.name}</title></head>
-        <body style="text-align:center; padding:40px; font-family:'Inter',sans-serif;">
-          <h1>${floor.name}</h1>
-          <p style="font-size:18px;font-weight:bold;color:${type === "visitor" ? "#e65100" : "#1565c0"};">${label}</p>
-          <img src="/api/qr/${floor._id}?type=${type}" style="width:300px;height:300px;" />
-          <p style="margin-top:16px;color:#666;">${desc}</p>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
+    // Built with DOM APIs + textContent (never string-interpolated HTML):
+    // a floor name containing markup must print as text, not execute.
+    const doc = printWindow.document;
+    doc.title = `Kod QR ${isVisitor ? "Pelawat" : "Kakitangan"} - ${floor.name}`;
+
+    const heading = doc.createElement("h1");
+    heading.textContent = floor.name;
+
+    const typeLabel = doc.createElement("p");
+    typeLabel.textContent = label;
+    typeLabel.style.cssText = `font-size:18px;font-weight:bold;color:${
+      isVisitor ? "#e65100" : "#1565c0"
+    };`;
+
+    const img = doc.createElement("img");
+    img.src = `/api/qr/${encodeURIComponent(floor._id)}?type=${encodeURIComponent(type)}`;
+    img.alt = `Kod QR ${floor.name}`;
+    img.style.cssText = "width:300px;height:300px;";
+
+    const note = doc.createElement("p");
+    note.textContent = desc;
+    note.style.cssText = "margin-top:16px;color:#666;";
+
+    doc.body.style.cssText =
+      "text-align:center; padding:40px; font-family:'Inter',sans-serif;";
+    doc.body.append(heading, typeLabel, img, note);
+
+    // Print once the QR image has actually loaded (with a fallback)
+    let printed = false;
+    const doPrint = () => {
+      if (printed) return;
+      printed = true;
+      printWindow.print();
+    };
+    img.addEventListener("load", doPrint);
+    img.addEventListener("error", doPrint);
+    setTimeout(doPrint, 2500);
   };
 
   return (

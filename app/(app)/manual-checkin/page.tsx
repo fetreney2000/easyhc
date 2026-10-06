@@ -36,7 +36,7 @@ export default function ManualCheckInPage() {
     fetcher
   );
 
-  if (!session) return null;
+  if (!session?.user) return null;
 
   if (!can(session.user.role, "attendance:manual_checkin")) {
     return (
@@ -61,7 +61,6 @@ export default function ManualCheckInPage() {
           userId: selectedUser,
           floorId: selectedFloor,
           method: "manual",
-          qrToken: "manual_override",
         }),
       });
 

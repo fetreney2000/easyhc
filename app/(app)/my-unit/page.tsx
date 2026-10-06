@@ -34,7 +34,7 @@ export default function MyUnitPage() {
     { refreshInterval: 25000 }
   );
 
-  if (!session) return null;
+  if (!session?.user) return null;
 
   const attendanceMap = new Map<string, { floorName: string; checkedInAt: string }>();
   (attendanceData?.attendance || []).forEach((record) => {

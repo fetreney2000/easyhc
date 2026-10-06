@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import {
   Center,
   Paper,
@@ -11,17 +11,20 @@ import {
   Stack,
   Alert,
   Group,
+  Loader,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
+import { useSearchParams } from "next/navigation";
 import { IconAlertCircle, IconCheck, IconLogin } from "@tabler/icons-react";
 import { strings } from "@/lib/i18n/strings";
 import { notifications } from "@mantine/notifications";
 
-export default function VisitorCheckInPage({
-  params,
-}: {
-  params: { floorId: string };
-}) {
+function VisitorCheckInContent({ floorId }: { floorId: string }) {
+  const searchParams = useSearchParams();
+  // Capability token carried by the printed visitor QR (?token=<qrToken>).
+  // The API rejects check-in/out without the current token for this floor.
+  const token = searchParams.get("token") ?? "";
+
   const [loading, setLoading] = useState(false);
   const [checkedIn, setCheckedIn] = useState(false);
   const [attendanceId, setAttendanceId] = useState<string | null>(null);
@@ -49,7 +52,8 @@ export default function VisitorCheckInPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...values,
-          floorId: params.floorId,
+          floorId,
+          token,
         }),
       });
 
@@ -81,7 +85,7 @@ export default function VisitorCheckInPage({
       const res = await fetch("/api/visitor/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attendanceId }),
+        body: JSON.stringify({ attendanceId, token }),
       });
 
       if (res.ok) {
@@ -178,5 +182,24 @@ export default function VisitorCheckInPage({
         )}
       </Paper>
     </Center>
+  );
+}
+
+export default function VisitorCheckInPage({
+  params,
+}: {
+  params: { floorId: string };
+}) {
+  // useSearchParams() (for ?token=) must sit under a Suspense boundary
+  return (
+    <Suspense
+      fallback={
+        <Center mih="100vh" bg="var(--mantine-color-default-bg)">
+          <Loader />
+        </Center>
+      }
+    >
+      <VisitorCheckInContent floorId={params.floorId} />
+    </Suspense>
   );
 }

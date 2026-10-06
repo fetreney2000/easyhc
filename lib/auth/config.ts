@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db/mongoose";
 import User from "@/lib/db/models/User";
 import { Role } from "@/lib/db/types";
+import { checkRateLimit, resetRateLimit } from "@/lib/security/rateLimit";
 
 declare module "next-auth" {
   interface Session {
@@ -38,6 +39,49 @@ declare module "next-auth" {
     unitId?: string;
     jabatanId?: string;
     sessionVersion: number;
+    /** Epoch ms of the last successful DB revocation check. */
+    checkedAt?: number;
+  }
+}
+
+/**
+ * How long a token may go without re-checking the user against the DB.
+ * Within this window a deactivated/deleted/password-reset user keeps working;
+ * after it the next request revokes the token. Keep short.
+ */
+const REVOCATION_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
+/** Login throttling for a single account (see authorize below). */
+const MAX_LOGIN_ATTEMPTS = 15;
+const LOGIN_ATTEMPT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
+/**
+ * Re-read the user from the DB and decide whether this token is still valid.
+ * Returns the fresh { sessionVersion } when valid, or null when the session
+ * must be revoked (user gone, inactive, or sessionVersion moved on).
+ *
+ * Fails CLOSED: any problem resolving the user means "revoked", so a
+ * broken connection can never leave a deleted user with a working session.
+ */
+async function verifyTokenAgainstDb(
+  id: unknown,
+  sessionVersion: unknown
+): Promise<{ sessionVersion: number } | null> {
+  if (!id || typeof id !== "string") return null;
+
+  try {
+    await connectDB();
+    const dbUser = await User.findById(id)
+      .select("sessionVersion status")
+      .lean();
+
+    if (!dbUser || dbUser.status === "inactive") return null;
+    if (dbUser.sessionVersion !== sessionVersion) return null;
+
+    return { sessionVersion: dbUser.sessionVersion };
+  } catch (error) {
+    console.error("Auth: revocation check failed:", error);
+    return null;
   }
 }
 
@@ -59,16 +103,27 @@ export const {
           return null;
         }
 
+        const username = (credentials.username as string).toLowerCase().trim();
+
+        // Per-account throttle: slows credential stuffing aimed at one user
+        // even when the attacker rotates source IPs. Cleared on success.
+        const throttleKey = `signin:user:${username}`;
+        const throttle = checkRateLimit(
+          throttleKey,
+          MAX_LOGIN_ATTEMPTS,
+          LOGIN_ATTEMPT_WINDOW_MS
+        );
+        if (!throttle.ok) {
+          console.error("Auth: throttled login attempts for:", username);
+          return null;
+        }
+
         await connectDB();
 
-        const username = (credentials.username as string).toLowerCase().trim();
         const user = await User.findOne({ username }).lean();
 
         if (!user) {
           console.error("Auth: user not found for username:", username);
-          // List all users for debugging
-          const allUsers = await User.find().select("username status").lean();
-          console.error("Auth: existing users:", allUsers.map(u => u.username));
           return null;
         }
 
@@ -86,6 +141,9 @@ export const {
           console.error("Auth: password mismatch for user:", username);
           return null;
         }
+
+        // Successful sign-in → give the account a clean window
+        resetRateLimit(throttleKey);
 
         return {
           id: user._id.toString(),
@@ -111,7 +169,7 @@ export const {
   },
   callbacks: {
     async jwt({ token, user, trigger }) {
-      // On sign-in, populate the token
+      // On sign-in, populate the token and start the revocation clock
       if (user) {
         token.id = user.id;
         token.name = user.name;
@@ -120,27 +178,36 @@ export const {
         token.unitId = user.unitId;
         token.jabatanId = user.jabatanId;
         token.sessionVersion = user.sessionVersion;
+        token.checkedAt = Date.now();
+        return token;
       }
 
-      // On session update (sliding window), extend the token
-      if (trigger === "update") {
-        // Re-validate sessionVersion against DB
-        await connectDB();
-        const dbUser = await User.findById(token.id)
-          .select("sessionVersion status")
-          .lean();
-        if (!dbUser || dbUser.status === "inactive") {
-          return {}; // Invalidate session
+      if (!token.id) {
+        return {};
+      }
+
+      // Re-validate status + sessionVersion against the DB:
+      //  - on every explicit session update (trigger === "update")
+      //  - otherwise at most once per REVOCATION_CHECK_INTERVAL_MS
+      const checkedAt = typeof token.checkedAt === "number" ? token.checkedAt : 0;
+      const stale = Date.now() - checkedAt > REVOCATION_CHECK_INTERVAL_MS;
+
+      if (trigger === "update" || stale) {
+        const fresh = await verifyTokenAgainstDb(token.id, token.sessionVersion);
+        if (!fresh) {
+          return {}; // Revoke: user deleted/deactivated or session version moved on
         }
-        if (dbUser.sessionVersion !== token.sessionVersion) {
-          return {}; // Session version mismatch, invalidate
-        }
+        token.sessionVersion = fresh.sessionVersion;
+        token.checkedAt = Date.now();
       }
 
       return token;
     },
     async session({ session, token }) {
-      if (!token.id) {
+      if (!token?.id || !token?.role) {
+        // Revoked/invalid token → present as fully signed-out so both the
+        // server layout and the client pages redirect to /login.
+        (session as { user?: unknown }).user = undefined;
         return session;
       }
 

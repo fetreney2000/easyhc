@@ -9,6 +9,7 @@ export type Action =
   | "users:manage_admin" // Can assign admin/superadmin roles
   | "users:view_all"
   | "users:view_own_unit"
+  | "users:view_department"
   | "users:view_own"
   | "floors:manage"
   | "floors:view_all"
@@ -59,11 +60,39 @@ export function can(role: Role, action: Action, context?: {
 
     case "dept_head":
       switch (action) {
+        // Administration is not a department head's job
         case "users:manage":
         case "users:manage_admin":
         case "floors:manage":
         case "attendance:manual_checkin":
           return false;
+        // Global scope is replaced by department scope
+        case "users:view_all":
+        case "attendance:view_all":
+        case "attendance:checkout_all":
+        case "reports:generate_all":
+        case "locations:track_all":
+          return false;
+        // Unit scope belongs to unit_head
+        case "users:view_own_unit":
+        case "attendance:view_own_unit":
+        case "attendance:checkout_own_unit":
+        case "reports:generate_own_unit":
+        case "locations:track_own_unit":
+          return false;
+        // Floor scope belongs to floor_head
+        case "attendance:view_own_floor":
+        case "attendance:checkout_own_floor":
+        case "reports:generate_own_floor":
+          return false;
+        // Department scope (jabatan + every unit under it)
+        case "users:view_department":
+        case "attendance:view_department":
+        case "attendance:checkout_department":
+        case "reports:generate_department":
+        case "locations:track_department":
+          return true;
+        // Everything else (own profile, floor metadata, own data) stays open
         default:
           return true;
       }
@@ -86,6 +115,7 @@ export function can(role: Role, action: Action, context?: {
           return false;
         // Scoped permissions (actual filtering done at query level)
         case "users:view_all":
+        case "users:view_department":
           return false;
         case "users:view_own_unit":
         case "attendance:view_own_unit":
@@ -110,6 +140,7 @@ export function can(role: Role, action: Action, context?: {
         case "attendance:manual_checkin":
         case "users:view_all":
         case "users:view_own_unit":
+        case "users:view_department":
         case "floors:view_all":
         case "attendance:checkout_all":
         case "attendance:checkout_own_unit":
@@ -180,6 +211,71 @@ export function getRolesWithPermission(action: Action): Role[] {
     "user",
   ];
   return allRoles.filter((role) => can(role, action));
+}
+
+/**
+ * Query scope for a role — the single source of truth for WHERE a role's
+ * data is filtered. Deliberately explicit per role instead of composed from
+ * `can()`, because several roles legitimately hold more than one scoped
+ * permission (e.g. unit_head holds both unit and floor permissions) and the
+ * precedence between them must be unambiguous.
+ *
+ *  - "all"       → no data filter
+ *  - "department"→ jabatan + every unit under it
+ *  - "own_unit"  → members of the actor's unit (+ its home floor)
+ *  - "own_floor" → the actor's unit home floor
+ *  - "own"       → the actor's own records only
+ *  - "none"      → no access at all
+ */
+export type Scope = "all" | "department" | "own_unit" | "own_floor" | "own" | "none";
+
+export function getAttendanceScope(role: Role): Scope {
+  switch (role) {
+    case "superadmin":
+    case "admin":
+    case "safety_head":
+      return "all";
+    case "dept_head":
+      return "department";
+    case "unit_head":
+      return "own_unit";
+    case "floor_head":
+      return "own_floor";
+    default:
+      return "own";
+  }
+}
+
+export function getReportsScope(role: Role): Scope {
+  switch (role) {
+    case "superadmin":
+    case "admin":
+    case "safety_head":
+      return "all";
+    case "dept_head":
+      return "department";
+    case "unit_head":
+      return "own_unit";
+    case "floor_head":
+      return "own_floor";
+    default:
+      return "none";
+  }
+}
+
+export function getUsersScope(role: Role): Scope {
+  switch (role) {
+    case "superadmin":
+    case "admin":
+    case "safety_head":
+      return "all";
+    case "dept_head":
+      return "department";
+    case "unit_head":
+      return "own_unit";
+    default:
+      return "own";
+  }
 }
 
 /**

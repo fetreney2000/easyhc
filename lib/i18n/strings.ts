@@ -41,6 +41,7 @@ export const strings = {
   checkedOut: "Berjaya Daftar Keluar",
   checkInSuccess: "Berjaya daftar masuk ke lantai",
   checkInError: "Gagal daftar masuk. Sila cuba lagi.",
+  qrInvalid: "Kod QR tidak sah atau telah pun ditukar.",
   checkOutSuccess: "Berjaya daftar keluar",
   checkOutError: "Gagal daftar keluar. Sila cuba lagi.",
   alreadyCheckedIn: "Anda sudah berdaftar masuk di lantai lain. Daftar masuk baru akan mendaftar keluar dari lantai sebelumnya.",
@@ -140,6 +141,7 @@ export const strings = {
   currentPassword: "Kata Laluan Semasa",
   confirmNewPassword: "Sahkan Kata Laluan Baharu",
   passwordChanged: "Kata laluan berjaya ditukar",
+  reloginRequired: "Sila log masuk semula dengan kata laluan baharu.",
   passwordChangeError: "Gagal menukar kata laluan",
   passwordMismatch: "Kata laluan tidak sepadan",
   profileUpdated: "Profil berjaya dikemaskini",
@@ -204,6 +206,7 @@ export const strings = {
 
   // Errors
   serverError: "Ralat pelayan. Sila cuba lagi.",
+  tooManyAttempts: "Terlalu banyak percubaan. Sila cuba lagi sebentar lagi.",
   notFound: "Tidak dijumpai",
   unauthorized: "Anda tidak mempunyai kebenaran untuk tindakan ini",
   forbidden: "Akses ditolak",

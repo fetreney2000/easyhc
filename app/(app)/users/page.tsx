@@ -63,6 +63,8 @@ export default function UsersPage() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resetTarget, setResetTarget] = useState<UserRecord | null>(null);
+  const [resetLoading, setResetLoading] = useState(false);
 
   const queryParams = new URLSearchParams();
   if (search) queryParams.set("search", search);
@@ -100,6 +102,20 @@ export default function UsersPage() {
       jabatanId: "",
       unitId: "",
       status: "active" as string,
+    },
+  });
+
+  // Password-reset modal form (admin resetting someone else's password)
+  const resetForm = useForm({
+    initialValues: {
+      password: "",
+      confirmPassword: "",
+    },
+    validate: {
+      password: (value) =>
+        value.length < 6 ? strings.passwordMinLength : null,
+      confirmPassword: (value, values) =>
+        value !== values.password ? strings.passwordMismatch : null,
     },
   });
 
@@ -161,29 +177,46 @@ export default function UsersPage() {
   };
 
   const handleResetPassword = (user: UserRecord) => {
-    modals.openConfirmModal({
-      title: strings.resetPassword,
-      children: (
-        <Text size="sm">
-          {strings.resetPasswordConfirm} ({user.name})
-        </Text>
-      ),
-      labels: { confirm: strings.confirm, cancel: strings.cancel },
-      onConfirm: async () => {
-        const res = await fetch(`/api/users/${user._id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ password: "password123" }),
+    resetForm.reset();
+    setResetTarget(user);
+  };
+
+  const handleResetSubmit = async (values: typeof resetForm.values) => {
+    if (!resetTarget) return;
+    setResetLoading(true);
+
+    try {
+      const res = await fetch(`/api/users/${resetTarget._id}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: values.password }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        notifications.show({
+          title: strings.success,
+          message: strings.resetPasswordSuccess,
+          color: "green",
         });
-        if (res.ok) {
-          notifications.show({
-            title: strings.success,
-            message: strings.resetPasswordSuccess,
-            color: "green",
-          });
-        }
-      },
-    });
+        setResetTarget(null);
+        mutate();
+      } else {
+        notifications.show({
+          title: strings.error,
+          message: data.error || strings.serverError,
+          color: "red",
+        });
+      }
+    } catch {
+      notifications.show({
+        title: strings.error,
+        message: strings.serverError,
+        color: "red",
+      });
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   const handleSubmit = async (values: typeof form.values) => {
@@ -233,7 +266,7 @@ export default function UsersPage() {
     }
   };
 
-  if (!session) return null;
+  if (!session?.user) return null;
 
   // Filter available roles based on current user's role
   const availableRoles = ROLES.filter((role) => {
@@ -470,6 +503,54 @@ export default function UsersPage() {
               </Button>
               <Button type="submit" loading={loading}>
                 {strings.save}
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+      </Modal>
+
+      {/* Reset password modal */}
+      <Modal
+        opened={!!resetTarget}
+        onClose={() => setResetTarget(null)}
+        title={
+          <Group gap="xs">
+            <IconKey size={18} />
+            <span>{strings.resetPassword}</span>
+          </Group>
+        }
+        size="sm"
+      >
+        <form onSubmit={resetForm.onSubmit(handleResetSubmit)}>
+          <Stack gap="md">
+            <Text size="sm" fw={500}>
+              {resetTarget?.name} (@{resetTarget?.username})
+            </Text>
+            <Text size="xs" c="dimmed">
+              {strings.resetPasswordConfirm}
+            </Text>
+            <PasswordInput
+              label={strings.newPassword}
+              required
+              autoFocus
+              {...resetForm.getInputProps("password")}
+            />
+            <PasswordInput
+              label={strings.confirmNewPassword}
+              required
+              {...resetForm.getInputProps("confirmPassword")}
+            />
+            <Group justify="flex-end">
+              <Button variant="subtle" onClick={() => setResetTarget(null)}>
+                {strings.cancel}
+              </Button>
+              <Button
+                type="submit"
+                color="orange"
+                loading={resetLoading}
+                leftSection={<IconKey size={16} />}
+              >
+                {strings.resetPassword}
               </Button>
             </Group>
           </Stack>

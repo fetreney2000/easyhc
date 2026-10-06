@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 import { connectDB } from "@/lib/db/mongoose";
@@ -16,10 +17,48 @@ export interface AuthUser {
 
 export async function getAuthenticatedUser(): Promise<AuthUser | null> {
   const session = await auth();
-  if (!session?.user) {
+  const user = session?.user;
+  // A revoked token is served with `user === undefined`; require the full
+  // payload (id + role) before treating the caller as authenticated.
+  if (!user || !user.id || !user.role) {
     return null;
   }
-  return session.user as AuthUser;
+  return user as AuthUser;
+}
+
+/**
+ * Constant-time secret comparison. Fails closed when either side is missing.
+ * Both values are hashed first so the comparison is fixed-length regardless
+ * of the input lengths (no length oracle).
+ */
+export function secureCompare(
+  provided: string | null | undefined,
+  expected: string | null | undefined
+): boolean {
+  if (!provided || !expected) return false;
+
+  const digest = (value: string) =>
+    crypto.createHash("sha256").update(value, "utf8").digest();
+
+  return crypto.timingSafeEqual(digest(provided), digest(expected));
+}
+
+/**
+ * Extract a `Bearer <secret>` token from an Authorization header.
+ */
+export function bearerToken(request: Request): string | null {
+  const header = request.headers.get("authorization");
+  if (!header) return null;
+  const match = /^Bearer\s+(.+)$/i.exec(header.trim());
+  return match ? match[1] : null;
+}
+
+/**
+ * Escape a user-supplied string so it can be safely embedded in a RegExp.
+ * Prevents both malformed queries and pathological (ReDoS) patterns.
+ */
+export function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export function unauthorized() {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AppShell,
   Burger,
@@ -31,7 +31,7 @@ import {
   IconCopyright,
 } from "@tabler/icons-react";
 import { useRouter, usePathname } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { strings } from "@/lib/i18n/strings";
 import { Role } from "@/lib/db/types";
 import { can } from "@/lib/auth/rbac";
@@ -61,6 +61,17 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
 
+  // The server revokes tokens when a user is deactivated/deleted or their
+  // password/sessionVersion changes. When that happens mid-session the API
+  // serves a session with no `user` — send the user back to the login screen
+  // instead of leaving a shell with dead API calls behind it.
+  const { data: liveSession, status } = useSession();
+  useEffect(() => {
+    if (status === "authenticated" && !liveSession?.user) {
+      signOut({ callbackUrl: "/login" });
+    }
+  }, [status, liveSession]);
+
   // Navigation items based on role — logically grouped by function
 
   // GROUP 1: Kehadiran (Attendance) — always visible
@@ -88,7 +99,11 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
     });
   }
 
-  if (can(user.role, "locations:track_own_unit") || can(user.role, "locations:track_all")) {
+  if (
+    can(user.role, "locations:track_own_unit") ||
+    can(user.role, "locations:track_department") ||
+    can(user.role, "locations:track_all")
+  ) {
     navItems.push({
       label: user.role === "unit_head" ? strings.myUnit : strings.allStaffLocations,
       icon: <IconMap size={20} stroke={1.5} />,
@@ -97,7 +112,11 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
   }
 
   // GROUP 3: Laporan (Reports)
-  if (can(user.role, "reports:generate_all") || can(user.role, "reports:generate_own_floor")) {
+  if (
+    can(user.role, "reports:generate_all") ||
+    can(user.role, "reports:generate_department") ||
+    can(user.role, "reports:generate_own_floor")
+  ) {
     navItems.push({
       label: strings.reports,
       icon: <IconReport size={20} stroke={1.5} />,
@@ -166,7 +185,11 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
         icon: <IconUsers size={22} stroke={1.5} />,
         href: "/users",
       });
-    } else if (can(user.role, "locations:track_all") || can(user.role, "locations:track_own_unit")) {
+    } else if (
+      can(user.role, "locations:track_all") ||
+      can(user.role, "locations:track_department") ||
+      can(user.role, "locations:track_own_unit")
+    ) {
       leftItems.push({
         label: user.role === "unit_head" ? strings.myUnit : strings.allStaffLocations,
         icon: <IconMap size={22} stroke={1.5} />,
@@ -181,7 +204,11 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
     }
 
     // RIGHT side: first item based on role
-    if (can(user.role, "reports:generate_all") || can(user.role, "reports:generate_own_floor")) {
+    if (
+      can(user.role, "reports:generate_all") ||
+      can(user.role, "reports:generate_department") ||
+      can(user.role, "reports:generate_own_floor")
+    ) {
       rightItems.push({
         label: strings.reports,
         icon: <IconReport size={22} stroke={1.5} />,

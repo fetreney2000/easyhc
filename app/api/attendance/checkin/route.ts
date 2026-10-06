@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import crypto from "crypto";
 import { connectDB } from "@/lib/db/mongoose";
 import {
   getAuthenticatedUser,
@@ -13,23 +12,7 @@ import Attendance from "@/lib/db/models/Attendance";
 import Floor from "@/lib/db/models/Floor";
 import AuditLog from "@/lib/db/models/AuditLog";
 import { can } from "@/lib/auth/rbac";
-
-const ENCRYPTION_KEY = process.env.NEXTAUTH_SECRET || "default-key";
-
-function decryptFloorId(encrypted: string): string | null {
-  try {
-    const decipher = crypto.createDecipheriv(
-      "aes-256-cbc",
-      Buffer.from(ENCRYPTION_KEY.padEnd(32, "0").slice(0, 32)),
-      Buffer.from(ENCRYPTION_KEY.padEnd(16, "0").slice(0, 16))
-    );
-    let decrypted = decipher.update(encrypted, "hex", "utf8");
-    decrypted += decipher.final("utf8");
-    return decrypted;
-  } catch {
-    return null;
-  }
-}
+import { decryptQrPayload } from "@/lib/qr/token";
 
 export async function POST(request: Request) {
   const user = await getAuthenticatedUser();
@@ -41,7 +24,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { qrToken, method = "qr" } = body;
 
-    if (method !== "manual" && !qrToken) {
+    if (method !== "manual" && (typeof qrToken !== "string" || !qrToken.trim())) {
       return badRequest("Token QR diperlukan");
     }
 
@@ -61,10 +44,14 @@ export async function POST(request: Request) {
       }
       floor = await Floor.findById(floorId);
     } else {
-      // QR check-in: decrypt the token
-      const decryptedFloorId = decryptFloorId(qrToken);
-      if (decryptedFloorId) {
-        floor = await Floor.findById(decryptedFloorId);
+      // QR check-in. Only the floor's rotating qrToken is accepted — either
+      // wrapped in the encrypted employee payload or scanned as-is from a
+      // visitor URL. Raw floor ids are deliberately NOT accepted: they are
+      // public (GET /api/floors) and are not a proof of having scanned.
+      const decryptedToken = decryptQrPayload(qrToken);
+
+      if (decryptedToken) {
+        floor = await Floor.findOne({ qrToken: decryptedToken });
       }
 
       if (!floor) {
@@ -72,7 +59,7 @@ export async function POST(request: Request) {
       }
 
       if (!floor) {
-        floor = await Floor.findById(qrToken);
+        return badRequest("Kod QR tidak sah");
       }
     }
 

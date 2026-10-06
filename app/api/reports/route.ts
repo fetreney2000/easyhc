@@ -8,7 +8,8 @@ import {
   success,
 } from "@/lib/api/utils";
 import Attendance from "@/lib/db/models/Attendance";
-import { can } from "@/lib/auth/rbac";
+import { can, getReportsScope } from "@/lib/auth/rbac";
+import { scopeFilter } from "@/lib/auth/scope";
 
 export async function GET(request: Request) {
   const user = await getAuthenticatedUser();
@@ -46,24 +47,22 @@ export async function GET(request: Request) {
   if (floorId) query.floorId = floorId;
   if (type) query.type = type;
 
-  // Scope based on role
-  if (!can(user.role, "reports:generate_all")) {
-    if (can(user.role, "reports:generate_own_floor") && user.unitId) {
-      const Unit = (await import("@/lib/db/models/Unit")).default;
-      const unit = await Unit.findById(user.unitId).lean();
-      if (unit?.homeFloorId) {
-        query.floorId = unit.homeFloorId.toString();
-      }
-    } else if (can(user.role, "reports:generate_own_unit") && user.unitId) {
-      const User = (await import("@/lib/db/models/User")).default;
-      const unitUsers = await User.find({ unitId: user.unitId })
-        .select("_id")
-        .lean();
-      query.userId = { $in: unitUsers.map((u) => u._id) };
-    }
-  }
-
   try {
+    // Scope based on role, applied AFTER the filters so a floorId/type param
+    // can only narrow the result. Precedence lives in getReportsScope():
+    // all → department → own unit → own floor → none. An unresolvable scope
+    // (e.g. floor head without a home floor) yields no records at all.
+    const scoped = await scopeFilter(user, getReportsScope(user.role));
+    if (!scoped) {
+      return success({ records: [] });
+    }
+
+    if (scoped.$or) {
+      query.$or = scoped.$or;
+    } else {
+      Object.assign(query, scoped);
+    }
+
     const records = await Attendance.find(query)
       .populate("userId", "name role")
       .populate("floorId", "name")

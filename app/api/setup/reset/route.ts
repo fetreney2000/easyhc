@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db/mongoose";
+import { secureCompare } from "@/lib/api/utils";
 import User from "@/lib/db/models/User";
 
 /**
@@ -10,21 +11,25 @@ import User from "@/lib/db/models/User";
  * Body: { "secret": "your-cron-secret", "username": "superadmin", "password": "newpassword" }
  */
 export async function POST(request: Request) {
-  await connectDB();
-
   try {
     const body = await request.json();
     const { secret, username, password, name } = body;
 
-    // Verify secret matches CRON_SECRET
-    if (secret !== process.env.CRON_SECRET) {
+    // Fail CLOSED: if CRON_SECRET is not configured this endpoint stays
+    // locked rather than accepting an absent secret.
+    if (!secureCompare(secret, process.env.CRON_SECRET)) {
       return NextResponse.json(
         { error: "Rahsia tidak sah" },
         { status: 403 }
       );
     }
 
-    if (!username || !password) {
+    if (
+      typeof username !== "string" ||
+      typeof password !== "string" ||
+      !username.trim() ||
+      !password
+    ) {
       return NextResponse.json(
         { error: "Nama pengguna dan kata laluan diperlukan" },
         { status: 400 }
@@ -37,6 +42,9 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // Only connect once the caller has proven knowledge of the secret
+    await connectDB();
 
     const passwordHash = await bcrypt.hash(password, 12);
 

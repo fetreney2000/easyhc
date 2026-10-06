@@ -55,6 +55,24 @@ export const updateUserSchema = createUserSchema
     password: z.string().optional().or(z.literal("")),
   });
 
+/**
+ * Self-service profile edit: deliberately limited to name and phone, with
+ * the same bounds as the admin path (a raw body.name must never reach the DB).
+ */
+export const updateProfileSchema = z.object({
+  name: z
+    .string()
+    .min(1, strings.required)
+    .max(100, strings.maxLength(strings.name, 100))
+    .transform((v) => v.trim()),
+  phone: z
+    .string()
+    .max(20, strings.maxLength(strings.phone, 20))
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => (v ? v.trim() : v)),
+});
+
 export const createFloorSchema = z.object({
   name: z
     .string()
@@ -95,6 +113,27 @@ export const visitorCheckInSchema = z.object({
     .optional()
     .or(z.literal("")),
   floorId: z.string().min(1, strings.required),
+  /**
+   * The floor's rotating qrToken, taken from the `?token=` of the scanned
+   * visitor QR. Required: this endpoint is public, and the token is the only
+   * proof the caller actually scanned a current QR for this floor.
+   */
+  token: z
+    .string({ required_error: strings.qrInvalid, invalid_type_error: strings.qrInvalid })
+    .min(1, strings.qrInvalid),
+});
+
+export const visitorCheckOutSchema = z.object({
+  attendanceId: z.string().min(1, strings.required),
+  /** Same capability token the visitor checked in with. */
+  token: z
+    .string({ required_error: strings.qrInvalid, invalid_type_error: strings.qrInvalid })
+    .min(1, strings.qrInvalid),
+});
+
+/** Admin-initiated password reset for another user. */
+export const resetPasswordSchema = z.object({
+  password: z.string().min(6, strings.passwordMinLength),
 });
 
 export const changePasswordSchema = z
@@ -123,8 +162,11 @@ export const reportFilterSchema = z.object({
 export type LoginInput = z.infer<typeof loginSchema>;
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type CreateFloorInput = z.infer<typeof createFloorSchema>;
 export type VisitorCheckInInput = z.infer<typeof visitorCheckInSchema>;
+export type VisitorCheckOutInput = z.infer<typeof visitorCheckOutSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type ManualCheckInInput = z.infer<typeof manualCheckInSchema>;
 export type ReportFilterInput = z.infer<typeof reportFilterSchema>;

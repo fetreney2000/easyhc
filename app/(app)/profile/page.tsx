@@ -16,7 +16,7 @@ import {
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { IconCheck, IconKey, IconUser } from "@tabler/icons-react";
-import { useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { strings } from "@/lib/i18n/strings";
 import { ROLE_LABELS } from "@/lib/db/types";
 import { notifications } from "@mantine/notifications";
@@ -106,12 +106,17 @@ export default function ProfilePage() {
       });
 
       if (res.ok) {
+        passwordForm.reset();
         notifications.show({
           title: strings.success,
-          message: strings.passwordChanged,
+          message: `${strings.passwordChanged}. ${strings.reloginRequired}`,
           color: "green",
         });
-        passwordForm.reset();
+        // Changing the password bumps sessionVersion, which revokes every
+        // session for this user — sign out immediately and explicitly rather
+        // than letting the token die silently a few minutes later.
+        await signOut({ callbackUrl: "/login" });
+        return;
       } else {
         const data = await res.json();
         notifications.show({
@@ -131,7 +136,7 @@ export default function ProfilePage() {
     }
   };
 
-  if (!session) return null;
+  if (!session?.user) return null;
 
   return (
     <Stack gap="lg">

@@ -48,7 +48,7 @@ export default function AllStaffPage() {
     { refreshInterval: 25000 }
   );
 
-  if (!session) return null;
+  if (!session?.user) return null;
 
   // Map users to their current location
   const attendanceMap = new Map<string, { floorName: string; checkedInAt: string }>();

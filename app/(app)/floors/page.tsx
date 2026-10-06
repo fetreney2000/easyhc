@@ -60,11 +60,13 @@ export default function AllFloorsPage() {
     revalidateOnFocus: true,
   });
 
-  if (!session) return null;
+  if (!session?.user) return null;
 
   const canForceCheckout =
     can(session.user.role, "attendance:checkout_all") ||
-    can(session.user.role, "attendance:checkout_own_floor");
+    can(session.user.role, "attendance:checkout_department") ||
+    can(session.user.role, "attendance:checkout_own_floor") ||
+    can(session.user.role, "attendance:checkout_own_unit");
 
   const handleForceCheckout = async (attendanceId: string) => {
     try {

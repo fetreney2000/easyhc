@@ -10,7 +10,8 @@ import {
 } from "@/lib/api/utils";
 import Attendance from "@/lib/db/models/Attendance";
 import AuditLog from "@/lib/db/models/AuditLog";
-import { can } from "@/lib/auth/rbac";
+import { getCheckoutScope } from "@/lib/auth/rbac";
+import { canForceCheckoutRecord } from "@/lib/auth/scope";
 
 export async function POST(request: Request) {
   const user = await getAuthenticatedUser();
@@ -37,32 +38,18 @@ export async function POST(request: Request) {
       return badRequest("Pengguna ini sudah didaftar keluar");
     }
 
-    // If force checkout, check permissions
+    // If force checkout, resolve the actor's scope and verify that THIS
+    // record falls inside it (member of their unit/department, or on their
+    // home floor). Holding any checkout permission is not enough by itself.
     if (force) {
-      const hasForcePermission =
-        can(user.role, "attendance:checkout_all") ||
-        can(user.role, "attendance:checkout_own_floor") ||
-        can(user.role, "attendance:checkout_own_unit") ||
-        can(user.role, "attendance:checkout_department");
-
-      if (!hasForcePermission) {
+      const scope = getCheckoutScope(user.role);
+      if (scope === "none") {
         return forbidden();
       }
 
-      // Additional scope check for floor_head
-      if (
-        can(user.role, "attendance:checkout_own_floor") &&
-        !can(user.role, "attendance:checkout_all")
-      ) {
-        // Verify the floor is in the user's unit's home floor
-        const Unit = (await import("@/lib/db/models/Unit")).default;
-        const unit = await Unit.findById(user.unitId).lean();
-        if (
-          !unit?.homeFloorId ||
-          unit.homeFloorId.toString() !== record.floorId.toString()
-        ) {
-          return forbidden();
-        }
+      const inScope = await canForceCheckoutRecord(user, record);
+      if (!inScope) {
+        return forbidden();
       }
 
       // Audit log for force checkout
@@ -74,14 +61,14 @@ export async function POST(request: Request) {
           attendanceId: record._id.toString(),
           floorId: record.floorId.toString(),
           type: record.type,
+          scope,
         },
       });
     } else {
-      // Self checkout - verify the record belongs to the user
-      if (
-        record.type === "employee" &&
-        record.userId?.toString() !== user.id
-      ) {
+      // Self checkout: only your own employee record. Visitor records are
+      // closed through the token-checked public visitor endpoint instead,
+      // so a logged-in user can never close someone else's record here.
+      if (record.type !== "employee" || record.userId?.toString() !== user.id) {
         return forbidden();
       }
     }

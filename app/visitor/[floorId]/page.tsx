@@ -23,8 +23,12 @@ import { notifications } from "@mantine/notifications";
  * check-in form again while they are still signed in somewhere.
  * The server enforces the same rule independently (one open check-in per
  * phone), this only makes the same-device case behave nicely.
+ *
+ * Written to BOTH sessionStorage (survives a reload in this tab, including
+ * private windows) and localStorage (survives a new tab).
  */
 interface StoredVisit {
+  floorId: string;
   attendanceId: string;
   checkoutToken: string;
   visitorName: string;
@@ -32,34 +36,80 @@ interface StoredVisit {
   floorName?: string;
 }
 
-const storageKey = (floorId: string) => `easyhc:visitor:${floorId}`;
+const STORAGE_PREFIX = "easyhc:visitor:";
 
+function allStoredVisits(): StoredVisit[] {
+  const found: StoredVisit[] = [];
+
+  for (const store of [window.sessionStorage, window.localStorage]) {
+    try {
+      for (let i = 0; i < store.length; i++) {
+        const key = store.key(i);
+        if (!key || !key.startsWith(STORAGE_PREFIX)) continue;
+
+        const raw = store.getItem(key);
+        if (!raw) continue;
+
+        const parsed = JSON.parse(raw) as StoredVisit;
+        if (parsed && parsed.attendanceId && parsed.checkoutToken) {
+          found.push(parsed);
+        }
+      }
+    } catch {
+      // Storage disabled (private mode / quota) — the server rule still applies
+    }
+  }
+
+  return found;
+}
+
+/** The visit signed in on THIS floor, if it is still from today. */
 function readStoredVisit(floorId: string): StoredVisit | null {
-  try {
-    const raw = window.localStorage.getItem(storageKey(floorId));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as StoredVisit;
-    return parsed && parsed.attendanceId && parsed.checkoutToken
-      ? parsed
-      : null;
-  } catch {
+  const match = allStoredVisits().find((visit) => visit.floorId === floorId);
+  if (!match) return null;
+
+  // The daily cron closes every record at 03:00, so a marker from an earlier
+  // day describes a closed record — showing "you are checked in" would be
+  // wrong for today's muster. The entry is kept (not deleted) because its
+  // token may still be needed if the visitor re-submits (see below).
+  if (new Date(match.checkedInAt).toDateString() !== new Date().toDateString()) {
     return null;
   }
+
+  return match;
 }
 
-function storeVisit(floorId: string, visit: StoredVisit): void {
-  try {
-    window.localStorage.setItem(storageKey(floorId), JSON.stringify(visit));
-  } catch {
-    // Private mode / quota — the server-side rule still applies
+/** The check-out token this device already holds for a given record. */
+function findTokenFor(attendanceId: unknown): string | null {
+  if (typeof attendanceId !== "string") return null;
+  const match = allStoredVisits().find(
+    (visit) => visit.attendanceId === attendanceId
+  );
+  return match ? match.checkoutToken : null;
+}
+
+function storeVisit(visit: StoredVisit): void {
+  const payload = JSON.stringify(visit);
+  for (const store of [window.sessionStorage, window.localStorage]) {
+    try {
+      store.setItem(STORAGE_PREFIX + visit.floorId, payload);
+    } catch {
+      // Private mode / quota — ignore, the server rule still applies
+    }
   }
 }
 
-function clearStoredVisit(floorId: string): void {
-  try {
-    window.localStorage.removeItem(storageKey(floorId));
-  } catch {
-    // Ignore
+/** One visitor can only be signed in once, so any match clears every key. */
+function clearStoredVisits(): void {
+  for (const store of [window.sessionStorage, window.localStorage]) {
+    try {
+      for (let i = store.length - 1; i >= 0; i--) {
+        const key = store.key(i);
+        if (key && key.startsWith(STORAGE_PREFIX)) store.removeItem(key);
+      }
+    } catch {
+      // Ignore
+    }
   }
 }
 
@@ -105,8 +155,8 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
     setCheckedIn(true);
   }, [floorId]);
 
-  const enterCheckedInState = (visit: StoredVisit, note: string | null) => {
-    storeVisit(floorId, visit);
+  /** Apply a checked-in panel for a record this device can see. */
+  const applyVisit = (visit: StoredVisit, note: string | null) => {
     setAttendanceId(visit.attendanceId);
     setCheckoutToken(visit.checkoutToken);
     setCheckedInName(visit.visitorName);
@@ -116,8 +166,14 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
     setCheckedIn(true);
   };
 
+  /** Only for records this device actually created (it owns the token). */
+  const enterCheckedInState = (visit: StoredVisit, note: string | null) => {
+    storeVisit(visit);
+    applyVisit(visit, note);
+  };
+
   const resetToForm = () => {
-    clearStoredVisit(floorId);
+    clearStoredVisits();
     setCheckedIn(false);
     setAttendanceId(null);
     setCheckoutToken(null);
@@ -147,6 +203,7 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
       if (res.ok) {
         enterCheckedInState(
           {
+            floorId,
             attendanceId: data.attendance?._id,
             checkoutToken: data.checkoutToken,
             visitorName: values.visitorName,
@@ -161,18 +218,22 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
           color: "green",
         });
       } else if (res.status === 409 && data.alreadyCheckedIn) {
-        // Already present somewhere in the building → switch straight to the
+        // Already present somewhere in the building → switch to the
         // check-out panel instead of leaving them stuck on an error.
+        // The server does NOT hand out a token here (knowing a phone number
+        // must not let you sign someone else out); we only get check-out if
+        // THIS device already holds the token from when they signed in.
         const attendance = data.attendance ?? {};
-        enterCheckedInState(
+        applyVisit(
           {
+            floorId: attendance.floorId ?? floorId,
             attendanceId: attendance._id,
-            checkoutToken: data.checkoutToken,
-            visitorName: attendance.visitorName || values.visitorName,
+            checkoutToken: findTokenFor(attendance._id) ?? "",
+            visitorName: values.visitorName,
             checkedInAt: attendance.checkedInAt,
             floorName: attendance.floorName,
           },
-          data.error || strings.visitorAlreadyOnThisFloor
+          data.error || strings.visitorAlreadyCheckedIn
         );
       } else {
         setError(data.error || strings.checkInError);
@@ -264,16 +325,22 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
                 {strings.checkedInAtFloor} {checkedInFloor}
               </Text>
             )}
-            <Button
-              fullWidth
-              color="red"
-              variant="light"
-              loading={checkoutLoading}
-              disabled={!checkoutToken}
-              onClick={handleCheckOut}
-            >
-              {strings.checkOut}
-            </Button>
+            {checkoutToken ? (
+              <Button
+                fullWidth
+                color="red"
+                variant="light"
+                loading={checkoutLoading}
+                onClick={handleCheckOut}
+              >
+                {strings.checkOut}
+              </Button>
+            ) : (
+              // No token on this device → it never checked this record in
+              <Text size="xs" c="dimmed" ta="center">
+                {strings.visitorUseOriginalDevice}
+              </Text>
+            )}
           </Stack>
         ) : (
           <form onSubmit={form.onSubmit(handleSubmit)}>

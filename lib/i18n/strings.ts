@@ -47,6 +47,10 @@ export const strings = {
     "Anda sudah berdaftar masuk di lantai ini. Sila daftar keluar dahulu.",
   visitorAlreadyOnFloor: (floorName: string) =>
     `Anda sudah berdaftar masuk di ${floorName}. Sila daftar keluar dahulu.`,
+  visitorAlreadyCheckedIn:
+    "Anda sudah berdaftar masuk. Sila daftar keluar dahulu.",
+  visitorUseOriginalDevice:
+    "Sila daftar keluar dengan peranti yang anda guna untuk mendaftar masuk, atau minta bantuan staf.",
   checkOutSuccess: "Berjaya daftar keluar",
   checkOutError: "Gagal daftar keluar. Sila cuba lagi.",
   alreadyCheckedIn: "Anda sudah berdaftar masuk di lantai lain. Daftar masuk baru akan mendaftar keluar dari lantai sebelumnya.",

@@ -85,7 +85,16 @@ async function main(): Promise<void> {
     });
     check("duplicate on same floor -> 409", dupSame.status === 409, `got ${dupSame.status}`);
     check("409 marks alreadyCheckedIn", dupSame.data?.alreadyCheckedIn === true);
-    check("409 carries a usable checkoutToken", (dupSame.data?.checkoutToken ?? "").length === 64);
+    check(
+      "409 does NOT mint a checkout token",
+      dupSame.data?.checkoutToken === undefined,
+      JSON.stringify(dupSame.data?.checkoutToken ?? null)
+    );
+    check(
+      "409 does not leak the stored visitor name",
+      dupSame.data?.attendance?.visitorName === undefined,
+      JSON.stringify(dupSame.data?.attendance ?? null)
+    );
     check(
       "409 uses the same-floor message",
       dupSame.data?.error === strings.visitorAlreadyOnThisFloor,

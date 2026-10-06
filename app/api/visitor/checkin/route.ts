@@ -68,25 +68,27 @@ export async function POST(request: Request) {
         .select("name")
         .lean();
       const sameFloor = existing.floorId.toString() === floor._id.toString();
+      const floorName = existingFloor?.name ?? "";
 
+      // Deliberately NO checkoutToken here: this caller only proved they know
+      // a phone number, not that they are that person. Minting a token would
+      // let anyone who knows a colleague's number sign them out mid-muster.
+      // Check-out stays scoped to the device that checked in (its token is in
+      // that device's storage), or to an admin force-checkout.
       return NextResponse.json(
         {
-          error: sameFloor
-            ? strings.visitorAlreadyOnThisFloor
-            : strings.visitorAlreadyOnFloor(existingFloor?.name ?? ""),
+          error: !floorName
+            ? strings.visitorAlreadyCheckedIn
+            : sameFloor
+              ? strings.visitorAlreadyOnThisFloor
+              : strings.visitorAlreadyOnFloor(floorName),
           alreadyCheckedIn: true,
           attendance: {
             _id: existing._id,
             floorId: existing.floorId,
-            floorName: existingFloor?.name ?? "",
-            visitorName: existing.visitorName,
+            floorName,
             checkedInAt: existing.checkedInAt,
           },
-          checkoutToken: issueVisitorToken({
-            id: existing._id.toString(),
-            floorId: existing.floorId.toString(),
-            checkedInAt: existing.checkedInAt,
-          }),
         },
         { status: 409 }
       );

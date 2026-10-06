@@ -18,6 +18,7 @@ import {
 import { useForm } from "@mantine/form";
 import { IconPlus, IconEdit, IconTrash, IconRefresh } from "@tabler/icons-react";
 import useSWR from "swr";
+import { fetcher } from "@/lib/api/fetcher";
 import { strings } from "@/lib/i18n/strings";
 import { notifications } from "@mantine/notifications";
 import { modals } from "@mantine/modals";
@@ -27,8 +28,6 @@ interface Jabatan {
   name: string;
   createdAt: string;
 }
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default function JabatansPage() {
   const [modalOpened, setModalOpened] = useState(false);
@@ -59,15 +58,19 @@ export default function JabatansPage() {
 
   const handleDelete = (item: Jabatan) => {
     modals.openConfirmModal({
-      title: "Padam Jabatan",
-      children: <Text size="sm">Anda pasti mahu memadam jabatan "{item.name}"?</Text>,
+      title: strings.deleteJabatan,
+      children: <Text size="sm">{strings.deleteJabatanConfirm(item.name)}</Text>,
       labels: { confirm: strings.confirm, cancel: strings.cancel },
       confirmProps: { color: "red" },
       onConfirm: async () => {
         const res = await fetch(`/api/jabatans/${item._id}`, { method: "DELETE" });
         if (res.ok) {
-          notifications.show({ title: strings.success, message: "Jabatan berjaya dipadam", color: "green" });
+          notifications.show({ title: strings.success, message: strings.jabatanDeleted, color: "green" });
           mutate();
+        } else {
+          // The API blocks deleting a jabatan that is still referenced
+          const data = await res.json();
+          notifications.show({ title: strings.error, message: data.error || strings.serverError, color: "red" });
         }
       },
     });
@@ -161,7 +164,7 @@ export default function JabatansPage() {
           <Stack gap="md">
             <TextInput
               label="Nama Jabatan"
-              placeholder="Contoh: Jabatan Teknologi Maklumat"
+              placeholder={strings.jabatanPlaceholder}
               required
               {...form.getInputProps("name")}
             />

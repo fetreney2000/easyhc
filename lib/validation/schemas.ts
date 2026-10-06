@@ -2,17 +2,6 @@ import { z } from "zod";
 import { ROLES } from "@/lib/db/types";
 import { strings } from "@/lib/i18n/strings";
 
-export const loginSchema = z.object({
-  username: z
-    .string()
-    .min(1, strings.required)
-    .trim()
-    .toLowerCase(),
-  password: z
-    .string()
-    .min(1, strings.required),
-});
-
 export const createUserSchema = z.object({
   name: z
     .string()
@@ -147,19 +136,6 @@ export const changePasswordSchema = z
     path: ["confirmPassword"],
   });
 
-export const manualCheckInSchema = z.object({
-  userId: z.string().min(1, strings.required),
-  floorId: z.string().min(1, strings.required),
-});
-
-export const reportFilterSchema = z.object({
-  fromDate: z.string().optional(),
-  toDate: z.string().optional(),
-  floorId: z.string().optional().or(z.literal("")),
-  type: z.enum(["employee", "visitor", "all"]).default("all"),
-});
-
-export type LoginInput = z.infer<typeof loginSchema>;
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
@@ -168,5 +144,3 @@ export type VisitorCheckInInput = z.infer<typeof visitorCheckInSchema>;
 export type VisitorCheckOutInput = z.infer<typeof visitorCheckOutSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
-export type ManualCheckInInput = z.infer<typeof manualCheckInSchema>;
-export type ReportFilterInput = z.infer<typeof reportFilterSchema>;

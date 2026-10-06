@@ -30,6 +30,8 @@ MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/easyhc?app
 NEXTAUTH_SECRET=<random-32-char-hex-string>
 NEXTAUTH_URL=http://localhost:3000
 CRON_SECRET=<random-32-char-hex-string>
+# optional — days of attendance history kept by the daily cron (default 365)
+ATTENDANCE_RETENTION_DAYS=365
 ```
 
 ### Installation
@@ -129,7 +131,7 @@ The `vercel.json` configures the daily 3 AM MYT cron job (19:00 UTC).
 
 | Risk | Mitigation |
 |---|---|
-| MongoDB M0 512MB storage | TTL indexes auto-purge AuditLog after 90 days; Attendance records should be periodically archived |
+| MongoDB M0 512MB storage | TTL indexes auto-purge AuditLog after 90 days; the daily cron purges Attendance older than `ATTENDANCE_RETENTION_DAYS` (default 365) |
 | MongoDB M0 ~500 connections | Mongoose connection cached as global singleton; `maxPoolSize: 10` |
 | Vercel Hobby 1 cron/day | Only the 3 AM daily auto-checkout uses cron; no other scheduled jobs |
 | No websockets | Dashboard uses SWR polling (25s intervals) |

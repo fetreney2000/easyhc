@@ -17,12 +17,18 @@ import {
   IconCheck,
 } from "@tabler/icons-react";
 import useSWR from "swr";
+import { fetcher } from "@/lib/api/fetcher";
 import { strings } from "@/lib/i18n/strings";
 import { notifications } from "@mantine/notifications";
 import { useSession } from "next-auth/react";
 import { can } from "@/lib/auth/rbac";
+import { LoadingScreen } from "@/components/shell/LoadingScreen";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+interface SelectableUser {
+  _id: string;
+  name: string;
+  username: string;
+}
 
 export default function ManualCheckInPage() {
   const { data: session } = useSession();
@@ -30,13 +36,13 @@ export default function ManualCheckInPage() {
   const [selectedFloor, setSelectedFloor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const { data: users } = useSWR<any[]>("/api/users", fetcher);
+  const { data: users } = useSWR<SelectableUser[]>("/api/users", fetcher);
   const { data: floors } = useSWR<{ _id: string; name: string }[]>(
     "/api/floors",
     fetcher
   );
 
-  if (!session?.user) return null;
+  if (!session?.user) return <LoadingScreen />;
 
   if (!can(session.user.role, "attendance:manual_checkin")) {
     return (

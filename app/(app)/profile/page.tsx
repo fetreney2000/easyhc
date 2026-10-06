@@ -18,18 +18,26 @@ import { useForm } from "@mantine/form";
 import { IconCheck, IconKey, IconUser } from "@tabler/icons-react";
 import { signOut, useSession } from "next-auth/react";
 import { strings } from "@/lib/i18n/strings";
+import { LoadingScreen } from "@/components/shell/LoadingScreen";
 import { ROLE_LABELS } from "@/lib/db/types";
 import { notifications } from "@mantine/notifications";
 import useSWR from "swr";
+import { fetcher } from "@/lib/api/fetcher";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+interface ProfileUser {
+  _id: string;
+  name: string;
+  username: string;
+  phone?: string;
+  role: string;
+}
 
 export default function ProfilePage() {
   const { data: session } = useSession();
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
 
-  const { data: user } = useSWR(
+  const { data: user } = useSWR<ProfileUser>(
     session?.user?.id ? `/api/users/${session.user.id}` : null,
     fetcher
   );
@@ -46,6 +54,9 @@ export default function ProfilePage() {
     if (user) {
       profileForm.setValues({ name: user.name || "", phone: user.phone || "" });
     }
+    // profileForm's identity changes on every render; listing it would make
+    // this effect loop (setValues → re-render → effect → setValues …)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const passwordForm = useForm({
@@ -136,7 +147,7 @@ export default function ProfilePage() {
     }
   };
 
-  if (!session?.user) return null;
+  if (!session?.user) return <LoadingScreen />;
 
   return (
     <Stack gap="lg">

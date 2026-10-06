@@ -16,9 +16,11 @@ import {
 import { IconRefresh, IconMapPin } from "@tabler/icons-react";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
+import { fetcher } from "@/lib/api/fetcher";
 import { strings } from "@/lib/i18n/strings";
 import { ROLE_LABELS } from "@/lib/db/types";
 import { useState } from "react";
+import { LoadingScreen } from "@/components/shell/LoadingScreen";
 
 interface UserLocation {
   _id: string;
@@ -28,7 +30,21 @@ interface UserLocation {
   checkedInAt?: string;
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+interface StaffUser {
+  _id: string;
+  name: string;
+  role: string;
+  username?: string;
+}
+
+interface ActiveAttendance {
+  _id: string;
+  type: "employee" | "visitor";
+  userId?: { _id: string; name?: string };
+  visitorName?: string;
+  floorId?: { _id: string; name?: string };
+  checkedInAt: string;
+}
 
 export default function AllStaffPage() {
   const { data: session } = useSession();
@@ -37,18 +53,18 @@ export default function AllStaffPage() {
   const queryParams = new URLSearchParams();
   if (roleFilter) queryParams.set("role", roleFilter);
 
-  const { data: users, isLoading } = useSWR<any[]>(
+  const { data: users, isLoading } = useSWR<StaffUser[]>(
     `/api/users?${queryParams.toString()}`,
     fetcher
   );
 
-  const { data: attendanceData } = useSWR<{ attendance: any[] }>(
+  const { data: attendanceData } = useSWR<{ attendance: ActiveAttendance[] }>(
     "/api/attendance?active=true",
     fetcher,
     { refreshInterval: 25000 }
   );
 
-  if (!session?.user) return null;
+  if (!session?.user) return <LoadingScreen />;
 
   // Map users to their current location
   const attendanceMap = new Map<string, { floorName: string; checkedInAt: string }>();
@@ -104,7 +120,7 @@ export default function AllStaffPage() {
                 <Table.Tr>
                   <Table.Th>{strings.name}</Table.Th>
                   <Table.Th>{strings.role}</Table.Th>
-                  <Table.Th>Lokasi Semasa</Table.Th>
+                  <Table.Th>{strings.currentLocation}</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>

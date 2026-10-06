@@ -28,6 +28,7 @@ import {
   IconPrinter,
 } from "@tabler/icons-react";
 import useSWR from "swr";
+import { fetcher } from "@/lib/api/fetcher";
 import { strings } from "@/lib/i18n/strings";
 import { notifications } from "@mantine/notifications";
 import { modals } from "@mantine/modals";
@@ -38,8 +39,6 @@ interface Floor {
   qrToken: string;
   createdAt: string;
 }
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default function FloorManagementPage() {
   const [modalOpened, setModalOpened] = useState(false);
@@ -89,6 +88,14 @@ export default function FloorManagementPage() {
             color: "green",
           });
           mutate();
+        } else {
+          // The API blocks deleting a floor that still has attendance
+          const data = await res.json();
+          notifications.show({
+            title: strings.error,
+            message: data.error || strings.serverError,
+            color: "red",
+          });
         }
       },
     });
@@ -148,7 +155,7 @@ export default function FloorManagementPage() {
         if (res.ok) {
           notifications.show({
             title: strings.success,
-            message: "Kod QR berjaya dijana semula",
+            message: strings.qrRegenerated,
             color: "green",
           });
           mutate();

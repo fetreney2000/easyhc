@@ -104,7 +104,7 @@ export const strings = {
   addFloor: "Tambah Lantai",
   editFloor: "Sunting Lantai",
   deleteFloor: "Padam Lantai",
-  deleteFloorConfirm: "Anda pasti mahu memadam lantai ini? Semua data kehadiran berkaitan akan dipadam.",
+  deleteFloorConfirm: "Anda pasti mahu memadam lantai ini?",
   floorName: "Nama Lantai",
   floorSaved: "Berjaya menyimpan lantai",
   floorSaveError: "Gagal menyimpan lantai",
@@ -210,6 +210,59 @@ export const strings = {
   notFound: "Tidak dijumpai",
   unauthorized: "Anda tidak mempunyai kebenaran untuk tindakan ini",
   forbidden: "Akses ditolak",
+
+  // Shell / misc (previously inline in components)
+  copyright: "Hak Cipta",
+  lightMode: "Mod Siang",
+  darkMode: "Mod Gelap",
+  currentLocation: "Lokasi Semasa",
+  unknownFloor: "Tidak Diketahui",
+  employee: "Kakitangan",
+
+  // Dashboard presence card
+  checkedInAtFloor: "Anda berdaftar masuk di",
+  pressButtonToCheckOut: "Tekan butang di sebelah untuk daftar keluar",
+
+  // Placeholders & empty states
+  namePlaceholder: "Contoh: Ali Bin Abu",
+  jabatanPlaceholder: "Contoh: Jabatan Teknologi Maklumat",
+  unitPlaceholder: "Contoh: Unit Pembangunan Sistem",
+  noJabatanAvailable: "Tiada jabatan tersedia. Sila tambah jabatan dahulu.",
+  noUnitAvailable: "Tiada unit tersedia. Sila tambah unit dahulu.",
+  noUnitsYet: "Tiada unit. Sila tambah unit baharu.",
+  noFloorsYet: "Tiada lantai dikonfigurasi. Sila tambah lantai dahulu.",
+
+  // Delete confirmations
+  deleteJabatan: "Padam Jabatan",
+  jabatanDeleted: "Jabatan berjaya dipadam",
+  deleteJabatanConfirm: (name: string) =>
+    `Anda pasti mahu memadam jabatan "${name}"?`,
+  deleteUnit: "Padam Unit",
+  unitDeleted: "Unit berjaya dipadam",
+  deleteUnitConfirm: (name: string) =>
+    `Anda pasti mahu memadam unit "${name}"?`,
+
+  // QR codes page + print labels
+  qrIntro:
+    "Setiap lantai mempunyai 2 jenis kod QR: satu untuk kakitangan (imbas dalam aplikasi) dan satu untuk pelawat (imbas dengan kamera telefon).",
+  qrStaffLabel: "Kakitangan / Staff",
+  qrVisitorLabel: "Pelawat / Visitor",
+  qrStaffScanHint: "Imbas dalam aplikasi EasyHC",
+  qrVisitorScanHint: "Imbas dengan kamera telefon (URL pelawat)",
+  qrPrintStaffLabel: "KAKITANGAN / STAFF",
+  qrPrintVisitorLabel: "PELAWAT / VISITOR",
+  qrPrintStaffDesc: "Imbas menggunakan aplikasi EasyHC untuk daftar masuk",
+  qrPrintVisitorDesc:
+    "Imbas menggunakan kamera telefon anda untuk daftar masuk sebagai pelawat",
+  qrRegenerated: "Kod QR berjaya dijana semula",
+
+  // One-time setup API responses
+  setupMissingFields:
+    "Semua medan diperlukan: nama, nama pengguna, kata laluan",
+  setupCredentialsRequired: "Nama pengguna dan kata laluan diperlukan",
+  systemInitialized: "Sistem telah dikonfigurasi. Pengguna sudah wujud.",
+  superadminCreated: "Superadmin berjaya dicipta",
+  invalidSecret: "Rahsia tidak sah",
 } as const;
 
 export type StringKeys = keyof typeof strings;

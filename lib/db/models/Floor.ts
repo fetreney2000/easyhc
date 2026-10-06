@@ -27,8 +27,7 @@ const FloorSchema = new Schema<IFloor>(
   }
 );
 
-FloorSchema.index({ qrToken: 1 }, { unique: true });
-
+// qrToken uniqueness comes from `unique: true` on the field above
 const Floor: Model<IFloor> =
   mongoose.models.Floor || mongoose.model<IFloor>("Floor", FloorSchema);
 

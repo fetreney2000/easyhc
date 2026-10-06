@@ -10,6 +10,7 @@ import {
   success,
 } from "@/lib/api/utils";
 import User from "@/lib/db/models/User";
+import Attendance from "@/lib/db/models/Attendance";
 import { can } from "@/lib/auth/rbac";
 import { updateUserSchema, updateProfileSchema } from "@/lib/validation/schemas";
 
@@ -151,6 +152,18 @@ export async function DELETE(
     // Admin can't delete superadmin
     if (authUser.role === "admin" && user.role === "superadmin") {
       return forbidden();
+    }
+
+    // Keep muster history attributable: an account that has ever checked in
+    // must be deactivated (status: inactive) instead of deleted, otherwise
+    // attendance records lose the person they belong to.
+    const attendanceCount = await Attendance.countDocuments({
+      userId: user._id,
+    });
+    if (attendanceCount > 0) {
+      return badRequest(
+        `Pengguna ini mempunyai ${attendanceCount} rekod kehadiran. Tukar status kepada Tidak Aktif sebagai ganti memadam supaya sejarah kekal boleh dikenal pasti.`
+      );
     }
 
     await User.findByIdAndDelete(params.id);

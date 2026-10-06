@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Title,
   Paper,
@@ -17,22 +17,86 @@ import {
   IconCheck,
   IconQrcode,
 } from "@tabler/icons-react";
+import type { Html5Qrcode } from "html5-qrcode";
 import { strings } from "@/lib/i18n/strings";
 import { notifications } from "@mantine/notifications";
 import { useRouter } from "next/navigation";
 
 export default function ScanPage() {
   const scannerRef = useRef<HTMLDivElement>(null);
-  const html5QrCodeRef = useRef<any>(null);
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+  // Guards the async check-in path. A ref (not state): the scanner callback
+  // is created once, so reading state there would always see the first value.
+  const processingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [lastResult, setLastResult] = useState<string | null>(null);
-  const [processing, setProcessing] = useState(false);
   const router = useRouter();
+
+  const handleCheckIn = useCallback(
+    async (qrToken: string) => {
+      try {
+        // Stop scanner temporarily
+        const scanner = html5QrCodeRef.current;
+        if (scanner?.isScanning) {
+          await scanner.pause(true);
+        }
+
+        const res = await fetch("/api/attendance/checkin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ qrToken }),
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          notifications.show({
+            title: strings.success,
+            message: data.message,
+            color: "green",
+            icon: <IconCheck size={16} />,
+          });
+          // Redirect to dashboard after successful check-in
+          router.push("/dashboard");
+          return;
+        } else {
+          notifications.show({
+            title: strings.error,
+            message: data.error || strings.checkInError,
+            color: "red",
+          });
+        }
+
+        // Resume scanner after a short delay
+        setTimeout(async () => {
+          if (scanner?.isScanning) {
+            try {
+              await scanner.resume();
+            } catch {}
+          }
+        }, 2000);
+      } catch {
+        notifications.show({
+          title: strings.error,
+          message: strings.serverError,
+          color: "red",
+        });
+        // Resume scanner
+        const scanner = html5QrCodeRef.current;
+        if (scanner?.isScanning) {
+          try {
+            await scanner.resume();
+          } catch {}
+        }
+      }
+    },
+    [router]
+  );
 
   useEffect(() => {
     let mounted = true;
-    let scanner: any = null;
+    let scanner: Html5Qrcode | null = null;
 
     const startScanner = async () => {
       try {
@@ -51,8 +115,8 @@ export default function ScanPage() {
           aspectRatio: 1.0,
           },
           async (decodedText: string) => {
-            if (processing) return;
-            setProcessing(true);
+            if (processingRef.current) return;
+            processingRef.current = true;
 
             try {
               // Extract QR token from URL or use raw text
@@ -80,7 +144,7 @@ export default function ScanPage() {
             } catch (err) {
               console.error("QR processing error:", err);
             } finally {
-              setProcessing(false);
+              processingRef.current = false;
             }
           },
           () => {
@@ -92,13 +156,12 @@ export default function ScanPage() {
           setScanning(true);
           setError(null);
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error("Scanner error:", err);
         if (mounted) {
-          if (
-            err?.message?.includes("Permission") ||
-            err?.name === "NotAllowedError"
-          ) {
+          const message = err instanceof Error ? err.message : "";
+          const name = err instanceof Error ? err.name : "";
+          if (message.includes("Permission") || name === "NotAllowedError") {
             setError(strings.cameraPermissionDenied);
           } else {
             setError(strings.cameraError);
@@ -115,65 +178,8 @@ export default function ScanPage() {
         scanner.stop().catch(() => {});
       }
     };
-  }, []);
-
-  const handleCheckIn = async (qrToken: string) => {
-    try {
-      // Stop scanner temporarily
-      const scanner = html5QrCodeRef.current;
-      if (scanner?.isScanning) {
-        await scanner.pause(true);
-      }
-
-      const res = await fetch("/api/attendance/checkin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qrToken }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        notifications.show({
-          title: strings.success,
-          message: data.message,
-          color: "green",
-          icon: <IconCheck size={16} />,
-        });
-        // Redirect to dashboard after successful check-in
-        router.push("/dashboard");
-        return;
-      } else {
-        notifications.show({
-          title: strings.error,
-          message: data.error || strings.checkInError,
-          color: "red",
-        });
-      }
-
-      // Resume scanner after a short delay
-      setTimeout(async () => {
-        if (scanner?.isScanning) {
-          try {
-            await scanner.resume();
-          } catch {}
-        }
-      }, 2000);
-    } catch {
-      notifications.show({
-        title: strings.error,
-        message: strings.serverError,
-        color: "red",
-      });
-      // Resume scanner
-      const scanner = html5QrCodeRef.current;
-      if (scanner?.isScanning) {
-        try {
-          await scanner.resume();
-        } catch {}
-      }
-    }
-  };
+    // handleCheckIn is memoised on the stable router, so the camera starts once
+  }, [handleCheckIn]);
 
   return (
     <Stack gap="lg">

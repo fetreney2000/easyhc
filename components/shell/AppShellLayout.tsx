@@ -31,6 +31,7 @@ import {
   IconCopyright,
 } from "@tabler/icons-react";
 import { useRouter, usePathname } from "next/navigation";
+import Image from "next/image";
 import { signOut, useSession } from "next-auth/react";
 import { strings } from "@/lib/i18n/strings";
 import { Role } from "@/lib/db/types";
@@ -160,7 +161,7 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
 
   // GROUP 5: Maklumat (Info) — least frequent
   navItems.push({
-    label: "Hak Cipta",
+    label: strings.copyright,
     icon: <IconCopyright size={20} stroke={1.5} />,
     href: "/hakcipta",
   });
@@ -279,10 +280,12 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
               size="sm"
             />
             <Group gap="xs">
-              <img
+              <Image
                 src="/icons/icon.svg"
                 alt={strings.appName}
-                style={{ width: 32, height: 32 }}
+                width={32}
+                height={32}
+                priority
               />
               <Text fw={700} size="lg">
                 {strings.appName}
@@ -307,7 +310,7 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
             <ActionIcon
               variant="subtle"
               onClick={() => toggleColorScheme()}
-              title={colorScheme === "dark" ? "Mod Siang" : "Mod Gelap"}
+              title={colorScheme === "dark" ? strings.lightMode : strings.darkMode}
             >
               {colorScheme === "dark" ? (
                 <IconSun size={20} />

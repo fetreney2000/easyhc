@@ -19,6 +19,7 @@ import {
 import { useForm } from "@mantine/form";
 import { IconPlus, IconEdit, IconTrash, IconRefresh } from "@tabler/icons-react";
 import useSWR from "swr";
+import { fetcher } from "@/lib/api/fetcher";
 import { strings } from "@/lib/i18n/strings";
 import { notifications } from "@mantine/notifications";
 import { modals } from "@mantine/modals";
@@ -26,19 +27,20 @@ import { modals } from "@mantine/modals";
 interface Unit {
   _id: string;
   name: string;
-  jabatanId: { _id: string; name: string };
-  homeFloorId?: { _id: string; name: string };
-  createdAt: string;
+  // The API returns raw ids; older list responses embedded populated docs
+  jabatanId: string | { _id: string; name: string };
+  homeFloorId?: string | { _id: string; name: string };
+  jabatanName?: string | null;
+  homeFloorName?: string | null;
+  createdAt?: string;
 }
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default function UnitsPage() {
   const [modalOpened, setModalOpened] = useState(false);
   const [editing, setEditing] = useState<Unit | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const { data: units, isLoading, mutate } = useSWR<any[]>("/api/units", fetcher);
+  const { data: units, isLoading, mutate } = useSWR<Unit[]>("/api/units", fetcher);
   const { data: jabatans } = useSWR<{ _id: string; name: string }[]>("/api/jabatans", fetcher);
   const { data: floors } = useSWR<{ _id: string; name: string }[]>("/api/floors", fetcher);
 
@@ -56,7 +58,7 @@ export default function UnitsPage() {
     setModalOpened(true);
   };
 
-  const handleEdit = (item: any) => {
+  const handleEdit = (item: Unit) => {
     setEditing(item);
     form.setValues({
       name: item.name,
@@ -68,15 +70,19 @@ export default function UnitsPage() {
 
   const handleDelete = (item: Unit) => {
     modals.openConfirmModal({
-      title: "Padam Unit",
-      children: <Text size="sm">Anda pasti mahu memadam unit "{item.name}"?</Text>,
+      title: strings.deleteUnit,
+      children: <Text size="sm">{strings.deleteUnitConfirm(item.name)}</Text>,
       labels: { confirm: strings.confirm, cancel: strings.cancel },
       confirmProps: { color: "red" },
       onConfirm: async () => {
         const res = await fetch(`/api/units/${item._id}`, { method: "DELETE" });
         if (res.ok) {
-          notifications.show({ title: strings.success, message: "Unit berjaya dipadam", color: "green" });
+          notifications.show({ title: strings.success, message: strings.unitDeleted, color: "green" });
           mutate();
+        } else {
+          // The API blocks deleting a unit that still has members
+          const data = await res.json();
+          notifications.show({ title: strings.error, message: data.error || strings.serverError, color: "red" });
         }
       },
     });
@@ -125,7 +131,7 @@ export default function UnitsPage() {
         {isLoading ? (
           <Center py="xl"><Loader /></Center>
         ) : !units?.length ? (
-          <Center py="xl"><Text c="dimmed">Tiada unit. Sila tambah unit baharu.</Text></Center>
+          <Center py="xl"><Text c="dimmed">{strings.noUnitsYet}</Text></Center>
         ) : (
           <Table>
             <Table.Thead>
@@ -168,7 +174,7 @@ export default function UnitsPage() {
           <Stack gap="md">
             <TextInput
               label="Nama Unit"
-              placeholder="Contoh: Unit Pembangunan Sistem"
+              placeholder={strings.unitPlaceholder}
               required
               {...form.getInputProps("name")}
             />

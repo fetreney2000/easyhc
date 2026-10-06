@@ -56,8 +56,8 @@ const UserSchema = new Schema<IUser>(
   }
 );
 
-// Indexes for performance
-UserSchema.index({ username: 1 }, { unique: true });
+// Indexes for performance (username uniqueness comes from `unique: true`
+// above — declaring it again here makes Mongoose warn on every build)
 UserSchema.index({ role: 1 });
 UserSchema.index({ unitId: 1 });
 UserSchema.index({ jabatanId: 1 });

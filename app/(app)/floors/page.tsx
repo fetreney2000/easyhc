@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Title,
   Paper,
@@ -29,9 +29,11 @@ import {
 } from "@tabler/icons-react";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
+import { fetcher } from "@/lib/api/fetcher";
 import { strings } from "@/lib/i18n/strings";
 import { can } from "@/lib/auth/rbac";
 import { notifications } from "@mantine/notifications";
+import { LoadingScreen } from "@/components/shell/LoadingScreen";
 
 interface PresenceRecord {
   _id: string;
@@ -43,12 +45,11 @@ interface PresenceRecord {
   method: string;
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
-
 export default function AllFloorsPage() {
   const { data: session } = useSession();
   const [search, setSearch] = useState("");
   const [expandedFloors, setExpandedFloors] = useState<Set<string>>(new Set());
+  const expandedInitialized = useRef(false);
 
   const { data, isLoading, mutate } = useSWR<{
     attendance: PresenceRecord[];
@@ -60,7 +61,23 @@ export default function AllFloorsPage() {
     revalidateOnFocus: true,
   });
 
-  if (!session?.user) return null;
+  // Expand every floor once on first load (hooks must run unconditionally,
+  // so this lives above the session guard — the old version called useState
+  // after an early return, which crashes React when the session arrives).
+  useEffect(() => {
+    if (expandedInitialized.current) return;
+    const rows = data?.attendance ?? [];
+    if (rows.length === 0) return;
+
+    const ids = new Set<string>();
+    rows.forEach((row) => {
+      if (row.floorId?._id) ids.add(row.floorId._id);
+    });
+    expandedInitialized.current = true;
+    setExpandedFloors(ids);
+  }, [data]);
+
+  if (!session?.user) return <LoadingScreen />;
 
   const canForceCheckout =
     can(session.user.role, "attendance:checkout_all") ||
@@ -105,7 +122,7 @@ export default function AllFloorsPage() {
     })
     .forEach((record) => {
       const floorId = record.floorId?._id;
-      const floorName = record.floorId?.name || "Tidak Diketahui";
+      const floorName = record.floorId?.name || strings.unknownFloor;
       if (!floorId) return;
       if (!floorGroups.has(floorId)) {
         floorGroups.set(floorId, { name: floorName, records: [], employees: 0, visitors: 0 });
@@ -120,12 +137,6 @@ export default function AllFloorsPage() {
   const sortedFloors = Array.from(floorGroups.entries()).sort((a, b) =>
     a[1].name.localeCompare(b[1].name)
   );
-
-  // Expand all by default on first load
-  useState(() => {
-    const allIds = new Set(sortedFloors.map(([id]) => id));
-    setExpandedFloors(allIds);
-  });
 
   return (
     <Stack gap="lg">

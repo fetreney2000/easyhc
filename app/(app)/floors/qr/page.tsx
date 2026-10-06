@@ -16,15 +16,13 @@ import {
 } from "@mantine/core";
 import { IconPrinter, IconRefresh, IconQrcode, IconUsers, IconUserStar } from "@tabler/icons-react";
 import useSWR from "swr";
+import { fetcher } from "@/lib/api/fetcher";
 import { strings } from "@/lib/i18n/strings";
 
 interface Floor {
   _id: string;
   name: string;
-  qrToken: string;
 }
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default function QRCodesPage() {
   const { data: floors, isLoading, mutate } = useSWR<Floor[]>(
@@ -37,15 +35,15 @@ export default function QRCodesPage() {
     if (!printWindow) return;
 
     const isVisitor = type === "visitor";
-    const label = isVisitor ? "PELAWAT / VISITOR" : "KAKITANGAN / STAFF";
+    const label = isVisitor ? strings.qrPrintVisitorLabel : strings.qrPrintStaffLabel;
     const desc = isVisitor
-      ? "Imbas menggunakan kamera telefon anda untuk daftar masuk sebagai pelawat"
-      : "Imbas menggunakan aplikasi EasyHC untuk daftar masuk";
+      ? strings.qrPrintVisitorDesc
+      : strings.qrPrintStaffDesc;
 
     // Built with DOM APIs + textContent (never string-interpolated HTML):
     // a floor name containing markup must print as text, not execute.
     const doc = printWindow.document;
-    doc.title = `Kod QR ${isVisitor ? "Pelawat" : "Kakitangan"} - ${floor.name}`;
+    doc.title = `Kod QR ${isVisitor ? strings.visitor : strings.employee} - ${floor.name}`;
 
     const heading = doc.createElement("h1");
     heading.textContent = floor.name;
@@ -95,14 +93,14 @@ export default function QRCodesPage() {
       </Group>
 
       <Text size="sm" c="dimmed">
-        Setiap lantai mempunyai 2 jenis kod QR: satu untuk kakitangan (imbas dalam aplikasi) dan satu untuk pelawat (imbas dengan kamera telefon).
+        {strings.qrIntro}
       </Text>
 
       {isLoading ? (
         <Center py="xl"><Loader /></Center>
       ) : !floors?.length ? (
         <Center py="xl">
-          <Text c="dimmed">Tiada lantai dikonfigurasi. Sila tambah lantai dahulu.</Text>
+          <Text c="dimmed">{strings.noFloorsYet}</Text>
         </Center>
       ) : (
         <Stack gap="xl">
@@ -113,7 +111,7 @@ export default function QRCodesPage() {
                 {/* Employee QR */}
                 <Stack align="center" gap="sm">
                   <Badge color="blue" size="lg" leftSection={<IconUsers size={14} />}>
-                    Kakitangan / Staff
+                    {strings.qrStaffLabel}
                   </Badge>
                   <Image
                     src={`/api/qr/${floor._id}?type=employee`}
@@ -123,7 +121,7 @@ export default function QRCodesPage() {
                     fit="contain"
                   />
                   <Text size="xs" c="dimmed" ta="center">
-                    Imbas dalam aplikasi EasyHC
+                    {strings.qrStaffScanHint}
                   </Text>
                   <Button
                     size="xs"
@@ -139,7 +137,7 @@ export default function QRCodesPage() {
                 {/* Visitor QR */}
                 <Stack align="center" gap="sm">
                   <Badge color="orange" size="lg" leftSection={<IconUserStar size={14} />}>
-                    Pelawat / Visitor
+                    {strings.qrVisitorLabel}
                   </Badge>
                   <Image
                     src={`/api/qr/${floor._id}?type=visitor`}
@@ -149,7 +147,7 @@ export default function QRCodesPage() {
                     fit="contain"
                   />
                   <Text size="xs" c="dimmed" ta="center">
-                    Imbas dengan kamera telefon (URL pelawat)
+                    {strings.qrVisitorScanHint}
                   </Text>
                   <Button
                     size="xs"

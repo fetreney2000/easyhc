@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Title,
   Paper,
@@ -28,12 +28,14 @@ import {
   IconKey,
 } from "@tabler/icons-react";
 import useSWR from "swr";
+import { fetcher } from "@/lib/api/fetcher";
 import { strings } from "@/lib/i18n/strings";
 import { ROLES, ROLE_LABELS } from "@/lib/db/types";
 import { notifications } from "@mantine/notifications";
 import { modals } from "@mantine/modals";
 import { useSession } from "next-auth/react";
 import { can } from "@/lib/auth/rbac";
+import { LoadingScreen } from "@/components/shell/LoadingScreen";
 
 interface UserRecord {
   _id: string;
@@ -53,8 +55,6 @@ interface UserRecord {
 function toTitleCase(str: string): string {
   return str.replace(/\b\w/g, (char) => char.toUpperCase());
 }
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default function UsersPage() {
   const { data: session } = useSession();
@@ -85,11 +85,15 @@ export default function UsersPage() {
     fetcher
   );
 
-  // Reload jabatan/unit lists when modal opens
-  if (modalOpened) {
-    mutateJabatans();
-    mutateUnits();
-  }
+  // Refresh jabatan/unit lists when the modal opens. This belongs in an
+  // effect: called from the render body it fired on every single render
+  // while the modal was open (a request storm).
+  useEffect(() => {
+    if (modalOpened) {
+      mutateJabatans();
+      mutateUnits();
+    }
+  }, [modalOpened, mutateJabatans, mutateUnits]);
 
   const form = useForm({
     initialValues: {
@@ -227,10 +231,10 @@ export default function UsersPage() {
         : "/api/users";
       const method = editingUser ? "PUT" : "POST";
 
-      // Don't send empty password on edit
-      const body = { ...values };
+      // Don't send an empty password on edit (Partial so it can be dropped)
+      const body: Partial<typeof values> = { ...values };
       if (editingUser && !body.password) {
-        delete (body as any).password;
+        delete body.password;
       }
 
       const res = await fetch(url, {
@@ -266,15 +270,22 @@ export default function UsersPage() {
     }
   };
 
-  if (!session?.user) return null;
+  if (!session?.user) return <LoadingScreen />;
 
-  // Filter available roles based on current user's role
+  // Only roles this actor may assign: an admin has no users:manage_admin,
+  // so offering "admin" in the dropdown always ended in a 403.
   const availableRoles = ROLES.filter((role) => {
     if (session.user.role === "admin") {
-      return role !== "superadmin";
+      return role !== "superadmin" && role !== "admin";
     }
     return true;
   });
+
+  // Rows this actor may actually edit / reset / delete — mirrors the API
+  // rules, so unreachable buttons are never rendered.
+  const canManage = (target: UserRecord) =>
+    session.user.role === "superadmin" ||
+    (target.role !== "admin" && target.role !== "superadmin");
 
   return (
     <Stack gap="lg">
@@ -366,31 +377,37 @@ export default function UsersPage() {
                       </Badge>
                     </Table.Td>
                     <Table.Td>
-                      <Group gap="xs">
-                        <ActionIcon
-                          variant="subtle"
-                          onClick={() => handleEdit(user)}
-                          title={strings.edit}
-                        >
-                          <IconEdit size={16} />
-                        </ActionIcon>
-                        <ActionIcon
-                          variant="subtle"
-                          color="orange"
-                          onClick={() => handleResetPassword(user)}
-                          title={strings.resetPassword}
-                        >
-                          <IconKey size={16} />
-                        </ActionIcon>
-                        <ActionIcon
-                          variant="subtle"
-                          color="red"
-                          onClick={() => handleDelete(user)}
-                          title={strings.delete}
-                        >
-                          <IconTrash size={16} />
-                        </ActionIcon>
-                      </Group>
+                      {canManage(user) ? (
+                        <Group gap="xs">
+                          <ActionIcon
+                            variant="subtle"
+                            onClick={() => handleEdit(user)}
+                            title={strings.edit}
+                          >
+                            <IconEdit size={16} />
+                          </ActionIcon>
+                          <ActionIcon
+                            variant="subtle"
+                            color="orange"
+                            onClick={() => handleResetPassword(user)}
+                            title={strings.resetPassword}
+                          >
+                            <IconKey size={16} />
+                          </ActionIcon>
+                          <ActionIcon
+                            variant="subtle"
+                            color="red"
+                            onClick={() => handleDelete(user)}
+                            title={strings.delete}
+                          >
+                            <IconTrash size={16} />
+                          </ActionIcon>
+                        </Group>
+                      ) : (
+                        <Text size="sm" c="dimmed">
+                          —
+                        </Text>
+                      )}
                     </Table.Td>
                   </Table.Tr>
                 ))}
@@ -412,7 +429,7 @@ export default function UsersPage() {
             <TextInput
               label={strings.name}
               required
-              placeholder="Contoh: Ali Bin Abu"
+              placeholder={strings.namePlaceholder}
               {...form.getInputProps("name")}
               onBlur={(e) => {
                 const titleCaseValue = toTitleCase(e.target.value);
@@ -457,7 +474,7 @@ export default function UsersPage() {
               placeholder={
                 jabatans?.length
                   ? strings.jabatan
-                  : "Tiada jabatan tersedia. Sila tambah jabatan dahulu."
+                  : strings.noJabatanAvailable
               }
               data={
                 jabatans?.map((j) => ({
@@ -475,7 +492,7 @@ export default function UsersPage() {
               placeholder={
                 units?.length
                   ? strings.unit
-                  : "Tiada unit tersedia. Sila tambah unit dahulu."
+                  : strings.noUnitAvailable
               }
               data={
                 units?.map((u) => ({

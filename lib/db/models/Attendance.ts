@@ -48,6 +48,8 @@ const AttendanceSchema = new Schema<IAttendance>(
 AttendanceSchema.index({ floorId: 1, checkedOutAt: 1 });
 AttendanceSchema.index({ userId: 1, checkedOutAt: 1 });
 AttendanceSchema.index({ type: 1, checkedOutAt: 1 });
+// Reports filter and sort on checkedInAt
+AttendanceSchema.index({ checkedInAt: -1 });
 
 const Attendance: Model<IAttendance> =
   mongoose.models.Attendance ||

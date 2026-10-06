@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db/mongoose";
 import { secureCompare } from "@/lib/api/utils";
+import { strings } from "@/lib/i18n/strings";
 import User from "@/lib/db/models/User";
 
 /**
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
     // locked rather than accepting an absent secret.
     if (!secureCompare(secret, process.env.CRON_SECRET)) {
       return NextResponse.json(
-        { error: "Rahsia tidak sah" },
+        { error: strings.invalidSecret },
         { status: 403 }
       );
     }
@@ -31,14 +32,14 @@ export async function POST(request: Request) {
       !password
     ) {
       return NextResponse.json(
-        { error: "Nama pengguna dan kata laluan diperlukan" },
+        { error: strings.setupCredentialsRequired },
         { status: 400 }
       );
     }
 
     if (password.length < 6) {
       return NextResponse.json(
-        { error: "Kata laluan mestilah sekurang-kurangnya 6 aksara" },
+        { error: strings.passwordMinLength },
         { status: 400 }
       );
     }
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        message: "Superadmin berjaya dicipta",
+        message: strings.superadminCreated,
         user: {
           id: superadmin._id,
           name: superadmin.name,

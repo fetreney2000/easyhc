@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { FilterQuery } from "mongoose";
 import { connectDB } from "@/lib/db/mongoose";
 import {
   getAuthenticatedUser,
@@ -8,6 +9,7 @@ import {
   success,
 } from "@/lib/api/utils";
 import Attendance from "@/lib/db/models/Attendance";
+import { IAttendance } from "@/lib/db/types";
 import { can, getReportsScope } from "@/lib/auth/rbac";
 import { scopeFilter } from "@/lib/auth/scope";
 
@@ -31,11 +33,10 @@ export async function GET(request: Request) {
   const floorId = searchParams.get("floorId");
   const type = searchParams.get("type") as "employee" | "visitor" | null;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const query: any = {};
+  const query: FilterQuery<IAttendance> = {};
 
   if (fromDate || toDate) {
-    query.checkedInAt = {};
+    query.checkedInAt = {} as FilterQuery<IAttendance>["checkedInAt"];
     if (fromDate) query.checkedInAt.$gte = new Date(fromDate);
     if (toDate) {
       const end = new Date(toDate);
@@ -57,11 +58,8 @@ export async function GET(request: Request) {
       return success({ records: [] });
     }
 
-    if (scoped.$or) {
-      query.$or = scoped.$or;
-    } else {
-      Object.assign(query, scoped);
-    }
+    // Scope is applied last so request params can only narrow the query
+    Object.assign(query, scoped);
 
     const records = await Attendance.find(query)
       .populate("userId", "name role")

@@ -24,7 +24,9 @@ import {
 } from "@tabler/icons-react";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
+import { fetcher } from "@/lib/api/fetcher";
 import { strings } from "@/lib/i18n/strings";
+import { LoadingScreen } from "@/components/shell/LoadingScreen";
 
 interface ReportRecord {
   _id: string;
@@ -37,8 +39,6 @@ interface ReportRecord {
   checkedOutAt?: string;
   method: string;
 }
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default function ReportsPage() {
   const { data: session } = useSession();
@@ -77,7 +77,7 @@ export default function ReportsPage() {
 
     const rows = data.records.map((r) => [
       r.type === "employee" ? r.userId?.name : r.visitorName,
-      r.type === "employee" ? "Kakitangan" : "Pelawat",
+      r.type === "employee" ? strings.employee : strings.visitor,
       r.floorId?.name || "-",
       new Date(r.checkedInAt).toLocaleString("ms-MY"),
       r.checkedOutAt
@@ -86,7 +86,22 @@ export default function ReportsPage() {
       r.method === "qr" ? "QR" : "Manual",
     ]);
 
-    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    // RFC 4180 quoting, plus a guard against spreadsheet formula injection:
+    // visitor names are attacker-controlled, and a leading =, +, - or @
+    // would otherwise execute as a formula when the CSV is opened.
+    const csvCell = (value: unknown): string => {
+      const raw = value == null ? "" : String(value);
+      const guarded = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+      return /[",\r\n]/.test(guarded)
+        ? `"${guarded.replace(/"/g, '""')}"`
+        : guarded;
+    };
+
+    const csv = [
+      headers.map(csvCell).join(","),
+      ...rows.map((r) => r.map(csvCell).join(",")),
+    ].join("\r\n");
+
     const blob = new Blob(["\uFEFF" + csv], {
       type: "text/csv;charset=utf-8;",
     });
@@ -98,7 +113,7 @@ export default function ReportsPage() {
     URL.revokeObjectURL(url);
   };
 
-  if (!session?.user) return null;
+  if (!session?.user) return <LoadingScreen />;
 
   return (
     <Stack gap="lg">
@@ -157,8 +172,8 @@ export default function ReportsPage() {
           <Select
             label="Jenis"
             data={[
-              { value: "employee", label: "Kakitangan" },
-              { value: "visitor", label: "Pelawat" },
+              { value: "employee", label: strings.employee },
+              { value: "visitor", label: strings.visitor },
             ]}
             value={typeFilter}
             onChange={setTypeFilter}
@@ -211,8 +226,8 @@ export default function ReportsPage() {
                         color={record.type === "employee" ? "blue" : "orange"}
                       >
                         {record.type === "employee"
-                          ? "Kakitangan"
-                          : "Pelawat"}
+                          ? strings.employee
+                          : strings.visitor}
                       </Badge>
                     </Table.Td>
                     <Table.Td>{record.floorId?.name}</Table.Td>

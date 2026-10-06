@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db/mongoose";
+import { strings } from "@/lib/i18n/strings";
 import User from "@/lib/db/models/User";
 
 /**
@@ -30,14 +31,14 @@ export async function POST(request: Request) {
       !password
     ) {
       return NextResponse.json(
-        { error: "Semua medan diperlukan: nama, nama pengguna, kata laluan" },
+        { error: strings.setupMissingFields },
         { status: 400 }
       );
     }
 
     if (password.length < 6) {
       return NextResponse.json(
-        { error: "Kata laluan mestilah sekurang-kurangnya 6 aksara" },
+        { error: strings.passwordMinLength },
         { status: 400 }
       );
     }
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
     const userCount = await User.countDocuments();
     if (userCount > 0) {
       return NextResponse.json(
-        { error: "Sistem telah dikonfigurasi. Pengguna sudah wujud." },
+        { error: strings.systemInitialized },
         { status: 403 }
       );
     }
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
 
     if (!claimed) {
       return NextResponse.json(
-        { error: "Sistem telah dikonfigurasi. Pengguna sudah wujud." },
+        { error: strings.systemInitialized },
         { status: 403 }
       );
     }
@@ -95,7 +96,7 @@ export async function POST(request: Request) {
 
       return NextResponse.json(
         {
-          message: "Superadmin berjaya dicipta",
+          message: strings.superadminCreated,
           user: {
             id: superadmin._id,
             name: superadmin.name,

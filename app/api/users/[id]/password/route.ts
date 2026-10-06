@@ -9,6 +9,7 @@ import {
   success,
 } from "@/lib/api/utils";
 import User from "@/lib/db/models/User";
+import { changePasswordSchema } from "@/lib/validation/schemas";
 import { checkRateLimit, resetRateLimit } from "@/lib/security/rateLimit";
 import { strings } from "@/lib/i18n/strings";
 
@@ -36,15 +37,15 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { currentPassword, newPassword } = body;
 
-    if (!currentPassword || !newPassword) {
-      return badRequest("Kata laluan semasa dan baharu diperlukan");
+    // Same schema the profile form validates against: min length, required
+    // fields and new/confirm must match — enforced server-side too.
+    const validation = changePasswordSchema.safeParse(body);
+    if (!validation.success) {
+      return badRequest(validation.error.errors[0].message);
     }
 
-    if (newPassword.length < 6) {
-      return badRequest("Kata laluan baharu mestilah sekurang-kurangnya 6 aksara");
-    }
+    const { currentPassword, newPassword } = validation.data;
 
     // Find user by ID first, fall back to username
     let user = await User.findById(authUser.id);

@@ -22,7 +22,8 @@ export async function GET(request: Request) {
 
   try {
     const floors = await Floor.find()
-      .select("name qrToken createdBy createdAt")
+      // qrToken is a capability (it authorises check-in), never list it
+      .select("name createdBy createdAt")
       .sort({ name: 1 })
       .lean();
 

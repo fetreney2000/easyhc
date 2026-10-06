@@ -1,9 +1,7 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
-import { connectDB } from "@/lib/db/mongoose";
 import { Role } from "@/lib/db/types";
-import { can, Action } from "@/lib/auth/rbac";
 
 export interface AuthUser {
   id: string;
@@ -85,29 +83,4 @@ export function serverError(message = "Ralat pelayan dalaman") {
 
 export function success(data: unknown, status = 200) {
   return NextResponse.json(data, { status });
-}
-
-type ApiHandler = (
-  request: Request,
-  user: AuthUser,
-  ctx?: Record<string, unknown>
-) => Promise<NextResponse>;
-
-/**
- * Higher-order function for API routes that require authentication + optional RBAC check.
- */
-export function withAuth(handler: ApiHandler, requiredAction?: Action) {
-  return async (request: Request, ctx?: Record<string, unknown>) => {
-    const user = await getAuthenticatedUser();
-    if (!user) {
-      return unauthorized();
-    }
-
-    if (requiredAction && !can(user.role, requiredAction)) {
-      return forbidden();
-    }
-
-    await connectDB();
-    return handler(request, user, ctx);
-  };
 }

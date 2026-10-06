@@ -8,6 +8,7 @@ import {
   success,
 } from "@/lib/api/utils";
 import Floor from "@/lib/db/models/Floor";
+import Attendance from "@/lib/db/models/Attendance";
 import { can } from "@/lib/auth/rbac";
 import { updateFloorSchema } from "@/lib/validation/schemas";
 import crypto from "crypto";
@@ -24,6 +25,13 @@ export async function GET(
   try {
     const floor = await Floor.findById(params.id).lean();
     if (!floor) return badRequest("Lantai tidak dijumpai");
+
+    // qrToken authorises check-in → only floor managers may read it
+    if (!can(user.role, "floors:manage")) {
+      const { qrToken: _token, ...safeFloor } = floor;
+      return success(safeFloor);
+    }
+
     return success(floor);
   } catch (error) {
     console.error("Error fetching floor:", error);
@@ -79,8 +87,30 @@ export async function DELETE(
   await connectDB();
 
   try {
-    const floor = await Floor.findByIdAndDelete(params.id);
+    const floor = await Floor.findById(params.id);
     if (!floor) return badRequest("Lantai tidak dijumpai");
+
+    // Never orphan attendance history: it is exactly what a muster report
+    // depends on. Active check-ins block first; older history blocks until
+    // the daily cron purges it (ATTENDANCE_RETENTION_DAYS).
+    const [activeCount, totalCount] = await Promise.all([
+      Attendance.countDocuments({ floorId: floor._id, checkedOutAt: null }),
+      Attendance.countDocuments({ floorId: floor._id }),
+    ]);
+
+    if (activeCount > 0) {
+      return badRequest(
+        `Masih ada ${activeCount} orang berdaftar masuk di lantai ini. Daftar keluar mereka sebelum memadam.`
+      );
+    }
+    if (totalCount > 0) {
+      return badRequest(
+        `Lantai ini masih mempunyai ${totalCount} rekod kehadiran (sejarah) dan tidak boleh dipadam.`
+      );
+    }
+
+    await Floor.findByIdAndDelete(params.id);
+
     return success({ message: "Lantai berjaya dipadam" });
   } catch (error) {
     console.error("Error deleting floor:", error);

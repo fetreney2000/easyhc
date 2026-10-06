@@ -28,8 +28,10 @@ import {
 } from "@tabler/icons-react";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
+import { fetcher } from "@/lib/api/fetcher";
 import { strings } from "@/lib/i18n/strings";
 import { can } from "@/lib/auth/rbac";
+import { LoadingScreen } from "@/components/shell/LoadingScreen";
 import { notifications } from "@mantine/notifications";
 
 interface PresenceRecord {
@@ -56,8 +58,6 @@ interface DashboardData {
   totalPresent: number;
   lastUpdated: string;
 }
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default function DashboardPage() {
   const { data: session } = useSession();
@@ -149,7 +149,7 @@ export default function DashboardPage() {
     }
   };
 
-  if (!session?.user) return null;
+  if (!session?.user) return <LoadingScreen />;
 
   const canForceCheckout =
     can(session.user.role, "attendance:checkout_all") ||
@@ -233,7 +233,7 @@ export default function DashboardPage() {
           <Group justify="space-between">
             <div>
               <Text fw={600} size="sm">
-                Anda berdaftar masuk di{" "}
+                {strings.checkedInAtFloor}{" "}
                 <Text span c="brandPrimary" fw={700}>
                   {data.attendance.find(
                     (r) => r.type === "employee" && r.userId?._id === session?.user?.id
@@ -241,7 +241,7 @@ export default function DashboardPage() {
                 </Text>
               </Text>
               <Text size="xs" c="dimmed">
-                Tekan butang di sebelah untuk daftar keluar
+                {strings.pressButtonToCheckOut}
               </Text>
             </div>
             <Button
@@ -268,7 +268,7 @@ export default function DashboardPage() {
         <Select
           placeholder="Semua Lantai"
           data={[
-            { value: "", label: "Semua Lantai" },
+            { value: "", label: strings.allFloors },
             ...(floors?.map((f) => ({
               value: f._id,
               label: f.name,

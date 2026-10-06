@@ -15,26 +15,41 @@ import {
 import { IconRefresh, IconMapPin } from "@tabler/icons-react";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
+import { fetcher } from "@/lib/api/fetcher";
 import { strings } from "@/lib/i18n/strings";
 import { ROLE_LABELS } from "@/lib/db/types";
+import { LoadingScreen } from "@/components/shell/LoadingScreen";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+interface StaffUser {
+  _id: string;
+  name: string;
+  role: string;
+  username?: string;
+}
+
+interface ActiveAttendance {
+  _id: string;
+  type: "employee" | "visitor";
+  userId?: { _id: string; name?: string };
+  floorId?: { _id: string; name?: string };
+  checkedInAt: string;
+}
 
 export default function MyUnitPage() {
   const { data: session } = useSession();
 
-  const { data: users, isLoading } = useSWR<any[]>(
+  const { data: users, isLoading } = useSWR<StaffUser[]>(
     session?.user?.unitId ? `/api/users?unitId=${session.user.unitId}` : null,
     fetcher
   );
 
-  const { data: attendanceData } = useSWR<{ attendance: any[] }>(
+  const { data: attendanceData } = useSWR<{ attendance: ActiveAttendance[] }>(
     "/api/attendance?active=true",
     fetcher,
     { refreshInterval: 25000 }
   );
 
-  if (!session?.user) return null;
+  if (!session?.user) return <LoadingScreen />;
 
   const attendanceMap = new Map<string, { floorName: string; checkedInAt: string }>();
   (attendanceData?.attendance || []).forEach((record) => {
@@ -72,11 +87,11 @@ export default function MyUnitPage() {
               <Table.Tr>
                 <Table.Th>{strings.name}</Table.Th>
                 <Table.Th>{strings.role}</Table.Th>
-                <Table.Th>Lokasi Semasa</Table.Th>
+                <Table.Th>{strings.currentLocation}</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {userLocations.map((user: any) => (
+              {userLocations.map((user) => (
                 <Table.Tr key={user._id}>
                   <Table.Td><Text fw={500}>{user.name}</Text></Table.Td>
                   <Table.Td>

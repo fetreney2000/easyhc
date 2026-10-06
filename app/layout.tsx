@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { MantineProvider } from "@/components/providers/MantineProvider";
 import "./globals.css";
 import { strings } from "@/lib/i18n/strings";
@@ -7,13 +7,16 @@ export const metadata: Metadata = {
   title: strings.appName,
   description: strings.appDescription,
   manifest: "/manifest.json",
+};
+
+// Next 14: viewport/themeColor belong in their own export, otherwise they
+// trigger "Unsupported metadata ..." warnings on every route.
+export const viewport: Viewport = {
   themeColor: "#2563eb",
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-  },
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({

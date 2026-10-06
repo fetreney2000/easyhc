@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { FilterQuery } from "mongoose";
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db/mongoose";
 import {
@@ -8,13 +9,15 @@ import {
   badRequest,
   serverError,
   success,
+  escapeRegex,
 } from "@/lib/api/utils";
 import User from "@/lib/db/models/User";
+import Jabatan from "@/lib/db/models/Jabatan";
+import Unit from "@/lib/db/models/Unit";
 import { can, getUsersScope } from "@/lib/auth/rbac";
 import { usersScopeFilter } from "@/lib/auth/scope";
-import { escapeRegex } from "@/lib/api/utils";
 import { createUserSchema } from "@/lib/validation/schemas";
-import { ROLES } from "@/lib/db/types";
+import { ROLES, IUser, Role } from "@/lib/db/types";
 
 export async function GET(request: Request) {
   const user = await getAuthenticatedUser();
@@ -27,11 +30,10 @@ export async function GET(request: Request) {
   const search = searchParams.get("search");
   const unitId = searchParams.get("unitId");
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const query: any = {};
+  const query: FilterQuery<IUser> = {};
 
   if (role) {
-    query.role = role;
+    query.role = role as Role;
   }
 
   if (search) {
@@ -44,7 +46,7 @@ export async function GET(request: Request) {
   }
 
   if (unitId) {
-    query.unitId = unitId;
+    query.unitId = unitId as unknown as IUser["unitId"];
   }
 
   try {
@@ -62,9 +64,6 @@ export async function GET(request: Request) {
       .lean();
 
     // Manually look up jabatan and unit names (more resilient than populate)
-    const Jabatan = (await import("@/lib/db/models/Jabatan")).default;
-    const Unit = (await import("@/lib/db/models/Unit")).default;
-
     const jabatanIds = Array.from(new Set(users.map((u) => u.jabatanId?.toString()).filter(Boolean)));
     const unitIds = Array.from(new Set(users.map((u) => u.unitId?.toString()).filter(Boolean)));
 

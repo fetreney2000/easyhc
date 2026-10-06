@@ -1,6 +1,8 @@
 import { connectDB } from "@/lib/db/mongoose";
 import { getAuthenticatedUser, unauthorized, forbidden, badRequest, serverError, success } from "@/lib/api/utils";
 import Jabatan from "@/lib/db/models/Jabatan";
+import Unit from "@/lib/db/models/Unit";
+import User from "@/lib/db/models/User";
 import { can } from "@/lib/auth/rbac";
 import { createJabatanSchema } from "@/lib/validation/schemas";
 
@@ -38,8 +40,22 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
   if (!can(user.role, "users:manage")) return forbidden();
   await connectDB();
   try {
+    // Don't orphan units or users that still point at this department
+    const [unitCount, userCount] = await Promise.all([
+      Unit.countDocuments({ jabatanId: params.id }),
+      User.countDocuments({ jabatanId: params.id }),
+    ]);
+    if (unitCount > 0 || userCount > 0) {
+      return badRequest(
+        `Jabatan ini masih dirujuk oleh ${unitCount} unit dan ${userCount} pengguna. Alihkan mereka terlebih dahulu.`
+      );
+    }
+
     const jabatan = await Jabatan.findByIdAndDelete(params.id);
     if (!jabatan) return badRequest("Jabatan tidak dijumpai");
     return success({ message: "Jabatan berjaya dipadam" });
-  } catch { return serverError(); }
+  } catch (error) {
+    console.error("Error deleting jabatan:", error);
+    return serverError();
+  }
 }

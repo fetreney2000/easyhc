@@ -127,6 +127,8 @@ export const strings = {
   fromDate: "Dari Tarikh",
   toDate: "Hingga Tarikh",
   noReportData: "Tiada data untuk julat tarikh yang dipilih",
+  reportsPickDates:
+    "Pilih tarikh mula dan tarikh akhir terlebih dahulu untuk memaparkan laporan.",
 
   // Profile
   editProfile: "Sunting Profil",

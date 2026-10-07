@@ -76,6 +76,10 @@ export default function ReportsPage() {
     return params;
   }, [fromDate, toDate, floorFilter, typeFilter]);
 
+  // Both dates are required before ANY query runs: the page loads nothing
+  // (report rows nor the floor lookup) until the range is fully chosen.
+  const datesReady = fromDate !== null && toDate !== null;
+
   // Server-side pagination: one page of rows per request plus the full match
   // count, so the cap is lifted and the table never maps more than
   // ROWS_PER_PAGE rows (mapping 1000 rows was a measurable INP cost).
@@ -95,12 +99,14 @@ export default function ReportsPage() {
     total: number;
     page: number;
   }>(
-    `/api/reports?${queryParams.toString()}&page=${page}&pageSize=${ROWS_PER_PAGE}`,
+    datesReady
+      ? `/api/reports?${queryParams.toString()}&page=${page}&pageSize=${ROWS_PER_PAGE}`
+      : null, // null key = no request at all until both dates exist
     fetcher
   );
 
   const { data: floors } = useSWR<{ _id: string; name: string }[]>(
-    "/api/floors",
+    datesReady ? "/api/floors" : null,
     fetcher
   );
 
@@ -119,6 +125,7 @@ export default function ReportsPage() {
     }, [data, page]);
 
   const handleExportCSV = async () => {
+    if (!datesReady) return;
     setExporting(true);
     try {
       // The table view is paginated — ask the API for the whole result set
@@ -199,7 +206,9 @@ export default function ReportsPage() {
               leftSection={<IconDownload size={16} />}
               onClick={handleExportCSV}
               loading={exporting}
-              disabled={!exporting && !data?.records?.length}
+              disabled={
+                !exporting && (!datesReady || !data?.records?.length)
+              }
             >
               {strings.exportCSV}
             </Button>
@@ -259,6 +268,7 @@ export default function ReportsPage() {
           <Button
             leftSection={<IconRefresh size={16} />}
             onClick={() => mutate()}
+            disabled={!datesReady}
             mt="auto"
           >
             {strings.refresh}
@@ -266,70 +276,81 @@ export default function ReportsPage() {
         </Group>
       </Paper>
 
-      {/* Report table */}
-      <DataTable
-        isLoading={isLoading}
-        error={error}
-        onRetry={mutate}
-        isEmpty={!data?.records?.length}
-        empty={strings.noReportData}
-        minWidth={700}
-      >
-        <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>{strings.name}</Table.Th>
-                  <Table.Th>{strings.typeLabel}</Table.Th>
-                  <Table.Th>{strings.floors}</Table.Th>
-                  <Table.Th>{strings.checkIn}</Table.Th>
-                  <Table.Th>{strings.checkOut}</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {visibleRecords.map((record) => (
-                  <Table.Tr key={record._id}>
-                    <Table.Td>
-                      {record.type === "employee"
-                        ? record.userId?.name
-                        : record.visitorName}
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge
-                        size="xs"
-                        color={record.type === "employee" ? "blue" : "orange"}
-                      >
-                        {record.type === "employee"
-                          ? strings.employee
-                          : strings.visitor}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>{record.floorId?.name}</Table.Td>
-                    <Table.Td>
-                      {new Date(record.checkedInAt).toLocaleString("ms-MY", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </Table.Td>
-                    <Table.Td>
-                      {record.checkedOutAt
-                        ? new Date(record.checkedOutAt).toLocaleString(
-                            "ms-MY",
-                            {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            }
-                          )
-                        : "—"}
-                    </Table.Td>
+      {/* Report table — nothing renders (and nothing is fetched) until both
+          dates are chosen */}
+      {!datesReady ? (
+        <Paper p="xl" radius="md" withBorder>
+          <Center>
+            <Text size="sm" c="var(--app-text-secondary)" ta="center">
+              {strings.reportsPickDates}
+            </Text>
+          </Center>
+        </Paper>
+      ) : (
+        <DataTable
+          isLoading={isLoading}
+          error={error}
+          onRetry={mutate}
+          isEmpty={!data?.records?.length}
+          empty={strings.noReportData}
+          minWidth={700}
+        >
+          <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>{strings.name}</Table.Th>
+                    <Table.Th>{strings.typeLabel}</Table.Th>
+                    <Table.Th>{strings.floors}</Table.Th>
+                    <Table.Th>{strings.checkIn}</Table.Th>
+                    <Table.Th>{strings.checkOut}</Table.Th>
                   </Table.Tr>
-                ))}
-              </Table.Tbody>
-      </DataTable>
+                </Table.Thead>
+                <Table.Tbody>
+                  {visibleRecords.map((record) => (
+                    <Table.Tr key={record._id}>
+                      <Table.Td>
+                        {record.type === "employee"
+                          ? record.userId?.name
+                          : record.visitorName}
+                      </Table.Td>
+                      <Table.Td>
+                        <Badge
+                          size="xs"
+                          color={record.type === "employee" ? "blue" : "orange"}
+                        >
+                          {record.type === "employee"
+                            ? strings.employee
+                            : strings.visitor}
+                        </Badge>
+                      </Table.Td>
+                      <Table.Td>{record.floorId?.name}</Table.Td>
+                      <Table.Td>
+                        {new Date(record.checkedInAt).toLocaleString("ms-MY", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </Table.Td>
+                      <Table.Td>
+                        {record.checkedOutAt
+                          ? new Date(record.checkedOutAt).toLocaleString(
+                              "ms-MY",
+                              {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              }
+                            )
+                          : "—"}
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+        </DataTable>
+      )}
 
       {data && (
         <Group justify="space-between" gap="sm">

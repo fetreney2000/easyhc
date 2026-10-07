@@ -23,13 +23,11 @@ import {
   IconUsers,
   IconUser,
   IconUserStar,
-  IconUsersGroup,
   IconRefresh,
   IconLogout,
   IconSearch,
   IconDoorExit,
 } from "@tabler/icons-react";
-import Link from "next/link";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
@@ -206,27 +204,14 @@ export default function DashboardPage() {
       <PageHeader
         title={strings.dashboard}
         actions={
-          <>
-            {/* Entry point for the four roles that may activate evacuation
-                mode — hidden from everyone else in normal mode */}
-            {can(session.user.role, "evacuation:start") && (
-              <Button
-                component={Link}
-                href="/evacuation"
-                leftSection={<IconUsersGroup size={16} />}
-              >
-                {strings.evacMode}
-              </Button>
-            )}
-            <Button
-              variant="light"
-              leftSection={<IconRefresh size={16} />}
-              onClick={() => mutate()}
-              loading={isLoading}
-            >
-              {strings.refresh}
-            </Button>
-          </>
+          <Button
+            variant="light"
+            leftSection={<IconRefresh size={16} />}
+            onClick={() => mutate()}
+            loading={isLoading}
+          >
+            {strings.refresh}
+          </Button>
         }
       />
 

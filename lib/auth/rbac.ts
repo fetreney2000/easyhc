@@ -23,6 +23,7 @@ export type Action =
   | "attendance:checkout_department"
   | "attendance:manual_checkin"
   | "reports:generate_all"
+  | "reports:generate_own"
   | "reports:generate_own_unit"
   | "reports:generate_own_floor"
   | "reports:generate_department"
@@ -174,6 +175,10 @@ export function can(role: Role, action: Action): boolean {
         // The floor board: everyone can see who is on their own floor
         case "floors:view_own_floor":
           return true;
+        // …and their own attendance history (scoped to "own" by
+        // getReportsScope — other people's history stays supervisory)
+        case "reports:generate_own":
+          return true;
         default:
           return false;
       }
@@ -258,6 +263,10 @@ export function getReportsScope(role: Role): Scope {
       return "own_unit";
     case "floor_head":
       return "own_floor";
+    case "user":
+      // Employees get their OWN history (there is no other view of it) —
+      // other people's presence history stays supervisory
+      return "own";
     default:
       return "none";
   }

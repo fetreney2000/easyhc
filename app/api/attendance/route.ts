@@ -89,7 +89,14 @@ export async function GET(request: Request) {
   };
 
   try {
-    const scoped = await scopeFilter(user, getAttendanceScope(user.role));
+    // The floor-wide slice exists for the LIVE board only; historical
+    // queries stay personal (own records). Otherwise a plain employee could
+    // pull their whole floor's past straight from this endpoint.
+    const roleScope = getAttendanceScope(user.role);
+    const effectiveScope =
+      roleScope === "own_and_floor" && !activeOnly ? "own" : roleScope;
+
+    const scoped = await scopeFilter(user, effectiveScope);
 
     if (!scoped) {
       return success(emptyResult);

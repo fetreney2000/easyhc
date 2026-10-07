@@ -148,7 +148,8 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
     can(user.role, "reports:generate_all") ||
     can(user.role, "reports:generate_department") ||
     can(user.role, "reports:generate_own_unit") ||
-    can(user.role, "reports:generate_own_floor")
+    can(user.role, "reports:generate_own_floor") ||
+    can(user.role, "reports:generate_own")
   ) {
     navItems.push({
       label: strings.reports,
@@ -241,7 +242,8 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
       can(user.role, "reports:generate_all") ||
       can(user.role, "reports:generate_department") ||
       can(user.role, "reports:generate_own_unit") ||
-      can(user.role, "reports:generate_own_floor")
+      can(user.role, "reports:generate_own_floor") ||
+      can(user.role, "reports:generate_own")
     ) {
       rightItems.push({
         label: strings.reports,

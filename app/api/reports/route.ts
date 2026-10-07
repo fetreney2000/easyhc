@@ -36,6 +36,7 @@ export async function GET(request: Request) {
 
   const hasReportPermission =
     can(user.role, "reports:generate_all") ||
+    can(user.role, "reports:generate_own") ||
     can(user.role, "reports:generate_own_floor") ||
     can(user.role, "reports:generate_own_unit") ||
     can(user.role, "reports:generate_department");

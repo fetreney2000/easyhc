@@ -198,6 +198,7 @@ export default function ReportsPage() {
     "reports:generate_department",
     "reports:generate_own_unit",
     "reports:generate_own_floor",
+    "reports:generate_own",
   ]);
   if (!session?.user) return <LoadingScreen />;
   if (access) return access;
@@ -206,6 +207,8 @@ export default function ReportsPage() {
     <Stack gap="lg">
       <PageHeader
         title={strings.reports}
+        // An employee's report is their own history — say so
+        description={strings.attendanceHistory}
         actions={
           <>
             <Button

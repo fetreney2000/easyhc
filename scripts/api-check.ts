@@ -127,6 +127,38 @@ async function main(): Promise<void> {
       jabatansAsStaff.status === 403,
       `${jabatansAsStaff.status}`
     );
+
+    /* Reports = own history for an employee; history queries never leak the floor */
+    const reportsAsStaff = await authed("/api/reports?page=1&pageSize=5", staffCookie);
+    const staffReportRows = (reportsAsStaff.body.records ??
+      []) as unknown as Record<string, unknown>[];
+    check(
+      "plain user can read their own reports (200)",
+      reportsAsStaff.status === 200,
+      `${reportsAsStaff.status}`
+    );
+    check(
+      "plain user's report rows are their own only",
+      staffReportRows.every(
+        (r) =>
+          (r.userId as { _id?: string } | null)?._id ===
+          staffAccount._id.toString()
+      ),
+      `${staffReportRows.length} rows`
+    );
+
+    const historyAsStaff = await authed("/api/attendance?page=1", staffCookie);
+    const historyRows = (historyAsStaff.body.attendance ??
+      []) as unknown as Record<string, unknown>[];
+    check(
+      "plain user's attendance history is own-only",
+      historyRows.every(
+        (r) =>
+          (r.userId as { _id?: string } | null)?._id ===
+          staffAccount._id.toString()
+      ),
+      `${historyRows.length} rows`
+    );
   } else {
     check("plain-user gate skipped (no role=user account)", true, "");
   }

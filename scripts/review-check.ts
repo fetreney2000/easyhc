@@ -59,9 +59,13 @@ async function main(): Promise<void> {
     // floor_head
     ["floor_head attendance:checkout_own_floor", rbac.can("floor_head", "attendance:checkout_own_floor"), true],
     ["floor_head attendance:manual_checkin", rbac.can("floor_head", "attendance:manual_checkin"), false],
-    // plain employee: the board for their own floor, nothing administrative
+    // plain employee: the board for their own floor, own history only
     ["user floors:view_own_floor", rbac.can("user", "floors:view_own_floor"), true],
     ["user users:manage", rbac.can("user", "users:manage"), false],
+    ["user reports:generate_own", rbac.can("user", "reports:generate_own"), true],
+    ["user reports:generate_all", rbac.can("user", "reports:generate_all"), false],
+    ["user report scope is own", rbac.getReportsScope("user") === "own", true],
+    ["user attendance scope live=floor", rbac.getAttendanceScope("user") === "own_and_floor", true],
     // admin: everything except managing admins
     ["admin users:manage_admin", rbac.can("admin", "users:manage_admin"), false],
     ["admin floors:manage", rbac.can("admin", "floors:manage"), true],

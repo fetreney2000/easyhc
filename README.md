@@ -112,7 +112,7 @@ theme/                           — Mantine theme config
 | Ketua Unit | `unit_head` | Unit-wide presence, directory, reports and live locations + unit force check-out |
 | Ketua Lantai | `floor_head` | Home-floor presence and reports + home-floor force check-out |
 | Ketua Keselamatan | `safety_head` | Building-wide presence, directory, reports and live locations + building-wide force check-out (audited) |
-| Pengguna Biasa | `user` | Own data, the muster board for their own floor, scan QR |
+| Pengguna Biasa | `user` | Own data and own attendance history, the muster board for their own floor, scan QR |
 
 ### How permission is enforced
 

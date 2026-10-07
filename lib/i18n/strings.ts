@@ -238,6 +238,7 @@ export const strings = {
   recordsCount: (n: number) => `${n} rekod`,
   showingRange: (from: number, to: number, total: number) =>
     `Memaparkan ${from}–${to} daripada ${total} rekod`,
+  attendanceHistory: "Sejarah Kehadiran",
   csvExported: "Fail CSV berjaya dimuat turun",
   csvLimited: (n: number) => `Eksport dihadkan kepada ${n} rekod`,
   invalidDate: "Tarikh tidak sah",

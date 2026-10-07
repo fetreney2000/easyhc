@@ -156,14 +156,18 @@ export function AppShellLayout({
       icon: <IconQrcode size={20} stroke={1.5} />,
       href: "/scan",
     },
-    {
-      // Evacuation mode — always visible; while a session runs it IS the
-      // whole app, and only these four roles can start one
+  ];
+
+  // Evacuation mode: only the four roles that may ACTIVATE a session see the
+  // entry in normal mode (while a session runs, the takeover replaces this
+  // nav entirely — everybody is on the display already)
+  if (can(user.role, "evacuation:start")) {
+    navItems.push({
       label: strings.evacMode,
       icon: <IconUsersGroup size={20} stroke={1.5} />,
       href: "/evacuation",
-    },
-  ];
+    });
+  }
 
   // GROUP 2: Lantai & Lokasi (Floors & Location)
   if (can(user.role, "floors:view_all") || can(user.role, "floors:view_own_floor")) {

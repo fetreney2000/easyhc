@@ -207,13 +207,17 @@ export default function DashboardPage() {
         title={strings.dashboard}
         actions={
           <>
-            <Button
-              component={Link}
-              href="/evacuation"
-              leftSection={<IconUsersGroup size={16} />}
-            >
-              {strings.evacMode}
-            </Button>
+            {/* Entry point for the four roles that may activate evacuation
+                mode — hidden from everyone else in normal mode */}
+            {can(session.user.role, "evacuation:start") && (
+              <Button
+                component={Link}
+                href="/evacuation"
+                leftSection={<IconUsersGroup size={16} />}
+              >
+                {strings.evacMode}
+              </Button>
+            )}
             <Button
               variant="light"
               leftSection={<IconRefresh size={16} />}

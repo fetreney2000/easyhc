@@ -159,6 +159,16 @@ async function main(): Promise<void> {
       ),
       `${historyRows.length} rows`
     );
+
+    // Normal mode: the evacuation menu/button is for ACTIVATORS only
+    const dashAsStaff = await fetch(`${BASE}/dashboard`, {
+      headers: { cookie: staffCookie },
+    }).then((r) => r.text());
+    check(
+      "plain user's dashboard hides evacuation mode",
+      !dashAsStaff.includes("Mod Evakuasi"),
+      `${dashAsStaff.length} bytes`
+    );
   } else {
     check("plain-user gate skipped (no role=user account)", true, "");
   }

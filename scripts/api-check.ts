@@ -185,19 +185,25 @@ async function main(): Promise<void> {
 
   const attBig = await authed("/api/attendance?active=true&pageSize=500");
   check(
-    "attendance honours pageSize (muster view dependency)",
+    "attendance honours pageSize",
     attBig.body.pageSize === 500,
     `pageSize=${attBig.body.pageSize}`
   );
 
-  // Muster mode: reachable for a signed-in user, nav item rendered server-side
-  const musterHtml = await fetch(`${BASE}/muster`, {
+  // Evacuation mode: reachable for a signed-in user, nav rendered server-side
+  const evacHtml = await fetch(`${BASE}/evacuation`, {
     headers: { cookie },
   }).then((r) => r.text());
   check(
-    "muster page renders with nav entry",
-    musterHtml.includes("Mod Muster") && !musterHtml.includes("<title>Log Masuk"),
-    `${musterHtml.length} bytes`
+    "evacuation page renders with nav entry",
+    evacHtml.includes("Mod Evakuasi") && !evacHtml.includes("<title>Log Masuk"),
+    `${evacHtml.length} bytes`
+  );
+  const oldMusterUrl = await fetch(`${BASE}/muster`, { headers: { cookie } });
+  check(
+    "/muster redirects to /evacuation",
+    oldMusterUrl.url.endsWith("/evacuation"),
+    oldMusterUrl.url
   );
 
   const searched = await authed("/api/attendance?active=true&q=zzz-no-such-person");
@@ -284,6 +290,13 @@ async function main(): Promise<void> {
   } else {
     const evacCookie = await mintCookie(evacActor);
     let createdId: string | null = null;
+    // A visitor present in the building when the alarm goes off (roster
+    // fixture) — later confirms through the PUBLIC endpoint
+    const evacVisitorPhone = `018${String(Date.now()).slice(-7)}`;
+    let visitorCheckin: {
+      attendance?: { _id?: string };
+      checkoutToken?: string;
+    } | null = null;
 
     const call = (
       path: string,
@@ -304,6 +317,35 @@ async function main(): Promise<void> {
       }));
 
     try {
+      /* a visitor already checked in BEFORE the alarm (they land on the
+         roster snapshot) */
+      if (floor) {
+        const res = await fetch(`${BASE}/api/visitor/checkin`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            visitorName: "E2E Pelawat",
+            visitorPhone: evacVisitorPhone,
+            floorId: floor._id.toString(),
+            token: floor.qrToken,
+          }),
+        }).then(async (r) => ({
+          status: r.status,
+          body: (await r.json().catch(() => ({}))) as Record<string, unknown>,
+        }));
+        if (res.status === 201) {
+          visitorCheckin = res.body as {
+            attendance?: { _id?: string };
+            checkoutToken?: string;
+          };
+        }
+      }
+      check(
+        "visitor pre-check-in (evacuation roster fixture)",
+        !!visitorCheckin?.attendance?._id,
+        `status=${visitorCheckin ? "201" : "skipped"}`
+      );
+
       /* start */
       const started = await call("/api/evacuation", "POST", evacCookie, {});
       check("evacuation start -> 201", started.status === 201, `${started.status}`);
@@ -322,6 +364,23 @@ async function main(): Promise<void> {
         "second start while active -> 409 (one active session)",
         dupStart.status === 409,
         `${dupStart.status}`
+      );
+
+      /* The takeover is SSR'd from the server layout (no flash of the shell):
+         nobody has confirmed yet → the gate, not the stats */
+      const takeover = await fetch(`${BASE}/dashboard`, {
+        headers: { cookie: evacCookie },
+      }).then((r) => r.text());
+      check(
+        "active session: app SSRs the full-screen takeover (no shell)",
+        takeover.includes("SESI EVAKUASI AKTIF") &&
+          !takeover.includes('id="main-content"'),
+        `${takeover.length} bytes`
+      );
+      check(
+        "takeover gates everything behind 'Saya Selamat'",
+        takeover.includes("Saya Selamat") && !takeover.includes("Belum Kesan"),
+        ""
       );
 
       /* plain user: light projection, roster privacy, self-confirm */
@@ -354,7 +413,7 @@ async function main(): Promise<void> {
 
         const rosterReq = await authed("/api/evacuation?roster=1", plainCookie);
         const plainRoster = rosterReq.body.session as
-          | { rosterVisible?: boolean; roster?: unknown }
+          | { rosterVisible?: boolean; roster?: unknown; floors?: unknown }
           | undefined;
         check(
           "plain user cannot see names",
@@ -362,12 +421,18 @@ async function main(): Promise<void> {
             !("roster" in (plainRoster ?? {})),
           `visible=${plainRoster?.rosterVisible}`
         );
+        check(
+          "plain user still gets scoped floor locations",
+          Array.isArray(plainRoster?.floors),
+          `floors=${typeof plainRoster?.floors}`
+        );
 
         const adminRosterReq = await authed("/api/evacuation?roster=1");
         const adminSession = adminRosterReq.body.session as
           | {
               rosterVisible?: boolean;
               roster?: Array<{ _id: string; confirmedAt: string | null }>;
+              floors?: unknown;
             }
           | undefined;
         check(
@@ -377,6 +442,71 @@ async function main(): Promise<void> {
             adminSession.roster.length >= 1,
           `rows=${adminSession?.roster?.length}`
         );
+        check(
+          "admin sees floor location stats",
+          Array.isArray(adminSession?.floors),
+          `floors=${typeof adminSession?.floors}`
+        );
+
+        /* visitors confirm through the PUBLIC endpoint — no auth, no stats */
+        if (visitorCheckin?.attendance?._id) {
+          const v1 = await fetch(`${BASE}/api/evacuation/visitor-confirm`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone: evacVisitorPhone }),
+          }).then(async (r) => ({
+            status: r.status,
+            body: (await r.json().catch(() => ({}))) as Record<string, unknown>,
+          }));
+          check(
+            "visitor 'saya selamat' by phone (no auth) -> 200",
+            v1.status === 200,
+            `${v1.status}`
+          );
+          check(
+            "visitor response carries NO statistics",
+            !("counts" in v1.body) &&
+              !("floors" in v1.body) &&
+              !("roster" in v1.body),
+            JSON.stringify(Object.keys(v1.body))
+          );
+          check(
+            "visitor response names their own floor",
+            typeof v1.body.floorName === "string" &&
+              (v1.body.floorName as string).length > 0,
+            String(v1.body.floorName)
+          );
+
+          /* same device, via its check-out token — idempotent second tap */
+          const v2 = await fetch(`${BASE}/api/evacuation/visitor-confirm`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              attendanceId: visitorCheckin.attendance._id,
+              token: visitorCheckin.checkoutToken,
+            }),
+          }).then((r) => r.status);
+          check(
+            "visitor confirm by device token -> 200 (idempotent)",
+            v2 === 200,
+            `${v2}`
+          );
+
+          const countsAfter = await authed("/api/evacuation");
+          const confirmedCount =
+            (
+              countsAfter.body.session as {
+                counts?: { confirmed?: number };
+              } | null
+            )?.counts?.confirmed ?? 0;
+          check(
+            "visitor confirmation counted in totals",
+            confirmedCount >= 1,
+            `confirmed=${confirmedCount}`
+          );
+        } else {
+          check("visitor confirm sub-flow", false, "no visitor fixture");
+        }
 
         /* self-confirm (idempotent) */
         const confirm = await call(
@@ -405,6 +535,16 @@ async function main(): Promise<void> {
           !!afterSession?.mine?.confirmedAt &&
             (afterSession.counts?.confirmed ?? 0) >= 1,
           `confirmed=${afterSession?.counts?.confirmed}`
+        );
+
+        // …and from now on their SSR shows the stats (the gate has lifted)
+        const takeoverConfirmed = await fetch(`${BASE}/dashboard`, {
+          headers: { cookie: plainCookie },
+        }).then((r) => r.text());
+        check(
+          "confirmed user's SSR shows the evacuation stats",
+          takeoverConfirmed.includes("Dijangka"),
+          `${takeoverConfirmed.length} bytes`
         );
 
         /* plain user may neither confirm others nor start a session */
@@ -586,9 +726,25 @@ async function main(): Promise<void> {
         );
         check("confirm after close -> 409", late.status === 409, `${late.status}`);
       }
+      if (visitorCheckin?.attendance?._id) {
+        const lateVisitor = await fetch(
+          `${BASE}/api/evacuation/visitor-confirm`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone: evacVisitorPhone }),
+          }
+        ).then((r) => r.status);
+        check(
+          "visitor confirm after close -> 409",
+          lateVisitor === 409,
+          `${lateVisitor}`
+        );
+      }
     } finally {
-      // Remove the test session entirely — no drill record left behind
+      // Remove the test session AND the fixture visitor — nothing left behind
       if (createdId) await Evacuation.deleteOne({ _id: createdId });
+      await Attendance.deleteMany({ visitorPhone: evacVisitorPhone });
     }
   }
 

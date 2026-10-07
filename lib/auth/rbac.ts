@@ -149,14 +149,16 @@ export function can(role: Role, action: Action): boolean {
         case "locations:track_all":
         case "locations:track_own_unit":
         case "locations:track_department":
-        // Starting/closing a building-wide session belongs to safety
+          return false;
+        // A floor warden may start AND end evacuation mode (only
+        // superadmin/admin/floor_head/safety_head activate it) — they still
+        // cannot confirm anyone outside their own floor (scope-checked below)
         case "evacuation:start":
         case "evacuation:close":
-          return false;
         case "attendance:checkout_own_floor":
         case "floors:view_own_floor":
         case "reports:generate_own_floor":
-        // …but as the floor's warden they confirm people on their own floor
+        // …and as the floor's warden they confirm people on their own floor
         case "evacuation:confirm_others":
           return true;
         default:
@@ -340,8 +342,12 @@ export function getCheckoutScope(
 /**
  * Evacuation roster visibility / who may confirm OTHERS (self-confirmation
  * is separate: evacuation:confirm_own, granted to everyone).
- * Mirrors the warden structure: safety sees the building, a floor head sees
- * (and confirms) their own floor, everybody else only their own status.
+ *
+ * Four roles may activate (start/close) evacuation mode: superadmin, admin,
+ * floor_head, safety_head. Name visibility mirrors the warden structure:
+ * safety/admin see the building, a floor head sees (and confirms) their own
+ * floor, everybody else gets counts, their own status and location stats for
+ * the floors they belong to.
  */
 export function getEvacuationScope(
   role: Role

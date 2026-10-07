@@ -34,12 +34,16 @@ import {
 import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
 import { signOut, useSession } from "next-auth/react";
+import useSWR from "swr";
+import { fetcher } from "@/lib/api/fetcher";
 import { strings } from "@/lib/i18n/strings";
 import { Role } from "@/lib/db/types";
 import { can } from "@/lib/auth/rbac";
+import { EVACUATION_KEY } from "@/lib/evacuationKey";
+import type { EvacuationResponse } from "@/lib/evacuation";
 import { NavbarLink } from "./NavbarLink";
 import { FooterTab } from "./FooterTab";
-import { EvacuationBar } from "./EvacuationBar";
+import { EvacuationMode } from "./EvacuationMode";
 
 interface AppShellLayoutProps {
   children: React.ReactNode;
@@ -49,6 +53,11 @@ interface AppShellLayoutProps {
     role: Role;
     username: string;
   };
+  /**
+   * Active-session state from the server layout — the takeover therefore
+   * renders on first paint instead of flashing the shell for a tick.
+   */
+  initialEvacuation?: EvacuationResponse;
 }
 
 interface NavLinkItem {
@@ -68,7 +77,7 @@ const NAV_COLORS: Record<string, string> = {
   // GROUP 1 — Kehadiran
   "/dashboard": "brandPrimary",
   "/scan": "brandPrimary",
-  "/muster": "danger", // emergency display
+  "/evacuation": "danger", // evacuation mode
   // GROUP 2 — Lantai & Lokasi
   "/floors": "teal",
   "/my-unit": "teal",
@@ -88,7 +97,11 @@ const NAV_COLORS: Record<string, string> = {
 
 const colorFor = (href: string): string => NAV_COLORS[href] ?? "brandPrimary";
 
-export function AppShellLayout({ children, user }: AppShellLayoutProps) {
+export function AppShellLayout({
+  children,
+  user,
+  initialEvacuation,
+}: AppShellLayoutProps) {
   const [opened, { toggle, close }] = useDisclosure();
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
   const router = useRouter();
@@ -105,6 +118,30 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
     }
   }, [status, liveSession]);
 
+  // Evacuation takeover: while a session is active the WHOLE app is the
+  // full-screen display (spec) — no header, sidebar or footer, at every
+  // route, until someone closes the session. Polls fast while live so the
+  // alarm reaches every screen quickly, cheaply otherwise.
+  const { data: evacData, mutate: mutateEvac } = useSWR<EvacuationResponse>(
+    EVACUATION_KEY,
+    fetcher,
+    {
+      fallbackData: initialEvacuation,
+      revalidateOnFocus: true,
+      refreshInterval: (latest) => (latest?.session ? 3000 : 5000),
+    }
+  );
+
+  if (evacData?.session) {
+    return (
+      <EvacuationMode
+        user={user}
+        data={evacData}
+        onRefresh={() => mutateEvac()}
+      />
+    );
+  }
+
   // Navigation items based on role — logically grouped by function
 
   // GROUP 1: Kehadiran (Attendance) — always visible
@@ -120,11 +157,11 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
       href: "/scan",
     },
     {
-      // Emergency display — kept in the always-visible group so every role
-      // can reach it during a drill (it respects their data scope anyway)
-      label: strings.musterMode,
+      // Evacuation mode — always visible; while a session runs it IS the
+      // whole app, and only these four roles can start one
+      label: strings.evacMode,
       icon: <IconUsersGroup size={20} stroke={1.5} />,
-      href: "/muster",
+      href: "/evacuation",
     },
   ];
 
@@ -449,7 +486,6 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
 
       {/* Main content */}
       <AppShell.Main id="main-content" tabIndex={-1}>
-        <EvacuationBar />
         {children}
       </AppShell.Main>
 

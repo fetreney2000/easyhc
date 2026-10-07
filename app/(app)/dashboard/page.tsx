@@ -209,10 +209,10 @@ export default function DashboardPage() {
           <>
             <Button
               component={Link}
-              href="/muster"
+              href="/evacuation"
               leftSection={<IconUsersGroup size={16} />}
             >
-              {strings.musterMode}
+              {strings.evacMode}
             </Button>
             <Button
               variant="light"

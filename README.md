@@ -110,9 +110,9 @@ theme/                           — Mantine theme config
 | Admin | `admin` | Manage users, floors, manual check-in; everything except managing admin accounts |
 | Ketua Jabatan | `dept_head` | Department-wide presence, directory, reports and live locations + department force check-out |
 | Ketua Unit | `unit_head` | Unit-wide presence, directory, reports and live locations + unit force check-out |
-| Ketua Lantai | `floor_head` | Home-floor presence and reports + home-floor force check-out; confirms (only) their own floor's roster during an evacuation |
-| Ketua Keselamatan | `safety_head` | Building-wide presence, directory, reports and live locations + building-wide force check-out (audited); starts/closes evacuation sessions and confirms anyone |
-| Pengguna Biasa | `user` | Own data and own attendance history, the muster board for their own floor, scan QR, "Saya Selamat" self-confirmation during an evacuation |
+| Ketua Lantai | `floor_head` | Home-floor presence and reports + home-floor force check-out; starts/ends evacuation mode and confirms (only) their own floor's roster |
+| Ketua Keselamatan | `safety_head` | Building-wide presence, directory, reports and live locations + building-wide force check-out (audited); starts/ends evacuation mode and confirms anyone |
+| Pengguna Biasa | `user` | Own data and own attendance history, the live floor board, scan QR, "Saya Selamat" self-confirmation during an evacuation |
 
 ### How permission is enforced
 
@@ -129,13 +129,18 @@ Notes:
 
 - Force check-out is always scoped to the caller's own boundary and is
   written to the audit log with actor + scope; every role above `user` has it.
-- Evacuation sessions snapshot their roster (active employees + open visitor
-  check-ins) when started, so "belum kesan" is always expected-minus-confirmed
-  at that instant. Confirmations are atomic positional updates (many taps land
+- Evacuation mode: four roles activate it (superadmin, admin, floor_head,
+  safety_head). While a session runs it takes over the ENTIRE app — full
+  screen, no header/sidebar/footer, at every route — until someone closes
+  it. The roster is snapshotted (active employees + open visitor check-ins)
+  when started, so "belum kesan" is always expected-minus-confirmed at that
+  instant. Confirmations are atomic positional updates (many taps land
   within seconds at a muster point); start/close are audited, and a partial
-  unique index guarantees at most one active session. Name lists are visible
-  to `safety_head`/admins (whole building) and `floor_head` (own floor) only —
-  everybody else gets counts and their own status.
+  unique index guarantees at most one active session. Logged-in users see
+  stats only after confirming, plus floor locations scoped to their role;
+  names are visible to `safety_head`/admins (whole building) and `floor_head`
+  (own floor) only. Visitors confirm from their public check-in page (device
+  token or phone, rate-limited) and never see statistics.
 - A floor has no static membership, so `floor_head`'s directory scope is
   "own" only — who is standing on their floor comes from the floor board.
 - Visitor check-in/out is capability-based (the floor's QR token), not

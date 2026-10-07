@@ -236,8 +236,6 @@ export const strings = {
 
   // Row counts / export feedback
   recordsCount: (n: number) => `${n} rekod`,
-  showingXofY: (shown: number, total: number) =>
-    `Memaparkan ${shown} daripada ${total} rekod`,
   showingRange: (from: number, to: number, total: number) =>
     `Memaparkan ${from}–${to} daripada ${total} rekod`,
   attendanceHistory: "Sejarah Kehadiran",
@@ -245,13 +243,17 @@ export const strings = {
   csvLimited: (n: number) => `Eksport dihadkan kepada ${n} rekod`,
   invalidDate: "Tarikh tidak sah",
 
-  // Muster mode — the large-type emergency display
-  musterMode: "Mod Muster",
-  musterModeDesc: "Paparan langsung bersaiz besar untuk masa kecemasan",
-  musterFullscreen: "Skrin Penuh",
-  musterExitFullscreen: "Keluar Skrin Penuh",
-  musterStale: "Data mungkin lapuk — sila semak semula",
-  musterByFloor: "Mengikut Lantai",
+  // Evacuation mode — full-screen takeover of the whole app
+  evacMode: "Mod Evakuasi",
+  evacModeDesc: "Paparan evakuasi skrin penuh untuk masa kecemasan",
+  evacFullscreen: "Skrin Penuh",
+  evacExitFullscreen: "Keluar Skrin Penuh",
+  evacByFloor: "Mengikut Lantai",
+  evacSafePrompt: "Sampai di tempat berkumpul? Sahkan ketibaan anda di bawah.",
+  evacVisitorPrompt: "Sudah tiba di tempat berkumpul? Tekan butang di bawah.",
+  evacVisitorConfirmed: (floorName: string) =>
+    `Terima kasih — anda disahkan selamat di ${floorName}.`,
+  evacVisitorNoMatch: "Tiada pendaftaran masuk aktif untuk nombor ini.",
 
   // Evacuation sessions — "I made it to the muster point" feedback
   evacSessionActive: "SESI EVAKUASI AKTIF",
@@ -260,9 +262,7 @@ export const strings = {
   evacMissing: "Belum Kesan",
   evacExpected: "Dijangka",
   evacImSafe: "Saya Selamat",
-  evacYouAreSafe: "Anda selamat",
   evacSafeRecorded: "Pengesahan anda telah direkodkan",
-  evacOpenMuster: "Papan Muster",
   evacStart: "Mula Sesi Evakuasi",
   evacStartConfirm:
     "Mulakan sesi evakuasi sekarang? Semua kakitangan aktif dan pelawat yang berdaftar masuk akan disenaraikan untuk pengesahan ketibaan.",

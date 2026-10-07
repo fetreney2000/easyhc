@@ -88,11 +88,24 @@ html {
 }
 
 /* ---------------------------------------------------------------------------
- * Muster mode (app/(app)/muster): type sized for reading at a distance —
- * a warden holding a clipboard, or a projected screen. clamp() scales from
+ * Evacuation mode (components/shell/EvacuationMode): the ONLY view while a
+ * session runs, sized for reading at a distance — a warden's clipboard, a
+ * phone held at arm's length, or a projected screen. clamp() scales from
  * phone to large display without a second stylesheet.
  * ------------------------------------------------------------------------- */
-.muster-number {
+.evac-fullscreen {
+  min-height: 100dvh;
+  background: var(--mantine-color-body);
+}
+
+.evac-headline {
+  font-size: clamp(2rem, 7vw, 4.5rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.evac-number {
   font-size: clamp(3rem, 10vw, 6.5rem);
   font-weight: 800;
   line-height: 1;
@@ -100,39 +113,31 @@ html {
   font-variant-numeric: tabular-nums;
 }
 
-.muster-floor-name {
+.evac-floor-name {
   font-size: clamp(1.375rem, 4vw, 2.5rem);
   font-weight: 700;
   line-height: 1.1;
 }
 
-.muster-label {
+.evac-label {
   font-size: clamp(0.8125rem, 2vw, 1.125rem);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
-/* ---------------------------------------------------------------------------
- * Evacuation banner (components/shell/EvacuationBar): stays pinned under the
- * fixed app header so "Saya Selamat" is always one tap away. The top offsets
- * mirror AppShellLayout's header height (base 50, md 60 — Mantine md = 992px),
- * and z-index 90 keeps it tucked beneath the header (z-index 100).
- * ------------------------------------------------------------------------- */
-.evac-bar {
-  position: sticky;
-  top: 50px;
-  z-index: 90;
-  margin-bottom: var(--mantine-spacing-md);
+.evac-prompt {
+  font-size: clamp(1.125rem, 3.5vw, 1.75rem);
+  font-weight: 600;
+  max-width: 32ch;
 }
 
-@media (min-width: 992px) {
-  .evac-bar {
-    top: 60px;
-  }
-}
-
-.evac-title {
-  font-size: var(--mantine-font-size-lg);
+/* The one control that matters before confirmation */
+.evac-safe-btn {
+  font-size: clamp(1.5rem, 5vw, 2.75rem);
+  height: auto;
+  min-height: 4.5rem;
+  padding-inline: clamp(2rem, 8vw, 5rem);
+  font-weight: 800;
 }
 

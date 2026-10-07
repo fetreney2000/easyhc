@@ -17,6 +17,9 @@ import { useSearchParams } from "next/navigation";
 import { IconAlertCircle, IconCheck, IconLogin } from "@tabler/icons-react";
 import { strings } from "@/lib/i18n/strings";
 import { notifications } from "@mantine/notifications";
+import useSWR from "swr";
+import { fetcher } from "@/lib/api/fetcher";
+import { EVACUATION_STATUS_KEY } from "@/lib/evacuationKey";
 
 /**
  * What we keep on the visitor's own device, so a reload doesn't offer the
@@ -128,6 +131,60 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
   const [panelNote, setPanelNote] = useState<string | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Evacuation mode: while a session runs, this PUBLIC page offers the one
+  // action a visitor can take. Confirmation is by this device's check-out
+  // token, or by phone if the device never held one. Per spec: no statistics
+  // for visitors — only their own confirmation.
+  const { data: evacStatus } = useSWR<{ active: boolean }>(
+    EVACUATION_STATUS_KEY,
+    fetcher,
+    { refreshInterval: 15000 }
+  );
+  const [evacLoading, setEvacLoading] = useState(false);
+  const [evacState, setEvacState] = useState<
+    { kind: "done"; floorName: string } | { kind: "not-in-roster" } | null
+  >(null);
+
+  const handleEvacConfirm = async () => {
+    if (!attendanceId) return;
+    setEvacLoading(true);
+    try {
+      const res = await fetch("/api/evacuation/visitor-confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          checkoutToken
+            ? { attendanceId, token: checkoutToken }
+            : { phone: form.values.visitorPhone }
+        ),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        setEvacState({
+          kind: "done",
+          floorName: data.floorName || strings.unknownFloor,
+        });
+      } else if (res.status === 409 && data.error === strings.evacNotInRoster) {
+        setEvacState({ kind: "not-in-roster" });
+      } else {
+        notifications.show({
+          title: strings.error,
+          message: data.error || strings.serverError,
+          color: "danger",
+        });
+      }
+    } catch {
+      notifications.show({
+        title: strings.error,
+        message: strings.serverError,
+        color: "danger",
+      });
+    } finally {
+      setEvacLoading(false);
+    }
+  };
 
   const form = useForm({
     initialValues: {
@@ -325,6 +382,33 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
                 {strings.checkedInAtFloor} {checkedInFloor}
               </Text>
             )}
+            {evacState?.kind === "done" ? (
+              <Alert icon={<IconCheck size={16} />} color="success">
+                {strings.evacVisitorConfirmed(evacState.floorName)}
+              </Alert>
+            ) : evacStatus?.active ? (
+              evacState?.kind === "not-in-roster" ? (
+                <Alert icon={<IconAlertCircle size={16} />} color="warning">
+                  {strings.evacNotInRoster}
+                </Alert>
+              ) : (
+                <Stack gap="xs">
+                  <Text size="sm" fw={500} ta="center">
+                    {strings.evacVisitorPrompt}
+                  </Text>
+                  <Button
+                    fullWidth
+                    color="danger"
+                    size="lg"
+                    loading={evacLoading}
+                    leftSection={<IconCheck size={18} />}
+                    onClick={handleEvacConfirm}
+                  >
+                    {strings.evacImSafe}
+                  </Button>
+                </Stack>
+              )
+            ) : null}
             {checkoutToken ? (
               <Button
                 fullWidth

@@ -3,16 +3,18 @@ import User from "@/lib/db/models/User";
 import Unit from "@/lib/db/models/Unit";
 import Floor from "@/lib/db/models/Floor";
 import Attendance from "@/lib/db/models/Attendance";
-import { getEvacuationScope } from "@/lib/auth/rbac";
-import { unitMembership } from "@/lib/auth/scope";
+import Evacuation from "@/lib/db/models/Evacuation";
+import { getEvacuationScope, type Scope } from "@/lib/auth/rbac";
+import { unitMembership, departmentMembership } from "@/lib/auth/scope";
 import type { AuthUser } from "@/lib/api/utils";
 import type { IEvacuation, IRosterEntry } from "@/lib/db/types";
 import { strings } from "@/lib/i18n/strings";
 
 /**
- * Server-side helpers shared by /api/evacuation and /api/evacuation/confirm:
- * roster snapshot, counts, the light (roster-free) projection the sticky bar
- * polls every 10s, and per-role roster visibility.
+ * Server-side helpers shared by /api/evacuation, its public status/confirm
+ * endpoints, and the server layout's initial payload: roster snapshot,
+ * counts, per-floor location stats scoped to the caller, the light projection
+ * behind the full-screen display, and per-role roster visibility.
  *
  * Confirms are written with atomic positional updates (see the routes) — a
  * full document save would let two simultaneous "saya selamat" taps at a
@@ -34,6 +36,15 @@ export interface EvacRosterRow {
   confirmedAt: string | null;
 }
 
+/** Where expected people are, for the floors a role may see. */
+export interface EvacFloorStat {
+  floorId: string;
+  name: string;
+  expected: number;
+  confirmed: number;
+  missing: number;
+}
+
 export interface EvacuationLight {
   _id: string;
   status: "active" | "closed";
@@ -41,7 +52,10 @@ export interface EvacuationLight {
   startedByName: string;
   counts: EvacCounts;
   mine: { inRoster: boolean; confirmedAt: string | null };
-  /** Present only when the roster was requested AND is visible to the caller. */
+  /** Scoped floor location stats (present whenever a session is returned
+   *  with ?roster=1 — the full-screen display's key). */
+  floors?: EvacFloorStat[];
+  /** Present only when names are visible to the caller. */
   rosterVisible?: boolean;
   roster?: EvacRosterRow[];
 }
@@ -98,35 +112,136 @@ function toRow(entry: IRosterEntry): EvacRosterRow {
 }
 
 /**
- * Who may see names: safety/admin see the whole roster, a floor head sees
- * (and may confirm) their own floor, everyone else gets counts only — no
- * names. Fail closed: an unresolvable floor scope yields NO roster.
+ * Floors this role may see location stats for — null = every floor.
+ * Fail closed: an unresolvable scope yields an EMPTY set (headline counts
+ * still show, but no floor locations), never everything.
  */
-export async function visibleRoster(
-  session: IEvacuation,
-  user: AuthUser
-): Promise<{ canSee: boolean; rows: EvacRosterRow[] }> {
-  const scope = getEvacuationScope(user.role);
-  if (scope === "none") return { canSee: false, rows: [] };
+async function accessibleFloorIds(
+  user: AuthUser,
+  scope: Scope
+): Promise<Set<string> | null> {
+  if (scope === "all") return null;
 
-  let allowedFloorIds: Set<string> | null = null; // null = every floor
   if (scope === "own_floor") {
     const membership = await unitMembership(user.unitId);
-    allowedFloorIds = new Set(
+    return new Set(
       membership?.homeFloorIds.map((floor) => floor.toString()) ?? []
     );
-    if (allowedFloorIds.size === 0) return { canSee: false, rows: [] };
   }
 
-  const rows = session.roster
-    .filter(
-      (entry) =>
-        !allowedFloorIds ||
-        (entry.floorId && allowedFloorIds.has(entry.floorId.toString()))
-    )
-    .map(toRow);
+  // Not a warden — they still get "where is MY part of the building":
+  // department heads their jabatan's floors, everyone else their unit's
+  if (user.role === "dept_head") {
+    const membership = await departmentMembership(user.jabatanId);
+    return new Set(
+      membership?.homeFloorIds.map((floor) => floor.toString()) ?? []
+    );
+  }
 
-  return { canSee: true, rows };
+  const membership = await unitMembership(user.unitId);
+  return new Set(
+    membership?.homeFloorIds.map((floor) => floor.toString()) ?? []
+  );
+}
+
+export interface SessionView {
+  /** Names are for safety/admin (whole building) and floor_head (own floor). */
+  canSeeNames: boolean;
+  rows: EvacRosterRow[];
+  /** Per-floor expected/confirmed/missing — floors with missing people first. */
+  floors: EvacFloorStat[];
+}
+
+export async function sessionView(
+  session: IEvacuation,
+  user: AuthUser
+): Promise<SessionView> {
+  const scope = getEvacuationScope(user.role);
+  const allowed = await accessibleFloorIds(user, scope);
+
+  const inScope = (entry: IRosterEntry) =>
+    !allowed ||
+    (!!entry.floorId && allowed.has(entry.floorId.toString()));
+
+  const canSeeNames = scope !== "none";
+  const rows = canSeeNames ? session.roster.filter(inScope).map(toRow) : [];
+
+  const byFloor = new Map<string, EvacFloorStat>();
+  for (const entry of session.roster) {
+    if (!entry.floorId || !inScope(entry)) continue;
+    const id = entry.floorId.toString();
+    const stat = byFloor.get(id) ?? {
+      floorId: id,
+      name: entry.floorName || strings.unknownFloor,
+      expected: 0,
+      confirmed: 0,
+      missing: 0,
+    };
+    stat.expected += 1;
+    if (entry.confirmedAt) stat.confirmed += 1;
+    else stat.missing += 1;
+    byFloor.set(id, stat);
+  }
+
+  const floors = Array.from(byFloor.values()).sort(
+    (a, b) =>
+      b.missing - a.missing ||
+      b.expected - a.expected ||
+      a.name.localeCompare(b.name)
+  );
+
+  return { canSeeNames, rows, floors };
+}
+
+/**
+ * The full payload the full-screen display renders: light session + scoped
+ * floor locations, with names only when the caller's role allows them. Used
+ * by GET ?roster=1 AND by the server layout (so the takeover is SSR'd with
+ * no flash of the normal shell).
+ */
+export async function displayPayload(
+  session: IEvacuation,
+  user: AuthUser
+): Promise<EvacuationLight> {
+  const light = lightSession(session, user.id);
+  const { canSeeNames, rows, floors } = await sessionView(session, user);
+  light.rosterVisible = canSeeNames;
+  light.floors = floors;
+  if (canSeeNames) light.roster = rows;
+  return light;
+}
+
+/**
+ * The complete GET response — one source of truth shared by the API route
+ * and the server layout's SSR fallback (same key, same shape, no flash).
+ */
+export async function evacuationResponse(
+  user: AuthUser,
+  opts: { roster: boolean; closed: boolean }
+): Promise<EvacuationResponse> {
+  const payload: EvacuationResponse = { session: null };
+
+  const active = await Evacuation.findOne({ status: "active" });
+  if (active) {
+    payload.session = opts.roster
+      ? await displayPayload(active, user)
+      : lightSession(active, user.id);
+  }
+
+  if (opts.closed) {
+    const last = await Evacuation.findOne({ status: "closed" }).sort({
+      closedAt: -1,
+    });
+    payload.lastClosed = last
+      ? {
+          startedAt: last.startedAt.toISOString(),
+          closedAt: (last.closedAt ?? last.startedAt).toISOString(),
+          counts: countsFor(last.roster),
+        }
+      : null;
+  }
+
+  return payload;
 }
 
 /**

@@ -15,13 +15,14 @@ import {
   buildRoster,
   countsFor,
   lightSession,
-  visibleRoster,
-  type EvacuationResponse,
+  evacuationResponse,
 } from "@/lib/evacuation";
 
 /**
- * GET  /api/evacuation            → light session (what the sticky bar polls)
- *      ?roster=1                   → + names, when the caller's role may see them
+ * GET  /api/evacuation            → light session
+ *      ?roster=1                   → + scoped floor locations and (when the
+ *                                     caller's role allows) names — the
+ *                                     full-screen evacuation display's key
  *      ?closed=1                   → + summary of the last closed session
  * POST /api/evacuation             → start (evacuation:start)
  * PATCH /api/evacuation            → close the active session (evacuation:close)
@@ -34,39 +35,14 @@ export async function GET(request: Request) {
   await connectDB();
 
   const url = new URL(request.url);
-  const wantsRoster = url.searchParams.get("roster") === "1";
-  const wantsClosed = url.searchParams.get("closed") === "1";
 
   try {
-    const payload: EvacuationResponse = { session: null };
-
-    const active = await Evacuation.findOne({ status: "active" });
-    if (active) {
-      const light = lightSession(active, user.id);
-      if (wantsRoster) {
-        const { canSee, rows } = await visibleRoster(active, user);
-        light.rosterVisible = canSee;
-        // No roster KEY at all when the role may not see names — not even an
-        // empty array (asserted in scripts/api-check.ts)
-        if (canSee) light.roster = rows;
-      }
-      payload.session = light;
-    }
-
-    if (wantsClosed) {
-      const last = await Evacuation.findOne({ status: "closed" }).sort({
-        closedAt: -1,
-      });
-      payload.lastClosed = last
-        ? {
-            startedAt: last.startedAt.toISOString(),
-            closedAt: (last.closedAt ?? last.startedAt).toISOString(),
-            counts: countsFor(last.roster),
-          }
-        : null;
-    }
-
-    return success(payload);
+    return success(
+      await evacuationResponse(user, {
+        roster: url.searchParams.get("roster") === "1",
+        closed: url.searchParams.get("closed") === "1",
+      })
+    );
   } catch (error) {
     console.error("Error reading evacuation session:", error);
     return serverError();

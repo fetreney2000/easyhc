@@ -90,6 +90,24 @@ export async function scopeFilter(
     case "own":
       return isId(actor.id) ? { userId: new Types.ObjectId(actor.id) } : NO_MATCH;
 
+    case "own_and_floor": {
+      // Muster board for a plain employee: their own record (always, even
+      // with no unit configured) PLUS everyone present on their unit's home
+      // floor — visitors included. Fails safe to "own", never to "everything".
+      const own = isId(actor.id)
+        ? { userId: new Types.ObjectId(actor.id) }
+        : NO_MATCH;
+
+      const membership = await unitMembership(actor.unitId);
+      if (!membership?.homeFloorIds.length) {
+        return { $or: [own] };
+      }
+
+      return {
+        $or: [own, { floorId: { $in: membership.homeFloorIds } }],
+      };
+    }
+
     case "own_unit": {
       const membership = await unitMembership(actor.unitId);
       if (!membership) return null;

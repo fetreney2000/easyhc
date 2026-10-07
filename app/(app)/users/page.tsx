@@ -31,6 +31,7 @@ import {
 import useSWR from "swr";
 import { useDebouncedValue } from "@mantine/hooks";
 import { fetcher } from "@/lib/api/fetcher";
+import { useAccess } from "@/components/shell/useAccess";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -310,21 +311,21 @@ export default function UsersPage() {
     }
   };
 
+  const access = useAccess(["users:manage"]);
   if (!session?.user) return <LoadingScreen />;
+  if (access) return access;
 
-  // Only roles this actor may assign: an admin has no users:manage_admin,
-  // so offering "admin" in the dropdown always ended in a 403.
-  const availableRoles = ROLES.filter((role) => {
-    if (session.user.role === "admin") {
-      return role !== "superadmin" && role !== "admin";
-    }
-    return true;
-  });
+  // Only roles this actor may assign — driven by the permission itself so
+  // the UI and the API can never disagree (an admin has no
+  // users:manage_admin, so offering "admin" always ended in a 403).
+  const canAssignAdmin = can(session.user.role, "users:manage_admin");
+  const availableRoles = ROLES.filter((role) =>
+    canAssignAdmin ? true : role !== "admin" && role !== "superadmin"
+  );
 
-  // Rows this actor may actually edit / reset / delete — mirrors the API
-  // rules, so unreachable buttons are never rendered.
+  // Rows this actor may actually edit / reset / delete — mirrors the API.
   const canManage = (target: UserRecord) =>
-    session.user.role === "superadmin" ||
+    canAssignAdmin ||
     (target.role !== "admin" && target.role !== "superadmin");
 
   return (

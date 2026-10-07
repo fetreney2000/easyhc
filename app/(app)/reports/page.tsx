@@ -26,6 +26,7 @@ import {
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
+import { useAccess } from "@/components/shell/useAccess";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
 import { notifications } from "@mantine/notifications";
@@ -192,7 +193,14 @@ export default function ReportsPage() {
     }
   };
 
+  const access = useAccess([
+    "reports:generate_all",
+    "reports:generate_department",
+    "reports:generate_own_unit",
+    "reports:generate_own_floor",
+  ]);
   if (!session?.user) return <LoadingScreen />;
+  if (access) return access;
 
   return (
     <Stack gap="lg">

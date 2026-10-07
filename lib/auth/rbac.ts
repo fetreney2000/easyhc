@@ -3,14 +3,17 @@ import { Role } from "@/lib/db/types";
 /**
  * Actions that can be performed in the system.
  * Each action maps to a capability in the permissions matrix (Section 5).
+ *
+ * Note: row-level visibility is NOT expressed here — it lives in the scope
+ * helpers (getAttendanceScope/getReportsScope/getUsersScope/getCheckoutScope)
+ * at the bottom of this file. Actions that only duplicated a scope helper
+ * (attendance:view_*, users:view_own_unit, profile:edit_own …) were removed
+ * so that granting or withholding one always means something.
  */
 export type Action =
   | "users:manage"
   | "users:manage_admin" // Can assign admin/superadmin roles
   | "users:view_all"
-  | "users:view_own_unit"
-  | "users:view_department"
-  | "users:view_own"
   | "floors:manage"
   | "floors:view_all"
   | "floors:view_own_floor"
@@ -19,19 +22,13 @@ export type Action =
   | "attendance:checkout_own_unit"
   | "attendance:checkout_department"
   | "attendance:manual_checkin"
-  | "attendance:view_all"
-  | "attendance:view_own_floor"
-  | "attendance:view_own_unit"
-  | "attendance:view_own"
-  | "attendance:view_department"
   | "reports:generate_all"
   | "reports:generate_own_unit"
   | "reports:generate_own_floor"
   | "reports:generate_department"
   | "locations:track_all"
   | "locations:track_own_unit"
-  | "locations:track_department"
-  | "profile:edit_own";
+  | "locations:track_department";
 
 /**
  * RBAC permission check. Single source of truth for all permission logic.
@@ -39,12 +36,7 @@ export type Action =
  *
  * Implements the permissions matrix from Section 5 of the spec.
  */
-export function can(role: Role, action: Action, context?: {
-  floorId?: string;
-  userId?: string;
-  unitId?: string;
-  jabatanId?: string;
-}): boolean {
+export function can(role: Role, action: Action): boolean {
   switch (role) {
     case "superadmin":
       return true; // Superadmin has all permissions
@@ -68,26 +60,21 @@ export function can(role: Role, action: Action, context?: {
           return false;
         // Global scope is replaced by department scope
         case "users:view_all":
-        case "attendance:view_all":
         case "attendance:checkout_all":
         case "reports:generate_all":
         case "locations:track_all":
           return false;
         // Unit scope belongs to unit_head
-        case "users:view_own_unit":
-        case "attendance:view_own_unit":
         case "attendance:checkout_own_unit":
         case "reports:generate_own_unit":
         case "locations:track_own_unit":
           return false;
-        // Floor scope belongs to floor_head
-        case "attendance:view_own_floor":
+        // Floor scope belongs to floor_head — never honour it here either,
+        // or can() would contradict getAttendanceScope/getReportsScope
         case "attendance:checkout_own_floor":
         case "reports:generate_own_floor":
           return false;
         // Department scope (jabatan + every unit under it)
-        case "users:view_department":
-        case "attendance:view_department":
         case "attendance:checkout_department":
         case "reports:generate_department":
         case "locations:track_department":
@@ -106,27 +93,26 @@ export function can(role: Role, action: Action, context?: {
         case "floors:view_all":
         case "attendance:checkout_all":
         case "attendance:checkout_department":
-        case "attendance:view_all":
-        case "attendance:view_department":
         case "reports:generate_all":
         case "reports:generate_department":
         case "locations:track_all":
         case "locations:track_department":
           return false;
+        // Floor scope belongs to floor_head — never honour it here either,
+        // or can() would contradict getAttendanceScope/getReportsScope
+        case "attendance:checkout_own_floor":
+        case "reports:generate_own_floor":
+          return false;
         // Scoped permissions (actual filtering done at query level)
         case "users:view_all":
-        case "users:view_department":
           return false;
-        case "users:view_own_unit":
-        case "attendance:view_own_unit":
         case "attendance:checkout_own_unit":
         case "reports:generate_own_unit":
         case "locations:track_own_unit":
           return true;
-        case "attendance:checkout_own_floor":
-        case "attendance:view_own_floor":
+        // floors:view_own_floor is the "may open the floors page" permission
+        // (their view_all is false); the unit scope already covers their data
         case "floors:view_own_floor":
-        case "reports:generate_own_floor":
           return true;
         default:
           return true;
@@ -139,15 +125,10 @@ export function can(role: Role, action: Action, context?: {
         case "floors:manage":
         case "attendance:manual_checkin":
         case "users:view_all":
-        case "users:view_own_unit":
-        case "users:view_department":
         case "floors:view_all":
         case "attendance:checkout_all":
         case "attendance:checkout_own_unit":
         case "attendance:checkout_department":
-        case "attendance:view_all":
-        case "attendance:view_own_unit":
-        case "attendance:view_department":
         case "reports:generate_all":
         case "reports:generate_own_unit":
         case "reports:generate_department":
@@ -156,7 +137,6 @@ export function can(role: Role, action: Action, context?: {
         case "locations:track_department":
           return false;
         case "attendance:checkout_own_floor":
-        case "attendance:view_own_floor":
         case "floors:view_own_floor":
         case "reports:generate_own_floor":
           return true;
@@ -166,15 +146,22 @@ export function can(role: Role, action: Action, context?: {
 
     case "safety_head":
       switch (action) {
+        // Administration is not theirs
         case "users:manage":
         case "users:manage_admin":
         case "floors:manage":
         case "attendance:manual_checkin":
+          return false;
+        // Emergency role: full building visibility, and the incident
+        // commander can close out stragglers (every force check-out is
+        // audited with actor + scope)
         case "attendance:checkout_all":
+        case "locations:track_all":
+          return true;
+        // Scoped variants make no sense for a building-wide role
         case "attendance:checkout_own_floor":
         case "attendance:checkout_own_unit":
         case "attendance:checkout_department":
-        case "locations:track_all":
         case "locations:track_own_unit":
         case "locations:track_department":
           return false;
@@ -184,8 +171,8 @@ export function can(role: Role, action: Action, context?: {
 
     case "user":
       switch (action) {
-        case "profile:edit_own":
-        case "attendance:view_own":
+        // The floor board: everyone can see who is on their own floor
+        case "floors:view_own_floor":
           return true;
         default:
           return false;
@@ -225,9 +212,17 @@ export function getRolesWithPermission(action: Action): Role[] {
  *  - "own_unit"  → members of the actor's unit (+ its home floor)
  *  - "own_floor" → the actor's unit home floor
  *  - "own"       → the actor's own records only
+ *  - "own_and_floor" → own records PLUS everything on the unit's home floor
  *  - "none"      → no access at all
  */
-export type Scope = "all" | "department" | "own_unit" | "own_floor" | "own" | "none";
+export type Scope =
+  | "all"
+  | "department"
+  | "own_unit"
+  | "own_floor"
+  | "own"
+  | "own_and_floor"
+  | "none";
 
 export function getAttendanceScope(role: Role): Scope {
   switch (role) {
@@ -241,6 +236,11 @@ export function getAttendanceScope(role: Role): Scope {
       return "own_unit";
     case "floor_head":
       return "own_floor";
+    case "user":
+      // The muster board is the point of the app: an employee sees their own
+      // record PLUS everyone on their unit's home floor (and visitors there).
+      // Falls back to "own" when no home floor is configured.
+      return "own_and_floor";
     default:
       return "own";
   }
@@ -263,6 +263,11 @@ export function getReportsScope(role: Role): Scope {
   }
 }
 
+/**
+ * The directory is deliberately NOT floor-scoped: a floor has no static
+ * membership (who is standing on it comes from attendance, which the floor
+ * board already shows), so floor_head gets their own record only.
+ */
 export function getUsersScope(role: Role): Scope {
   switch (role) {
     case "superadmin":
@@ -282,10 +287,14 @@ export function getUsersScope(role: Role): Scope {
  * Check if a role can force-checkout on a specific floor scope.
  * Returns the scope: "all", "department", "own_unit", "own_floor", or "none"
  */
-export function getCheckoutScope(role: Role): "all" | "department" | "own_unit" | "own_floor" | "none" {
+export function getCheckoutScope(
+  role: Role
+): "all" | "department" | "own_unit" | "own_floor" | "none" {
   switch (role) {
     case "superadmin":
     case "admin":
+    // The incident commander closes out stragglers building-wide (audited)
+    case "safety_head":
       return "all";
     case "dept_head":
       return "department";

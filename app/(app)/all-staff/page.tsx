@@ -17,6 +17,7 @@ import { IconRefresh, IconMapPin } from "@tabler/icons-react";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
+import { useAccess } from "@/components/shell/useAccess";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -89,7 +90,13 @@ export default function AllStaffPage() {
     }));
   }, [attendanceData?.attendance, usersData?.users]);
 
+  const access = useAccess([
+    "locations:track_all",
+    "locations:track_department",
+    "locations:track_own_unit",
+  ]);
   if (!session?.user) return <LoadingScreen />;
+  if (access) return access;
 
   return (
     <Stack gap="lg">

@@ -179,6 +179,7 @@ export const strings = {
 
   // Errors
   serverError: "Ralat pelayan. Sila cuba lagi.",
+  forbidden: "Akses ditolak",
   tooManyAttempts: "Terlalu banyak percubaan. Sila cuba lagi sebentar lagi.",
   unauthorized: "Anda tidak mempunyai kebenaran untuk tindakan ini",
 

@@ -17,6 +17,7 @@ import { IconRefresh, IconMapPin } from "@tabler/icons-react";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
+import { useAccess } from "@/components/shell/useAccess";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -72,6 +73,9 @@ export default function MyUnitPage() {
       checkedInAt: presenceByUser.get(user._id)?.checkedInAt,
     }));
   }, [usersData?.users, attendanceData?.attendance]);
+
+  const access = useAccess(["locations:track_own_unit"]);
+  if (access) return access;
 
   return (
     <Stack gap="lg">

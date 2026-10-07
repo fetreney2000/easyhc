@@ -106,13 +106,32 @@ theme/                           — Mantine theme config
 
 | Role | Code | Description |
 |---|---|---|
-| Superadmin | `superadmin` | Full access |
-| Admin | `admin` | Manage users, floors, manual check-in |
-| Ketua Jabatan | `dept_head` | View department, reports |
-| Ketua Unit | `unit_head` | View unit staff, reports |
-| Ketua Lantai | `floor_head` | View own floor |
-| Ketua Keselamatan | `safety_head` | View all floors, reports |
-| Pengguna Biasa | `user` | View own data, scan QR |
+| Superadmin | `superadmin` | Full access, including assigning admin/superadmin accounts |
+| Admin | `admin` | Manage users, floors, manual check-in; everything except managing admin accounts |
+| Ketua Jabatan | `dept_head` | Department-wide presence, directory, reports and live locations + department force check-out |
+| Ketua Unit | `unit_head` | Unit-wide presence, directory, reports and live locations + unit force check-out |
+| Ketua Lantai | `floor_head` | Home-floor presence and reports + home-floor force check-out |
+| Ketua Keselamatan | `safety_head` | Building-wide presence, directory, reports and live locations + building-wide force check-out (audited) |
+| Pengguna Biasa | `user` | Own data, the muster board for their own floor, scan QR |
+
+### How permission is enforced
+
+Two layers, both in `lib/auth/rbac.ts`:
+
+1. `can(role, action)` — gates API routes and UI visibility (nav, buttons, page guards);
+2. `getAttendanceScope` / `getReportsScope` / `getUsersScope` / `getCheckoutScope`
+   — decide **which rows** a query may return. These are authoritative: row
+   filtering never depends on `can()`, which is why a role can hold several
+   scoped permissions without them contradicting each other.
+
+Notes:
+
+- Force check-out is always scoped to the caller's own boundary and is
+  written to the audit log with actor + scope; every role above `user` has it.
+- A floor has no static membership, so `floor_head`'s directory scope is
+  "own" only — who is standing on their floor comes from the floor board.
+- Visitor check-in/out is capability-based (the floor's QR token), not
+  role-based: anyone who scans the visitor QR may check a visitor in.
 
 ## Deployment to Vercel
 

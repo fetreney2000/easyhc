@@ -7,6 +7,8 @@ import { can } from "@/lib/auth/rbac";
 export async function GET() {
   const user = await getAuthenticatedUser();
   if (!user) return unauthorized();
+  // Department names are only consumed by admin screens
+  if (!can(user.role, "users:manage")) return forbidden();
   await connectDB();
 
   try {

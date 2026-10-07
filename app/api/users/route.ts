@@ -129,10 +129,11 @@ export async function POST(request: Request) {
 
     const data = validation.data;
 
-    // Check if admin trying to create admin/superadmin
+    // Role-assignment rule expressed through the permission itself: only a
+    // role holding users:manage_admin may create admin/superadmin accounts
     if (
-      authUser.role === "admin" &&
-      (data.role === "admin" || data.role === "superadmin")
+      (data.role === "admin" || data.role === "superadmin") &&
+      !can(authUser.role, "users:manage_admin")
     ) {
       return forbidden();
     }

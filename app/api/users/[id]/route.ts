@@ -67,11 +67,11 @@ export async function PUT(
     const user = await User.findById(params.id);
     if (!user) return badRequest("Pengguna tidak dijumpai");
 
-    // Admin can't edit superadmin
+    // Editing a superadmin account requires users:manage_admin
     if (
-      authUser.role === "admin" &&
       user.role === "superadmin" &&
-      !isOwnProfile
+      !isOwnProfile &&
+      !can(authUser.role, "users:manage_admin")
     ) {
       return forbidden();
     }
@@ -93,10 +93,10 @@ export async function PUT(
       }
       const data = validation.data;
 
-      // Admin can't assign admin/superadmin
+      // Managing admin accounts requires users:manage_admin
       if (
-        authUser.role === "admin" &&
-        (data.role === "admin" || data.role === "superadmin")
+        (data.role === "admin" || data.role === "superadmin") &&
+        !can(authUser.role, "users:manage_admin")
       ) {
         return forbidden();
       }
@@ -149,8 +149,11 @@ export async function DELETE(
       return badRequest("Anda tidak boleh memadam akaun sendiri");
     }
 
-    // Admin can't delete superadmin
-    if (authUser.role === "admin" && user.role === "superadmin") {
+    // Deleting a superadmin account requires users:manage_admin
+    if (
+      user.role === "superadmin" &&
+      !can(authUser.role, "users:manage_admin")
+    ) {
       return forbidden();
     }
 

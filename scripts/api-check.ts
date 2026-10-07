@@ -42,26 +42,42 @@ async function main(): Promise<void> {
   if (!secret) throw new Error("NEXTAUTH_SECRET is not set");
 
   const { encode } = await import("@auth/core/jwt");
-  const cookie = `authjs.session-token=${await encode({
-    token: {
-      id: actor._id.toString(),
-      name: actor.name,
-      username: actor.username,
-      role: actor.role,
-      unitId: actor.unitId?.toString(),
-      jabatanId: actor.jabatanId?.toString(),
-      sessionVersion: actor.sessionVersion,
-    },
-    secret,
-    salt: "authjs.session-token",
-    maxAge: 60 * 60,
-  })}`;
 
-  const authed = (path: string) =>
-    fetch(`${BASE}${path}`, { headers: { cookie } }).then(async (r) => ({
-      status: r.status,
-      body: (await r.json().catch(() => ({}))) as Record<string, unknown>,
-    }));
+  /** Read-only session for any account, minted with Auth.js's own encoder
+   *  (same secret + salt the app uses). */
+  const mintCookie = async (user: {
+    _id: { toString(): string };
+    name: string;
+    username: string;
+    role: string;
+    unitId?: unknown;
+    jabatanId?: unknown;
+    sessionVersion: number;
+  }) =>
+    `authjs.session-token=${await encode({
+      token: {
+        id: user._id.toString(),
+        name: user.name,
+        username: user.username,
+        role: user.role,
+        unitId: user.unitId?.toString(),
+        jabatanId: user.jabatanId?.toString(),
+        sessionVersion: user.sessionVersion,
+      },
+      secret,
+      salt: "authjs.session-token",
+      maxAge: 60 * 60,
+    })}`;
+
+  const cookie = await mintCookie(actor);
+
+  const authed = (path: string, sessionCookie = cookie) =>
+    fetch(`${BASE}${path}`, { headers: { cookie: sessionCookie } }).then(
+      async (r) => ({
+        status: r.status,
+        body: (await r.json().catch(() => ({}))) as Record<string, unknown>,
+      })
+    );
 
   /* 1. users envelope + paging ---------------------------------------- */
   const page1 = await authed("/api/users?page=1&limit=5");
@@ -82,6 +98,38 @@ async function main(): Promise<void> {
     Array.isArray(allRows) && typeof allUsers.body.total === "number" && allRows.length === (allUsers.body.total as number),
     `${allRows?.length}/${allUsers.body.total}`
   );
+
+  /* 1b. list endpoints are gated -------------------------------------- */
+  const floors = await authed("/api/floors");
+  check("floors list -> 200", floors.status === 200, `${floors.status}`);
+  const floorRows = Array.isArray(floors.body)
+    ? (floors.body as unknown as Record<string, unknown>[])
+    : [];
+  check(
+    "floors list carries no qrToken or createdBy",
+    Array.isArray(floors.body) &&
+      floorRows.every((f) => !("qrToken" in f) && !("createdBy" in f)),
+    JSON.stringify(Object.keys(floorRows[0] ?? {}))
+  );
+
+  const staffAccount = await User.findOne({ role: "user" }).lean();
+  if (staffAccount) {
+    const staffCookie = await mintCookie(staffAccount);
+    const unitsAsStaff = await authed("/api/units", staffCookie);
+    const jabatansAsStaff = await authed("/api/jabatans", staffCookie);
+    check(
+      "plain user cannot list units (403)",
+      unitsAsStaff.status === 403,
+      `${unitsAsStaff.status}`
+    );
+    check(
+      "plain user cannot list jabatans (403)",
+      jabatansAsStaff.status === 403,
+      `${jabatansAsStaff.status}`
+    );
+  } else {
+    check("plain-user gate skipped (no role=user account)", true, "");
+  }
 
   /* 2. attendance pagination + privacy -------------------------------- */
   const att = await authed("/api/attendance?active=true&page=1");

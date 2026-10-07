@@ -24,6 +24,9 @@ async function main(): Promise<void> {
   const rbac = await import("@/lib/auth/rbac");
   const { ROLES } = await import("@/lib/db/types");
 
+  // [label, actual, expected] permission assertions are collected here
+  const results: Array<[string, boolean, string]> = [];
+
   // --- pure logic checks (no database needed) -------------------------
   console.log("\n--- scope per role ---");
   for (const role of ROLES) {
@@ -36,33 +39,35 @@ async function main(): Promise<void> {
     );
   }
 
-  console.log("\n--- dept_head permissions ---");
-  const checks: Array<[string, boolean]> = [
-    ["attendance:view_all", rbac.can("dept_head", "attendance:view_all")],
-    ["attendance:checkout_all", rbac.can("dept_head", "attendance:checkout_all")],
-    ["reports:generate_all", rbac.can("dept_head", "reports:generate_all")],
-    ["users:view_all", rbac.can("dept_head", "users:view_all")],
-    ["locations:track_all", rbac.can("dept_head", "locations:track_all")],
-    ["users:manage", rbac.can("dept_head", "users:manage")],
-    [
-      "attendance:view_department",
-      rbac.can("dept_head", "attendance:view_department"),
-    ],
-    [
-      "attendance:checkout_department",
-      rbac.can("dept_head", "attendance:checkout_department"),
-    ],
-    [
-      "reports:generate_department",
-      rbac.can("dept_head", "reports:generate_department"),
-    ],
-    ["users:view_department", rbac.can("dept_head", "users:view_department")],
-    ["locations:track_department", rbac.can("dept_head", "locations:track_department")],
-    ["floors:view_all", rbac.can("dept_head", "floors:view_all")],
-    ["profile:edit_own", rbac.can("dept_head", "profile:edit_own")],
+  console.log("\n--- permission matrix (expected values are asserted) ---");
+  const expectations: Array<[string, boolean, boolean]> = [
+    // dept_head: department scope, no admin work, no global/floor scope
+    ["dept_head attendance:checkout_all", rbac.can("dept_head", "attendance:checkout_all"), false],
+    ["dept_head attendance:checkout_department", rbac.can("dept_head", "attendance:checkout_department"), true],
+    ["dept_head attendance:checkout_own_floor (stray)", rbac.can("dept_head", "attendance:checkout_own_floor"), false],
+    ["dept_head reports:generate_own_floor (stray)", rbac.can("dept_head", "reports:generate_own_floor"), false],
+    ["dept_head users:manage", rbac.can("dept_head", "users:manage"), false],
+    ["dept_head floors:view_all", rbac.can("dept_head", "floors:view_all"), true],
+    // unit_head: unit scope only — floor scope is a stray
+    ["unit_head attendance:checkout_own_unit", rbac.can("unit_head", "attendance:checkout_own_unit"), true],
+    ["unit_head attendance:checkout_own_floor (stray)", rbac.can("unit_head", "attendance:checkout_own_floor"), false],
+    ["unit_head reports:generate_own_unit", rbac.can("unit_head", "reports:generate_own_unit"), true],
+    // safety_head: emergency role — full visibility + building-wide checkout
+    ["safety_head attendance:checkout_all", rbac.can("safety_head", "attendance:checkout_all"), true],
+    ["safety_head locations:track_all", rbac.can("safety_head", "locations:track_all"), true],
+    ["safety_head users:manage", rbac.can("safety_head", "users:manage"), false],
+    // floor_head
+    ["floor_head attendance:checkout_own_floor", rbac.can("floor_head", "attendance:checkout_own_floor"), true],
+    ["floor_head attendance:manual_checkin", rbac.can("floor_head", "attendance:manual_checkin"), false],
+    // plain employee: the board for their own floor, nothing administrative
+    ["user floors:view_own_floor", rbac.can("user", "floors:view_own_floor"), true],
+    ["user users:manage", rbac.can("user", "users:manage"), false],
+    // admin: everything except managing admins
+    ["admin users:manage_admin", rbac.can("admin", "users:manage_admin"), false],
+    ["admin floors:manage", rbac.can("admin", "floors:manage"), true],
   ];
-  for (const [action, result] of checks) {
-    console.log(`  ${action.padEnd(32)} = ${result}`);
+  for (const [label, actual, expected] of expectations) {
+    results.push([label, actual === expected, `expected ${expected}`]);
   }
 
   console.log("\n--- force checkout outside a boundary must be denied ---");
@@ -107,6 +112,13 @@ async function main(): Promise<void> {
     "  malformed actor id (own)            ->",
     await scope.scopeFilter({ id: "zzz", role: "user" }, "own")
   );
+  console.log(
+    "  user own_and_floor w/o unit         ->",
+    await scope.scopeFilter(
+      { id: "zzz", role: "user" },
+      rbac.getAttendanceScope("user")
+    )
+  );
 
   // Optional: only runs when Atlas is reachable from here
   try {
@@ -118,7 +130,15 @@ async function main(): Promise<void> {
     console.log(`\ndb unreachable, counts skipped: ${(error as Error).message.slice(0, 80)}`);
   }
 
-  process.exit(0);
+  console.log("");
+  let failed = 0;
+  for (const [name, ok, detail] of results) {
+    if (!ok) failed += 1;
+    console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail ? `  (${detail})` : ""}`);
+  }
+  console.log(`\n${results.length - failed}/${results.length} permission checks passed`);
+
+  process.exit(failed === 0 ? 0 : 1);
 }
 
 main().catch((error) => {

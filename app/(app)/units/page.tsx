@@ -20,6 +20,7 @@ import { useForm } from "@mantine/form";
 import { IconPlus, IconEdit, IconTrash, IconRefresh } from "@tabler/icons-react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
+import { useAccess } from "@/components/shell/useAccess";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -116,6 +117,9 @@ export default function UnitsPage() {
       setLoading(false);
     }
   };
+
+  const access = useAccess(["users:manage"]);
+  if (access) return access;
 
   return (
     <Stack gap="lg">

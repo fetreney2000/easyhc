@@ -121,9 +121,11 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
   // GROUP 2: Lantai & Lokasi (Floors & Location)
   if (can(user.role, "floors:view_all") || can(user.role, "floors:view_own_floor")) {
     navItems.push({
-      label: user.role === "floor_head" || user.role === "safety_head"
-        ? strings.floors
-        : strings.allFloors,
+      // Only roles that actually see the whole building get "Semua Lantai";
+      // scoped roles see a slice, so the neutral "Lantai" is honest for them
+      label: ["superadmin", "admin", "safety_head"].includes(user.role)
+        ? strings.allFloors
+        : strings.floors,
       icon: <IconBuildingSkyscraper size={20} stroke={1.5} />,
       href: "/floors",
     });
@@ -145,6 +147,7 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
   if (
     can(user.role, "reports:generate_all") ||
     can(user.role, "reports:generate_department") ||
+    can(user.role, "reports:generate_own_unit") ||
     can(user.role, "reports:generate_own_floor")
   ) {
     navItems.push({
@@ -237,6 +240,7 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
     if (
       can(user.role, "reports:generate_all") ||
       can(user.role, "reports:generate_department") ||
+      can(user.role, "reports:generate_own_unit") ||
       can(user.role, "reports:generate_own_floor")
     ) {
       rightItems.push({
@@ -259,10 +263,16 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
       href: "/profile",
     });
 
+    // Drop anything already on the left (e.g. /floors when the role has no
+    // reports tab): duplicate hrefs meant duplicate React keys and two tabs
+    // pointing at the same page.
+    const leftHrefs = new Set(leftItems.map((item) => item.href));
+    const uniqueRight = rightItems.filter((item) => !leftHrefs.has(item.href));
+
     // Balance: trim to make left and right equal length
-    const sideCount = Math.min(leftItems.length, rightItems.length);
+    const sideCount = Math.min(leftItems.length, uniqueRight.length);
     const balancedLeft = leftItems.slice(0, sideCount);
-    const balancedRight = rightItems.slice(0, sideCount);
+    const balancedRight = uniqueRight.slice(0, sideCount);
 
     return [
       ...balancedLeft,

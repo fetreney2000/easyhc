@@ -11,6 +11,9 @@ import { can } from "@/lib/auth/rbac";
 export async function GET(request: Request) {
   const user = await getAuthenticatedUser();
   if (!user) return unauthorized();
+  // Only admin screens consume this list (user modal, unit management,
+  // manual check-in) — it is not part of any employee-facing view
+  if (!can(user.role, "users:manage")) return forbidden();
   await connectDB();
 
   const { searchParams } = new URL(request.url);

@@ -29,6 +29,7 @@ import {
 } from "@tabler/icons-react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
+import { useAccess } from "@/components/shell/useAccess";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -167,6 +168,9 @@ export default function FloorManagementPage() {
       },
     });
   };
+
+  const access = useAccess(["floors:manage"]);
+  if (access) return access;
 
   return (
     <Stack gap="lg">

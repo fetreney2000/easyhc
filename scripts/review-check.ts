@@ -69,6 +69,27 @@ async function main(): Promise<void> {
     // admin: everything except managing admins
     ["admin users:manage_admin", rbac.can("admin", "users:manage_admin"), false],
     ["admin floors:manage", rbac.can("admin", "floors:manage"), true],
+    // evacuation sessions: safety runs them, wardens confirm their floor,
+    // employees only self-confirm
+    ["admin evacuation:start", rbac.can("admin", "evacuation:start"), true],
+    ["safety_head evacuation:start", rbac.can("safety_head", "evacuation:start"), true],
+    ["safety_head evacuation:close", rbac.can("safety_head", "evacuation:close"), true],
+    ["safety_head evacuation:confirm_others", rbac.can("safety_head", "evacuation:confirm_others"), true],
+    ["safety_head evacuation:confirm_own", rbac.can("safety_head", "evacuation:confirm_own"), true],
+    ["floor_head evacuation:start (denied)", rbac.can("floor_head", "evacuation:start"), false],
+    ["floor_head evacuation:close (denied)", rbac.can("floor_head", "evacuation:close"), false],
+    ["floor_head evacuation:confirm_others", rbac.can("floor_head", "evacuation:confirm_others"), true],
+    ["dept_head evacuation:start (denied)", rbac.can("dept_head", "evacuation:start"), false],
+    ["dept_head evacuation:confirm_others (denied)", rbac.can("dept_head", "evacuation:confirm_others"), false],
+    ["dept_head evacuation:confirm_own", rbac.can("dept_head", "evacuation:confirm_own"), true],
+    ["unit_head evacuation:confirm_others (denied)", rbac.can("unit_head", "evacuation:confirm_others"), false],
+    ["user evacuation:start (denied)", rbac.can("user", "evacuation:start"), false],
+    ["user evacuation:close (denied)", rbac.can("user", "evacuation:close"), false],
+    ["user evacuation:confirm_others (denied)", rbac.can("user", "evacuation:confirm_others"), false],
+    ["user evacuation:confirm_own", rbac.can("user", "evacuation:confirm_own"), true],
+    ["user evacuation scope is none", rbac.getEvacuationScope("user") === "none", true],
+    ["floor_head evacuation scope is own_floor", rbac.getEvacuationScope("floor_head") === "own_floor", true],
+    ["safety_head evacuation scope is all", rbac.getEvacuationScope("safety_head") === "all", true],
   ];
   for (const [label, actual, expected] of expectations) {
     results.push([label, actual === expected, `expected ${expected}`]);

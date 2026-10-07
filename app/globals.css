@@ -112,3 +112,27 @@ html {
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
+
+/* ---------------------------------------------------------------------------
+ * Evacuation banner (components/shell/EvacuationBar): stays pinned under the
+ * fixed app header so "Saya Selamat" is always one tap away. The top offsets
+ * mirror AppShellLayout's header height (base 50, md 60 — Mantine md = 992px),
+ * and z-index 90 keeps it tucked beneath the header (z-index 100).
+ * ------------------------------------------------------------------------- */
+.evac-bar {
+  position: sticky;
+  top: 50px;
+  z-index: 90;
+  margin-bottom: var(--mantine-spacing-md);
+}
+
+@media (min-width: 992px) {
+  .evac-bar {
+    top: 60px;
+  }
+}
+
+.evac-title {
+  font-size: var(--mantine-font-size-lg);
+}
+

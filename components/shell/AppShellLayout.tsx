@@ -39,6 +39,7 @@ import { Role } from "@/lib/db/types";
 import { can } from "@/lib/auth/rbac";
 import { NavbarLink } from "./NavbarLink";
 import { FooterTab } from "./FooterTab";
+import { EvacuationBar } from "./EvacuationBar";
 
 interface AppShellLayoutProps {
   children: React.ReactNode;
@@ -448,6 +449,7 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
 
       {/* Main content */}
       <AppShell.Main id="main-content" tabIndex={-1}>
+        <EvacuationBar />
         {children}
       </AppShell.Main>
 

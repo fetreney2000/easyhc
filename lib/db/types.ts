@@ -101,3 +101,38 @@ export interface IAuditLog {
   timestamp: Date;
   metadata?: Record<string, unknown>;
 }
+
+/** One person on an evacuation roster (embedded snapshot, never populated). */
+export interface IRosterEntry {
+  _id: Types.ObjectId;
+  /** Employees point at their account; visitors at their open check-in. */
+  userId?: Types.ObjectId;
+  visitorAttendanceId?: Types.ObjectId;
+  name: string;
+  type: AttendanceType;
+  /** Resolved at snapshot time (employees via their unit's home floor). */
+  floorId?: Types.ObjectId;
+  floorName?: string;
+  confirmedAt?: Date;
+  /** Who recorded the confirmation — self, or a warden for visitors. */
+  confirmedBy?: Types.ObjectId;
+}
+
+/**
+ * An evacuation/drill session. The roster is SNAPSHOT when the alarm goes so
+ * that "missing" always means expected-minus-confirmed relative to that
+ * instant. Only ONE session may be active at a time — enforced by a partial
+ * unique index on { status: "active" }, not by application code.
+ */
+export interface IEvacuation {
+  _id: Types.ObjectId;
+  status: "active" | "closed";
+  startedBy: Types.ObjectId;
+  /** Snapshot of the starter's name (avoids a populate on every poll). */
+  startedByName: string;
+  startedAt: Date;
+  closedAt?: Date;
+  roster: IRosterEntry[];
+  createdAt: Date;
+  updatedAt: Date;
+}

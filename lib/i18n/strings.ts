@@ -253,6 +253,39 @@ export const strings = {
   musterStale: "Data mungkin lapuk — sila semak semula",
   musterByFloor: "Mengikut Lantai",
 
+  // Evacuation sessions — "I made it to the muster point" feedback
+  evacSessionActive: "SESI EVAKUASI AKTIF",
+  evacStartedAt: (time: string) => `Sesi bermula ${time}`,
+  evacSafe: "Selamat",
+  evacMissing: "Belum Kesan",
+  evacExpected: "Dijangka",
+  evacImSafe: "Saya Selamat",
+  evacYouAreSafe: "Anda selamat",
+  evacSafeRecorded: "Pengesahan anda telah direkodkan",
+  evacOpenMuster: "Papan Muster",
+  evacStart: "Mula Sesi Evakuasi",
+  evacStartConfirm:
+    "Mulakan sesi evakuasi sekarang? Semua kakitangan aktif dan pelawat yang berdaftar masuk akan disenaraikan untuk pengesahan ketibaan.",
+  evacStartSuccess: "Sesi evakuasi dimulakan",
+  evacClose: "Tutup Sesi",
+  evacCloseConfirm:
+    "Tutup sesi evakuasi? Senarai pengesahan akan dibekukan sebagai rekod pasca-kejadian.",
+  evacCloseSuccess: "Sesi evakuasi ditutup",
+  evacNoSession: "Tiada sesi evakuasi aktif",
+  evacAlreadyActive: "Sesi evakuasi sedang berlangsung",
+  evacNotInRoster: "Anda tidak berada dalam senarai sesi ini",
+  evacEntryNotFound: "Senarai pengesahan tidak dijumpai",
+  evacInvalidPayload: "Permintaan tidak sah",
+  evacNamesNote:
+    "Senarai nama dipaparkan kepada pengurusan keselamatan dan ketua lantai sahaja.",
+  evacRosterTitle: "Senarai Pengesahan",
+  evacMarkSafe: "Tandakan selamat",
+  evacUnmarkSafe: "Batal tanda",
+  evacLastClosed: (closedAt: string, confirmed: number, total: number) =>
+    `Sesi terakhir: ditutup ${closedAt} — ${confirmed}/${total} pengesahan`,
+  evacSessionOld:
+    "Sesi ini telah berlangsung lebih 2 jam. Tutup jika sesi ini tersilap dimulakan.",
+
   // Tables, filters and forms (previously inline literals)
   typeLabel: "Jenis",
   all: "Semua",

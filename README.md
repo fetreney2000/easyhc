@@ -110,9 +110,9 @@ theme/                           — Mantine theme config
 | Admin | `admin` | Manage users, floors, manual check-in; everything except managing admin accounts |
 | Ketua Jabatan | `dept_head` | Department-wide presence, directory, reports and live locations + department force check-out |
 | Ketua Unit | `unit_head` | Unit-wide presence, directory, reports and live locations + unit force check-out |
-| Ketua Lantai | `floor_head` | Home-floor presence and reports + home-floor force check-out |
-| Ketua Keselamatan | `safety_head` | Building-wide presence, directory, reports and live locations + building-wide force check-out (audited) |
-| Pengguna Biasa | `user` | Own data and own attendance history, the muster board for their own floor, scan QR |
+| Ketua Lantai | `floor_head` | Home-floor presence and reports + home-floor force check-out; confirms (only) their own floor's roster during an evacuation |
+| Ketua Keselamatan | `safety_head` | Building-wide presence, directory, reports and live locations + building-wide force check-out (audited); starts/closes evacuation sessions and confirms anyone |
+| Pengguna Biasa | `user` | Own data and own attendance history, the muster board for their own floor, scan QR, "Saya Selamat" self-confirmation during an evacuation |
 
 ### How permission is enforced
 
@@ -120,6 +120,7 @@ Two layers, both in `lib/auth/rbac.ts`:
 
 1. `can(role, action)` — gates API routes and UI visibility (nav, buttons, page guards);
 2. `getAttendanceScope` / `getReportsScope` / `getUsersScope` / `getCheckoutScope`
+   / `getEvacuationScope`
    — decide **which rows** a query may return. These are authoritative: row
    filtering never depends on `can()`, which is why a role can hold several
    scoped permissions without them contradicting each other.
@@ -128,6 +129,13 @@ Notes:
 
 - Force check-out is always scoped to the caller's own boundary and is
   written to the audit log with actor + scope; every role above `user` has it.
+- Evacuation sessions snapshot their roster (active employees + open visitor
+  check-ins) when started, so "belum kesan" is always expected-minus-confirmed
+  at that instant. Confirmations are atomic positional updates (many taps land
+  within seconds at a muster point); start/close are audited, and a partial
+  unique index guarantees at most one active session. Name lists are visible
+  to `safety_head`/admins (whole building) and `floor_head` (own floor) only —
+  everybody else gets counts and their own status.
 - A floor has no static membership, so `floor_head`'s directory scope is
   "own" only — who is standing on their floor comes from the floor board.
 - Visitor check-in/out is capability-based (the floor's QR token), not

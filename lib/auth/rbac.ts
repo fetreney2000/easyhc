@@ -5,10 +5,10 @@ import { Role } from "@/lib/db/types";
  * Each action maps to a capability in the permissions matrix (Section 5).
  *
  * Note: row-level visibility is NOT expressed here — it lives in the scope
- * helpers (getAttendanceScope/getReportsScope/getUsersScope/getCheckoutScope)
- * at the bottom of this file. Actions that only duplicated a scope helper
- * (attendance:view_*, users:view_own_unit, profile:edit_own …) were removed
- * so that granting or withholding one always means something.
+ * helpers (getAttendanceScope/getReportsScope/getUsersScope/getCheckoutScope/
+ * getEvacuationScope) at the bottom of this file. Actions that only duplicated
+ * a scope helper (attendance:view_*, users:view_own_unit, profile:edit_own …)
+ * were removed so that granting or withholding one always means something.
  */
 export type Action =
   | "users:manage"
@@ -29,7 +29,11 @@ export type Action =
   | "reports:generate_department"
   | "locations:track_all"
   | "locations:track_own_unit"
-  | "locations:track_department";
+  | "locations:track_department"
+  | "evacuation:confirm_own" // Self-confirming "I reached the muster point"
+  | "evacuation:confirm_others" // Warden marking someone else (visitors too)
+  | "evacuation:start"
+  | "evacuation:close";
 
 /**
  * RBAC permission check. Single source of truth for all permission logic.
@@ -58,6 +62,11 @@ export function can(role: Role, action: Action): boolean {
         case "users:manage_admin":
         case "floors:manage":
         case "attendance:manual_checkin":
+          return false;
+        // Evacuation sessions are building/floor-wide operations
+        case "evacuation:start":
+        case "evacuation:close":
+        case "evacuation:confirm_others":
           return false;
         // Global scope is replaced by department scope
         case "users:view_all":
@@ -98,6 +107,10 @@ export function can(role: Role, action: Action): boolean {
         case "reports:generate_department":
         case "locations:track_all":
         case "locations:track_department":
+        // Evacuation sessions are building/floor-wide operations
+        case "evacuation:start":
+        case "evacuation:close":
+        case "evacuation:confirm_others":
           return false;
         // Floor scope belongs to floor_head — never honour it here either,
         // or can() would contradict getAttendanceScope/getReportsScope
@@ -136,10 +149,15 @@ export function can(role: Role, action: Action): boolean {
         case "locations:track_all":
         case "locations:track_own_unit":
         case "locations:track_department":
+        // Starting/closing a building-wide session belongs to safety
+        case "evacuation:start":
+        case "evacuation:close":
           return false;
         case "attendance:checkout_own_floor":
         case "floors:view_own_floor":
         case "reports:generate_own_floor":
+        // …but as the floor's warden they confirm people on their own floor
+        case "evacuation:confirm_others":
           return true;
         default:
           return true;
@@ -178,6 +196,9 @@ export function can(role: Role, action: Action): boolean {
         // …and their own attendance history (scoped to "own" by
         // getReportsScope — other people's history stays supervisory)
         case "reports:generate_own":
+          return true;
+        // Everyone reports their own arrival at the assembly point
+        case "evacuation:confirm_own":
           return true;
         default:
           return false;
@@ -309,6 +330,27 @@ export function getCheckoutScope(
       return "department";
     case "unit_head":
       return "own_unit";
+    case "floor_head":
+      return "own_floor";
+    default:
+      return "none";
+  }
+}
+
+/**
+ * Evacuation roster visibility / who may confirm OTHERS (self-confirmation
+ * is separate: evacuation:confirm_own, granted to everyone).
+ * Mirrors the warden structure: safety sees the building, a floor head sees
+ * (and confirms) their own floor, everybody else only their own status.
+ */
+export function getEvacuationScope(
+  role: Role
+): "all" | "own_floor" | "none" {
+  switch (role) {
+    case "superadmin":
+    case "admin":
+    case "safety_head":
+      return "all";
     case "floor_head":
       return "own_floor";
     default:

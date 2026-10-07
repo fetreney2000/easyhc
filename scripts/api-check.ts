@@ -268,6 +268,330 @@ async function main(): Promise<void> {
     await Attendance.deleteMany({ visitorPhone: racePhone });
   }
 
+  /* 5. evacuation session: start → confirm → privacy → close ------------- */
+  const Evacuation = (await import("@/lib/db/models/Evacuation")).default;
+  const evacActor = await User.findOne({
+    role: { $in: ["superadmin", "admin", "safety_head"] },
+    status: "active",
+  }).lean();
+  const preExisting = await Evacuation.findOne({ status: "active" }).lean();
+
+  if (!evacActor) {
+    check("evacuation flow skipped (no privileged account)", true, "");
+  } else if (preExisting) {
+    // Never disturb a drill that may be real
+    check("evacuation flow skipped (a session is already active)", true, "");
+  } else {
+    const evacCookie = await mintCookie(evacActor);
+    let createdId: string | null = null;
+
+    const call = (
+      path: string,
+      method: string,
+      sessionCookie: string,
+      body?: unknown
+    ) =>
+      fetch(`${BASE}${path}`, {
+        method,
+        headers: {
+          cookie: sessionCookie,
+          "Content-Type": "application/json",
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      }).then(async (r) => ({
+        status: r.status,
+        body: (await r.json().catch(() => ({}))) as Record<string, unknown>,
+      }));
+
+    try {
+      /* start */
+      const started = await call("/api/evacuation", "POST", evacCookie, {});
+      check("evacuation start -> 201", started.status === 201, `${started.status}`);
+      const startedSession = started.body.session as
+        | { _id?: string; counts?: { total?: number } }
+        | undefined;
+      createdId = startedSession?._id ?? null;
+      check(
+        "roster snapshot has people",
+        (startedSession?.counts?.total ?? 0) >= 1,
+        `total=${startedSession?.counts?.total}`
+      );
+
+      const dupStart = await call("/api/evacuation", "POST", evacCookie, {});
+      check(
+        "second start while active -> 409 (one active session)",
+        dupStart.status === 409,
+        `${dupStart.status}`
+      );
+
+      /* plain user: light projection, roster privacy, self-confirm */
+      const plainUser =
+        (staffAccount && staffAccount.status === "active"
+          ? staffAccount
+          : null) ??
+        (await User.findOne({ role: "user", status: "active" }).lean());
+
+      if (plainUser) {
+        const plainCookie = await mintCookie(plainUser);
+
+        const light = await authed("/api/evacuation", plainCookie);
+        const lightSession = light.body.session as
+          | {
+              mine?: { inRoster?: boolean; confirmedAt?: string | null };
+              roster?: unknown;
+            }
+          | undefined;
+        check(
+          "plain user sees the active session + own roster status",
+          !!lightSession && lightSession.mine?.inRoster === true,
+          JSON.stringify(lightSession?.mine ?? null)
+        );
+        check(
+          "light payload carries no roster",
+          !!lightSession && !("roster" in lightSession),
+          JSON.stringify(Object.keys(lightSession ?? {}))
+        );
+
+        const rosterReq = await authed("/api/evacuation?roster=1", plainCookie);
+        const plainRoster = rosterReq.body.session as
+          | { rosterVisible?: boolean; roster?: unknown }
+          | undefined;
+        check(
+          "plain user cannot see names",
+          plainRoster?.rosterVisible === false &&
+            !("roster" in (plainRoster ?? {})),
+          `visible=${plainRoster?.rosterVisible}`
+        );
+
+        const adminRosterReq = await authed("/api/evacuation?roster=1");
+        const adminSession = adminRosterReq.body.session as
+          | {
+              rosterVisible?: boolean;
+              roster?: Array<{ _id: string; confirmedAt: string | null }>;
+            }
+          | undefined;
+        check(
+          "admin sees the full roster",
+          adminSession?.rosterVisible === true &&
+            Array.isArray(adminSession.roster) &&
+            adminSession.roster.length >= 1,
+          `rows=${adminSession?.roster?.length}`
+        );
+
+        /* self-confirm (idempotent) */
+        const confirm = await call(
+          "/api/evacuation/confirm",
+          "POST",
+          plainCookie,
+          {}
+        );
+        check(
+          "self-confirm -> 200 with a timestamp",
+          confirm.status === 200 &&
+            typeof (confirm.body as { confirmedAt?: string }).confirmedAt ===
+              "string",
+          `${confirm.status}`
+        );
+
+        const after = await authed("/api/evacuation", plainCookie);
+        const afterSession = after.body.session as
+          | {
+              counts?: { confirmed?: number };
+              mine?: { confirmedAt?: string | null };
+            }
+          | undefined;
+        check(
+          "confirmation appears in counts + own status",
+          !!afterSession?.mine?.confirmedAt &&
+            (afterSession.counts?.confirmed ?? 0) >= 1,
+          `confirmed=${afterSession?.counts?.confirmed}`
+        );
+
+        /* plain user may neither confirm others nor start a session */
+        const firstRow = adminSession?.roster?.[0];
+        if (firstRow) {
+          const asOther = await call(
+            "/api/evacuation/confirm",
+            "PATCH",
+            plainCookie,
+            { rosterId: firstRow._id, confirm: true }
+          );
+          check(
+            "plain user cannot confirm others (403)",
+            asOther.status === 403,
+            `${asOther.status}`
+          );
+        } else {
+          check("confirm-others target found", false, "empty roster");
+        }
+
+        const startAsPlain = await call(
+          "/api/evacuation",
+          "POST",
+          plainCookie,
+          {}
+        );
+        check(
+          "plain user cannot start a session (403)",
+          startAsPlain.status === 403,
+          `${startAsPlain.status}`
+        );
+      } else {
+        check(
+          "plain-user evacuation sub-flow skipped (no active role=user)",
+          true,
+          ""
+        );
+      }
+
+      /* floor_head: sees only their own floor's names, and may not confirm
+         a roster entry on another floor */
+      const floorHead = await User.findOne({
+        role: "floor_head",
+        status: "active",
+      }).lean();
+      if (floorHead) {
+        const Unit = (await import("@/lib/db/models/Unit")).default;
+        const unit = floorHead.unitId
+          ? await Unit.findById(floorHead.unitId).select("homeFloorId").lean()
+          : null;
+        const homeFloor = unit?.homeFloorId?.toString() ?? null;
+
+        const fhCookie = await mintCookie(floorHead);
+        const fhReq = await authed("/api/evacuation?roster=1", fhCookie);
+        const fhSession = fhReq.body.session as
+          | {
+              rosterVisible?: boolean;
+              roster?: Array<{ _id: string; floorId: string | null }>;
+            }
+          | undefined;
+        const fhRows = fhSession?.roster ?? [];
+        check(
+          "floor_head roster visibility matches their home floor",
+          homeFloor
+            ? fhSession?.rosterVisible === true &&
+                fhRows.length > 0 &&
+                fhRows.every((row) => row.floorId === homeFloor)
+            : fhSession?.rosterVisible === false,
+          `visible=${fhSession?.rosterVisible} rows=${fhRows.length} home=${homeFloor}`
+        );
+
+        if (homeFloor) {
+          const allReq = await authed("/api/evacuation?roster=1", evacCookie);
+          const allRows =
+            (
+              allReq.body.session as
+                | { roster?: Array<{ _id: string; floorId: string | null }> }
+                | undefined
+            )?.roster ?? [];
+          const crossFloor = allRows.find(
+            (row) => row.floorId && row.floorId !== homeFloor
+          );
+          if (crossFloor) {
+            const cross = await call(
+              "/api/evacuation/confirm",
+              "PATCH",
+              fhCookie,
+              { rosterId: crossFloor._id, confirm: true }
+            );
+            check(
+              "floor_head cannot confirm another floor (403)",
+              cross.status === 403,
+              `${cross.status}`
+            );
+          } else {
+            check(
+              "cross-floor confirm target found",
+              false,
+              "roster only covers one floor"
+            );
+          }
+        }
+      } else {
+        check(
+          "floor_head evacuation sub-flow skipped (no active floor_head)",
+          true,
+          ""
+        );
+      }
+
+      /* warden tap: mark someone safe, then correct it back (state restored) */
+      const rosterAgain = await authed("/api/evacuation?roster=1");
+      const rows =
+        (
+          rosterAgain.body.session as
+            | { roster?: Array<{ _id: string; confirmedAt: string | null }> }
+            | undefined
+        )?.roster ?? [];
+      const target = rows.find((row) => !row.confirmedAt);
+      if (target) {
+        const mark = await call("/api/evacuation/confirm", "PATCH", evacCookie, {
+          rosterId: target._id,
+          confirm: true,
+        });
+        check(
+          "warden marks another safe -> 200",
+          mark.status === 200,
+          `${mark.status}`
+        );
+        const unmark = await call(
+          "/api/evacuation/confirm",
+          "PATCH",
+          evacCookie,
+          { rosterId: target._id, confirm: false }
+        );
+        check(
+          "warden can correct a mark (unconfirm) -> 200",
+          unmark.status === 200,
+          `${unmark.status}`
+        );
+      } else {
+        check("warden tap target found", false, "roster fully confirmed");
+      }
+
+      /* close → frozen summary → late confirm rejected */
+      const closed = await call("/api/evacuation", "PATCH", evacCookie, {});
+      check(
+        "close -> 200 with final counts",
+        closed.status === 200 &&
+          typeof (closed.body as { counts?: { total?: number } }).counts
+            ?.total === "number",
+        `${closed.status}`
+      );
+
+      const afterClose = await authed("/api/evacuation?closed=1");
+      check(
+        "no active session after close",
+        afterClose.body.session === null,
+        JSON.stringify(
+          afterClose.body.session ? Object.keys(afterClose.body.session) : null
+        )
+      );
+      const lastClosed = afterClose.body.lastClosed as
+        | { counts?: { total?: number } }
+        | null
+        | undefined;
+      check(
+        "last-closed summary available",
+        !!lastClosed && typeof lastClosed.counts?.total === "number",
+        `total=${lastClosed?.counts?.total}`
+      );
+
+      if (plainUser) {
+        const late = await call(
+          "/api/evacuation/confirm",
+          "POST",
+          await mintCookie(plainUser),
+          {}
+        );
+        check("confirm after close -> 409", late.status === 409, `${late.status}`);
+      }
+    } finally {
+      // Remove the test session entirely — no drill record left behind
+      if (createdId) await Evacuation.deleteOne({ _id: createdId });
+    }
+  }
+
   console.log("");
   let failed = 0;
   for (const [name, ok, detail] of results) {

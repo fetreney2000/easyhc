@@ -255,6 +255,16 @@ export const strings = {
     `Terima kasih — anda disahkan selamat di ${floorName}.`,
   evacVisitorNoMatch: "Tiada pendaftaran masuk aktif untuk nombor ini.",
 
+  // Evacuation after-action reports (evacuation:view_report)
+  evacReportTitle: "Laporan Evakuasi",
+  evacReportDetail: "Butiran Laporan",
+  evacNoReports: "Tiada laporan evakuasi lagi",
+  evacViewDetail: "Lihat",
+  evacReportWhen: "Tarikh & Masa",
+  evacDuration: "Tempoh",
+  evacConfirmTime: "Masa Pengesahan",
+  evacSessionNotFound: "Sesi evakuasi tidak dijumpai",
+
   // Evacuation sessions — "I made it to the muster point" feedback
   evacSessionActive: "SESI EVAKUASI AKTIF",
   evacStartedAt: (time: string) => `Sesi bermula ${time}`,

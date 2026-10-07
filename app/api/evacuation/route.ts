@@ -41,6 +41,7 @@ export async function GET(request: Request) {
       await evacuationResponse(user, {
         roster: url.searchParams.get("roster") === "1",
         closed: url.searchParams.get("closed") === "1",
+        history: url.searchParams.get("history") === "1",
       })
     );
   } catch (error) {

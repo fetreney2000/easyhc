@@ -4,7 +4,7 @@ import Unit from "@/lib/db/models/Unit";
 import Floor from "@/lib/db/models/Floor";
 import Attendance from "@/lib/db/models/Attendance";
 import Evacuation from "@/lib/db/models/Evacuation";
-import { getEvacuationScope, type Scope } from "@/lib/auth/rbac";
+import { getEvacuationScope, can, type Scope } from "@/lib/auth/rbac";
 import { unitMembership, departmentMembership } from "@/lib/auth/scope";
 import type { AuthUser } from "@/lib/api/utils";
 import type { IEvacuation, IRosterEntry } from "@/lib/db/types";
@@ -49,6 +49,7 @@ export interface EvacuationLight {
   _id: string;
   status: "active" | "closed";
   startedAt: string;
+  closedAt?: string;
   startedByName: string;
   counts: EvacCounts;
   mine: { inRoster: boolean; confirmedAt: string | null };
@@ -60,6 +61,15 @@ export interface EvacuationLight {
   roster?: EvacRosterRow[];
 }
 
+/** One row of the after-action report list (roster never leaves the server). */
+export interface EvacuationSummary {
+  _id: string;
+  startedAt: string;
+  closedAt: string;
+  startedByName: string;
+  counts: EvacCounts;
+}
+
 export interface EvacuationLastClosed {
   startedAt: string;
   closedAt: string;
@@ -69,6 +79,8 @@ export interface EvacuationLastClosed {
 export interface EvacuationResponse {
   session: EvacuationLight | null;
   lastClosed?: EvacuationLastClosed | null;
+  /** Closed sessions, newest first — only for evacuation:view_report. */
+  history?: EvacuationSummary[];
 }
 
 export function countsFor(
@@ -91,6 +103,7 @@ export function lightSession(
     _id: session._id.toString(),
     status: session.status,
     startedAt: session.startedAt.toISOString(),
+    closedAt: session.closedAt?.toISOString(),
     startedByName: session.startedByName,
     counts: countsFor(session.roster),
     mine: {
@@ -214,10 +227,13 @@ export async function displayPayload(
 /**
  * The complete GET response — one source of truth shared by the API route
  * and the server layout's SSR fallback (same key, same shape, no flash).
+ *
+ * `history` returns the after-action report list; it is silently omitted for
+ * roles without evacuation:view_report (same pattern as roster names).
  */
 export async function evacuationResponse(
   user: AuthUser,
-  opts: { roster: boolean; closed: boolean }
+  opts: { roster: boolean; closed: boolean; history?: boolean }
 ): Promise<EvacuationResponse> {
   const payload: EvacuationResponse = { session: null };
 
@@ -239,6 +255,52 @@ export async function evacuationResponse(
           counts: countsFor(last.roster),
         }
       : null;
+  }
+
+  if (opts.history && can(user.role, "evacuation:view_report")) {
+    // Counts are computed inside the aggregation ($size/$filter) so the
+    // rosters of up to 50 past sessions never travel to the client.
+    const rows = await Evacuation.aggregate<{
+      _id: Types.ObjectId;
+      startedAt: Date;
+      closedAt: Date;
+      startedByName: string;
+      total: number;
+      confirmed: number;
+    }>([
+      { $match: { status: "closed" } },
+      { $sort: { closedAt: -1 } },
+      { $limit: 50 },
+      {
+        $project: {
+          startedAt: 1,
+          closedAt: 1,
+          startedByName: 1,
+          total: { $size: "$roster" },
+          confirmed: {
+            $size: {
+              $filter: {
+                input: "$roster",
+                as: "entry",
+                cond: "$$entry.confirmedAt",
+              },
+            },
+          },
+        },
+      },
+    ]);
+
+    payload.history = rows.map((row) => ({
+      _id: row._id.toString(),
+      startedAt: row.startedAt.toISOString(),
+      closedAt: (row.closedAt ?? row.startedAt).toISOString(),
+      startedByName: row.startedByName,
+      counts: {
+        total: row.total,
+        confirmed: row.confirmed,
+        missing: row.total - row.confirmed,
+      },
+    }));
   }
 
   return payload;

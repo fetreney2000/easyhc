@@ -33,7 +33,8 @@ export type Action =
   | "evacuation:confirm_own" // Self-confirming "I reached the muster point"
   | "evacuation:confirm_others" // Warden marking someone else (visitors too)
   | "evacuation:start"
-  | "evacuation:close";
+  | "evacuation:close"
+  | "evacuation:view_report"; // After-action reports of closed sessions
 
 /**
  * RBAC permission check. Single source of truth for all permission logic.
@@ -66,6 +67,7 @@ export function can(role: Role, action: Action): boolean {
         // Evacuation sessions are building/floor-wide operations
         case "evacuation:start":
         case "evacuation:close":
+        case "evacuation:view_report":
         case "evacuation:confirm_others":
           return false;
         // Global scope is replaced by department scope
@@ -110,6 +112,7 @@ export function can(role: Role, action: Action): boolean {
         // Evacuation sessions are building/floor-wide operations
         case "evacuation:start":
         case "evacuation:close":
+        case "evacuation:view_report":
         case "evacuation:confirm_others":
           return false;
         // Floor scope belongs to floor_head — never honour it here either,
@@ -155,6 +158,7 @@ export function can(role: Role, action: Action): boolean {
         // cannot confirm anyone outside their own floor (scope-checked below)
         case "evacuation:start":
         case "evacuation:close":
+        case "evacuation:view_report":
         case "attendance:checkout_own_floor":
         case "floors:view_own_floor":
         case "reports:generate_own_floor":

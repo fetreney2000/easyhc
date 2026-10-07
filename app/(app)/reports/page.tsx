@@ -26,6 +26,7 @@ import {
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
+import { downloadCsv } from "@/lib/csv";
 import { useAccess } from "@/components/shell/useAccess";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
@@ -146,31 +147,13 @@ export default function ReportsPage() {
         r.method === "qr" ? "QR" : "Manual",
       ]);
 
-      // RFC 4180 quoting, plus a guard against spreadsheet formula injection:
-      // visitor names are attacker-controlled, and a leading =, +, - or @
-      // would otherwise execute as a formula when the CSV is opened.
-      const csvCell = (value: unknown): string => {
-        const raw = value == null ? "" : String(value);
-        const guarded = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
-        return /[",\r\n]/.test(guarded)
-          ? `"${guarded.replace(/"/g, '""')}"`
-          : guarded;
-      };
-
-      const csv = [
-        headers.map(csvCell).join(","),
-        ...rows.map((r) => r.map(csvCell).join(",")),
-      ].join("\r\n");
-
-      const blob = new Blob(["\uFEFF" + csv], {
-        type: "text/csv;charset=utf-8;",
-      });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `laporan-kehadiran-${new Date().toISOString().split("T")[0]}.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
+      // RFC 4180 quoting + formula-injection guard + BOM live in lib/csv.ts
+      // (shared with the evacuation report export)
+      downloadCsv(
+        headers,
+        rows,
+        `laporan-kehadiran-${new Date().toISOString().split("T")[0]}.csv`
+      );
 
       // The export is invisible otherwise (Nielsen #1: visibility of status),
       // and a capped export must say so instead of silently dropping rows.

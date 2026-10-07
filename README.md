@@ -140,7 +140,13 @@ Notes:
   stats only after confirming, plus floor locations scoped to their role;
   names are visible to `safety_head`/admins (whole building) and `floor_head`
   (own floor) only. Visitors confirm from their public check-in page (device
-  token or phone, rate-limited) and never see statistics.
+  token or phone, rate-limited) and never see statistics. Closed sessions
+  become after-action reports (`evacuation:view_report`, the same four
+  roles): history with duration and counts, drill-down into per-floor
+  tallies and the full roster (own-floor scoped for ketua lantai), and CSV
+  export for incident documentation. The takeover signal polls every 30s
+  while idle and 3s during a session (instant on window focus) — sized for
+  Vercel Hobby's 1M invocations/month; only visible tabs poll.
 - A floor has no static membership, so `floor_head`'s directory scope is
   "own" only — who is standing on their floor comes from the floor board.
 - Visitor check-in/out is capability-based (the floor's QR token), not

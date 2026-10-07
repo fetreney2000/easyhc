@@ -9,3 +9,6 @@ export const EVACUATION_KEY = "/api/evacuation?roster=1&closed=1";
 
 /** Public boolean status polled by the visitor-facing check-in page. */
 export const EVACUATION_STATUS_KEY = "/api/evacuation/status";
+
+/** After-action report list (evacuation:view_report roles only). */
+export const EVACUATION_HISTORY_KEY = "/api/evacuation?history=1";

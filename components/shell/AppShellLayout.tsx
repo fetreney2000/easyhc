@@ -120,15 +120,21 @@ export function AppShellLayout({
 
   // Evacuation takeover: while a session is active the WHOLE app is the
   // full-screen display (spec) — no header, sidebar or footer, at every
-  // route, until someone closes the session. Polls fast while live so the
-  // alarm reaches every screen quickly, cheaply otherwise.
+  // route, until someone closes the session.
+  //
+  // Intervals are sized for Vercel Hobby (1M function invocations + 4h
+  // active CPU per month): 30s idle = ~86k calls/month per always-open tab,
+  // and only VISIBLE tabs poll at all (SWR's refreshWhenHidden default).
+  // Focus-refocus revalidates instantly, so an untouched tab is the only
+  // one that waits the full 30s; during a session it tightens to 3s (the
+  // session itself lasts minutes, so that burst is negligible).
   const { data: evacData, mutate: mutateEvac } = useSWR<EvacuationResponse>(
     EVACUATION_KEY,
     fetcher,
     {
       fallbackData: initialEvacuation,
       revalidateOnFocus: true,
-      refreshInterval: (latest) => (latest?.session ? 3000 : 5000),
+      refreshInterval: (latest) => (latest?.session ? 3000 : 30000),
     }
   );
 

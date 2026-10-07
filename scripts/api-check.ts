@@ -727,6 +727,58 @@ async function main(): Promise<void> {
         `total=${lastClosed?.counts?.total}`
       );
 
+      /* after-action reports: history + detail (evacuation:view_report) */
+      const histAdmin = await authed("/api/evacuation?history=1");
+      const history = histAdmin.body.history as
+        | Array<{ _id: string; counts: { total: number; confirmed: number } }>
+        | undefined;
+      check(
+        "activator gets the report history (newest first)",
+        Array.isArray(history) &&
+          history.length >= 1 &&
+          typeof history[0]?.counts?.total === "number",
+        `rows=${history?.length}`
+      );
+
+      if (plainUser) {
+        const histPlain = await authed(
+          "/api/evacuation?history=1",
+          await mintCookie(plainUser)
+        );
+        check(
+          "plain user gets no report history key",
+          !("history" in histPlain.body),
+          JSON.stringify(Object.keys(histPlain.body))
+        );
+      }
+
+      if (createdId) {
+        const detail = await authed(`/api/evacuation/${createdId}`);
+        const detailSession = detail.body.session as
+          | { closedAt?: string; roster?: unknown[]; floors?: unknown[] }
+          | undefined;
+        check(
+          "report detail -> 200 with roster + floors + close time",
+          detail.status === 200 &&
+            typeof detailSession?.closedAt === "string" &&
+            Array.isArray(detailSession.roster) &&
+            Array.isArray(detailSession.floors),
+          `${detail.status}`
+        );
+
+        if (plainUser) {
+          const detailPlain = await authed(
+            `/api/evacuation/${createdId}`,
+            await mintCookie(plainUser)
+          );
+          check(
+            "plain user cannot open a report (403)",
+            detailPlain.status === 403,
+            `${detailPlain.status}`
+          );
+        }
+      }
+
       if (plainUser) {
         const late = await call(
           "/api/evacuation/confirm",

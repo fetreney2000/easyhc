@@ -109,48 +109,81 @@ async function main(): Promise<void> {
     floorId: "64f0abc12345678901234567",
   };
   for (const role of ["unit_head", "dept_head", "floor_head"] as const) {
-    console.log(
-      `  ${role.padEnd(11)} without ${role === "dept_head" ? "jabatanId" : "unitId"} -> ${await scope.canForceCheckoutRecord(
-        { id: "64f0abc12345678901234567", role },
-        record
-      )}`
+    const allowed = await scope.canForceCheckoutRecord(
+      { id: "64f0abc12345678901234567", role },
+      record
     );
+    console.log(
+      `  ${role.padEnd(11)} without ${role === "dept_head" ? "jabatanId" : "unitId"} -> ${allowed}`
+    );
+    // Asserted, not just printed: this section used to be console.log-only
+    // and could never fail the run
+    results.push([
+      `force checkout denied for ${role} without membership`,
+      allowed === false,
+      `got ${allowed}`,
+    ]);
   }
 
-  // Unresolvable scopes must fail closed (null = no data), never unscoped
-  console.log("\n--- fail closed ---");
-  console.log(
-    "  floor_head w/o unitId (attendance)  ->",
-    await scope.scopeFilter(
-      { id: "not-an-objectid", role: "floor_head" },
-      rbac.getAttendanceScope("floor_head")
-    )
-  );
-  console.log(
-    "  dept_head w/o jabatanId (attendance)->",
-    await scope.scopeFilter(
-      { id: "64f0abc12345678901234567", role: "dept_head" },
-      rbac.getAttendanceScope("dept_head")
-    )
-  );
-  console.log(
-    "  unit_head w/o unitId (users)        ->",
-    await scope.usersScopeFilter(
-      { id: "64f0abc12345678901234567", role: "unit_head" },
-      rbac.getUsersScope("unit_head")
-    )
-  );
-  console.log(
-    "  malformed actor id (own)            ->",
-    await scope.scopeFilter({ id: "zzz", role: "user" }, "own")
-  );
-  console.log(
-    "  user own_and_floor w/o unit         ->",
-    await scope.scopeFilter(
-      { id: "zzz", role: "user" },
-      rbac.getAttendanceScope("user")
-    )
-  );
+  // Unresolvable scopes must fail closed (null = no data / empty match),
+  // never unscoped — asserted, not just printed
+  const filterMatchesNothing = (value: unknown): boolean => {
+    if (value === null) return true;
+    const filter = value as {
+      _id?: { $in?: unknown[] };
+      $or?: Array<{ _id?: { $in?: unknown[] } }>;
+    };
+    if (Array.isArray(filter.$or)) {
+      return filter.$or.every(
+        (branch) => (branch._id?.$in ?? []).length === 0
+      );
+    }
+    return Array.isArray(filter._id?.$in) && filter._id.$in.length === 0;
+  };
+
+  console.log("\n--- fail closed (asserted) ---");
+  const failClosedProbes: Array<[string, unknown]> = [
+    [
+      "floor_head w/o unitId (attendance)",
+      await scope.scopeFilter(
+        { id: "not-an-objectid", role: "floor_head" },
+        rbac.getAttendanceScope("floor_head")
+      ),
+    ],
+    [
+      "dept_head w/o jabatanId (attendance)",
+      await scope.scopeFilter(
+        { id: "64f0abc12345678901234567", role: "dept_head" },
+        rbac.getAttendanceScope("dept_head")
+      ),
+    ],
+    [
+      "unit_head w/o unitId (users)",
+      await scope.usersScopeFilter(
+        { id: "64f0abc12345678901234567", role: "unit_head" },
+        rbac.getUsersScope("unit_head")
+      ),
+    ],
+    [
+      "malformed actor id (own)",
+      await scope.scopeFilter({ id: "zzz", role: "user" }, "own"),
+    ],
+    [
+      "user own_and_floor w/o unit",
+      await scope.scopeFilter(
+        { id: "zzz", role: "user" },
+        rbac.getAttendanceScope("user")
+      ),
+    ],
+  ];
+  for (const [label, value] of failClosedProbes) {
+    console.log(`  ${label.padEnd(36)} ->`, value);
+    results.push([
+      `fail closed: ${label}`,
+      filterMatchesNothing(value),
+      JSON.stringify(value),
+    ]);
+  }
 
   // Optional: only runs when Atlas is reachable from here
   try {

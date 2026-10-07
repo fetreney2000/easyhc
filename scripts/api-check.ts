@@ -1,19 +1,32 @@
 /**
- * End-to-end verification of the envelope/pagination/privacy changes.
+ * End-to-end verification of the app's API surface.
  *
  * Mints a short-lived session cookie with Auth.js's own encoder (using the
- * same secret + salt the app uses), then exercises the READ-ONLY endpoints
- * it protects. No writes: the visitor race test cleans up its own records.
+ * same secret + salt the app uses), then exercises the endpoints it
+ * protects: reads, plus the visitor-race and evacuation flows, which WRITE
+ * and clean up after themselves (an interrupted run is swept at the start of
+ * the next one; a non-test ACTIVE session fails the run instead of being
+ * silently skipped).
+ *
+ * DB-WRITE GUARD: write sections are skipped unless the database is local OR
+ * E2E_WRITES=1 is set. .env.local usually points at the same Atlas cluster
+ * the deployed app uses, and an evacuation session created here flashes the
+ * real full-screen takeover onto every open screen of the production app.
  *
  * Usage: npm run dev (other shell), then: npx tsx scripts/api-check.ts
+ *        (E2E_WRITES=1 allows writes to a remote database)
  */
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
 const BASE = process.env.APP_URL ?? "http://localhost:3000";
-const results: Array<[string, boolean, string]> = [];
+/** Outcome "skip" = a fixture/permission was unavailable — reported as SKIP,
+ *  never dressed up as PASS. */
+const results: Array<[string, boolean | "skip", string]> = [];
 const check = (name: string, ok: boolean, detail = "") =>
   results.push([name, ok, detail]);
+const skip = (name: string, detail = "") =>
+  results.push([name, "skip", detail]);
 
 async function main(): Promise<void> {
   for (const line of readFileSync(resolve(process.cwd(), ".env.local"), "utf8").split(/\r?\n/)) {
@@ -25,8 +38,34 @@ async function main(): Promise<void> {
   const User = (await import("@/lib/db/models/User")).default;
   const Floor = (await import("@/lib/db/models/Floor")).default;
   const Attendance = (await import("@/lib/db/models/Attendance")).default;
+  const AuditLog = (await import("@/lib/db/models/AuditLog")).default;
+  const Evacuation = (await import("@/lib/db/models/Evacuation")).default;
 
   await connectDB();
+
+  // --- DB-write guard (see header) --------------------------------------
+  const dbIsLocal = /localhost|127\.0\.0\.1/.test(
+    process.env.MONGODB_URI ?? ""
+  );
+  const allowWrites = dbIsLocal || process.env.E2E_WRITES === "1";
+  if (!allowWrites) {
+    console.log(
+      "WRITE GUARD: database is not local and E2E_WRITES is not set — " +
+        "visitor-race and evacuation sections will be SKIPPED."
+    );
+  }
+
+  // --- Sweep marker-tagged debris from interrupted runs ------------------
+  const sweptVisitors = await Attendance.deleteMany({
+    type: "visitor",
+    visitorName: { $in: ["E2E Pelawat", "E2E Race"] },
+    checkedOutAt: null,
+  });
+  if (sweptVisitors.deletedCount > 0) {
+    console.log(
+      `swept ${sweptVisitors.deletedCount} stale test visitor record(s) from an interrupted run`
+    );
+  }
 
   // Prefer an account that can see everything, so totals are meaningful
   const actor =
@@ -170,7 +209,7 @@ async function main(): Promise<void> {
       `${dashAsStaff.length} bytes`
     );
   } else {
-    check("plain-user gate skipped (no role=user account)", true, "");
+    skip("plain-user gate (no role=user account)");
   }
 
   /* 2. attendance pagination + privacy -------------------------------- */
@@ -242,8 +281,13 @@ async function main(): Promise<void> {
   /* 4. the partial unique index (race) -------------------------------- */
   const floor = await Floor.findOne({}).sort({ name: 1 }).lean();
   let racePhone = "";
+  if (!allowWrites) {
+    skip("visitor race test (write guard)", "set E2E_WRITES=1 to run");
+  }
   try {
-    if (floor) {
+    if (!allowWrites) {
+      // guarded off — reported above
+    } else if (floor) {
       // A phone that cannot exist in production data (uniqueness enforced)
       racePhone = `019${String(Date.now()).slice(-7)}`;
       const body = JSON.stringify({
@@ -278,27 +322,51 @@ async function main(): Promise<void> {
         `statuses=${statuses}`
       );
     } else {
-      check("race test skipped (no floor)", false, "");
+      skip("visitor race test (no floor)");
     }
   } finally {
     await Attendance.deleteMany({ visitorPhone: racePhone });
   }
 
   /* 5. evacuation session: start → confirm → privacy → close ------------- */
-  const Evacuation = (await import("@/lib/db/models/Evacuation")).default;
   const evacActor = await User.findOne({
     role: { $in: ["superadmin", "admin", "safety_head"] },
     status: "active",
   }).lean();
-  const preExisting = await Evacuation.findOne({ status: "active" }).lean();
 
-  if (!evacActor) {
-    check("evacuation flow skipped (no privileged account)", true, "");
-  } else if (preExisting) {
-    // Never disturb a drill that may be real
-    check("evacuation flow skipped (a session is already active)", true, "");
+  let evacCookie: string | null = null;
+  if (!allowWrites) {
+    skip("evacuation flow (write guard)", "set E2E_WRITES=1 to run");
+  } else if (!evacActor) {
+    skip("evacuation flow (no privileged account)");
   } else {
-    const evacCookie = await mintCookie(evacActor);
+    const preExisting = await Evacuation.findOne({ status: "active" });
+    const isTestDebris =
+      !!preExisting &&
+      (preExisting.roster ?? []).some(
+        (entry) => entry.name === "E2E Pelawat"
+      );
+    if (preExisting && isTestDebris) {
+      // Left behind by an interrupted run — sweep it and carry on
+      await Evacuation.deleteOne({ _id: preExisting._id });
+      console.log(
+        "swept stale test evacuation session from an interrupted run"
+      );
+    }
+    if (preExisting && !isTestDebris) {
+      // A real drill (or unknown debris): FAIL loudly. Quietly skipping this
+      // used to turn an interrupted run into a green run that tested nothing
+      check(
+        "evacuation flow blocked by a pre-existing ACTIVE session",
+        false,
+        `session ${preExisting._id.toString()} — close/clean it before running api-check`
+      );
+    } else {
+      evacCookie = await mintCookie(evacActor);
+    }
+  }
+
+  if (evacCookie) {
     let createdId: string | null = null;
     // A visitor present in the building when the alarm goes off (roster
     // fixture) — later confirms through the PUBLIC endpoint
@@ -329,7 +397,9 @@ async function main(): Promise<void> {
     try {
       /* a visitor already checked in BEFORE the alarm (they land on the
          roster snapshot) */
-      if (floor) {
+      if (!floor) {
+        skip("visitor pre-check-in (evacuation roster fixture)", "no floor");
+      } else {
         const res = await fetch(`${BASE}/api/visitor/checkin`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -349,12 +419,12 @@ async function main(): Promise<void> {
             checkoutToken?: string;
           };
         }
+        check(
+          "visitor pre-check-in (evacuation roster fixture)",
+          !!visitorCheckin?.attendance?._id,
+          `status=${res.status}`
+        );
       }
-      check(
-        "visitor pre-check-in (evacuation roster fixture)",
-        !!visitorCheckin?.attendance?._id,
-        `status=${visitorCheckin ? "201" : "skipped"}`
-      );
 
       /* start */
       const started = await call("/api/evacuation", "POST", evacCookie, {});
@@ -515,7 +585,7 @@ async function main(): Promise<void> {
             `confirmed=${confirmedCount}`
           );
         } else {
-          check("visitor confirm sub-flow", false, "no visitor fixture");
+          skip("visitor confirm sub-flow (no visitor fixture)");
         }
 
         /* self-confirm (idempotent) */
@@ -587,11 +657,7 @@ async function main(): Promise<void> {
           `${startAsPlain.status}`
         );
       } else {
-        check(
-          "plain-user evacuation sub-flow skipped (no active role=user)",
-          true,
-          ""
-        );
+        skip("plain-user evacuation sub-flow (no active role=user)");
       }
 
       /* floor_head: sees only their own floor's names, and may not confirm
@@ -658,11 +724,7 @@ async function main(): Promise<void> {
           }
         }
       } else {
-        check(
-          "floor_head evacuation sub-flow skipped (no active floor_head)",
-          true,
-          ""
-        );
+        skip("floor_head evacuation sub-flow (no active floor_head)");
       }
 
       /* warden tap: mark someone safe, then correct it back (state restored) */
@@ -804,19 +866,47 @@ async function main(): Promise<void> {
         );
       }
     } finally {
-      // Remove the test session AND the fixture visitor — nothing left behind
-      if (createdId) await Evacuation.deleteOne({ _id: createdId });
-      await Attendance.deleteMany({ visitorPhone: evacVisitorPhone });
+      // Independent cleanup steps: one failure must not block the others,
+      // and the audit rows pointing at this test session go too
+      if (createdId) {
+        try {
+          await Evacuation.deleteOne({ _id: createdId });
+        } catch (cleanupError) {
+          console.error("cleanup: evacuation delete failed:", cleanupError);
+        }
+        try {
+          await AuditLog.deleteMany({ targetId: createdId });
+        } catch (cleanupError) {
+          console.error("cleanup: audit delete failed:", cleanupError);
+        }
+      }
+      try {
+        await Attendance.deleteMany({ visitorPhone: evacVisitorPhone });
+      } catch (cleanupError) {
+        console.error("cleanup: visitor delete failed:", cleanupError);
+      }
     }
   }
 
   console.log("");
   let failed = 0;
-  for (const [name, ok, detail] of results) {
-    if (!ok) failed += 1;
-    console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail ? `  (${detail})` : ""}`);
+  let skipped = 0;
+  for (const [name, outcome, detail] of results) {
+    const suffix = detail ? `  (${detail})` : "";
+    if (outcome === "skip") {
+      skipped += 1;
+      console.log(`SKIP  ${name}${suffix}`);
+    } else if (!outcome) {
+      failed += 1;
+      console.log(`FAIL  ${name}${suffix}`);
+    } else {
+      console.log(`PASS  ${name}${suffix}`);
+    }
   }
-  console.log(`\n${results.length - failed}/${results.length} passed`);
+  const passed = results.length - failed - skipped;
+  console.log(
+    `\n${passed}/${results.length} passed${skipped > 0 ? ` (${skipped} skipped)` : ""}`
+  );
   process.exit(failed === 0 ? 0 : 1);
 }
 

@@ -255,7 +255,10 @@ export const strings = {
   evacVisitorPrompt: "Sudah tiba di tempat berkumpul? Tekan butang di bawah.",
   evacVisitorConfirmed: (floorName: string) =>
     `Terima kasih — anda disahkan selamat di ${floorName}.`,
-  evacVisitorNoMatch: "Tiada pendaftaran masuk aktif untuk nombor ini.",
+  // One NEUTRAL message for every visitor-confirm failure (no open record /
+  // not on the roster): distinguishable responses would let anyone probe
+  // whether a phone number is inside the building during an evacuation
+  evacVisitorNoMatch: "Nombor ini tidak dapat disahkan untuk sesi evakuasi semasa.",
 
   // Evacuation after-action reports (evacuation:view_report)
   evacReportTitle: "Laporan Evakuasi",

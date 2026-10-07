@@ -66,19 +66,36 @@ const LOGIN_ATTEMPT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 async function verifyTokenAgainstDb(
   id: unknown,
   sessionVersion: unknown
-): Promise<{ sessionVersion: number } | null> {
+): Promise<
+  | {
+      sessionVersion: number;
+      role: Role;
+      unitId?: string;
+      jabatanId?: string;
+    }
+  | null
+> {
   if (!id || typeof id !== "string") return null;
 
   try {
     await connectDB();
     const dbUser = await User.findById(id)
-      .select("sessionVersion status")
+      // Privileges ride along with the revocation check (same query, no extra
+      // round-trip): role/unit/jabatan changes must reach EXISTING sessions,
+      // not just new logins — a demoted warden would otherwise keep evacuation
+      // powers and old-floor roster visibility for up to 400 days.
+      .select("sessionVersion status role unitId jabatanId")
       .lean();
 
     if (!dbUser || dbUser.status === "inactive") return null;
     if (dbUser.sessionVersion !== sessionVersion) return null;
 
-    return { sessionVersion: dbUser.sessionVersion };
+    return {
+      sessionVersion: dbUser.sessionVersion,
+      role: dbUser.role,
+      unitId: dbUser.unitId?.toString(),
+      jabatanId: dbUser.jabatanId?.toString(),
+    };
   } catch (error) {
     console.error("Auth: revocation check failed:", error);
     return null;
@@ -198,6 +215,12 @@ export const {
           return {}; // Revoke: user deleted/deactivated or session version moved on
         }
         token.sessionVersion = fresh.sessionVersion;
+        // Refresh PRIVILEGES with the same check (≤5 min stale): a role/unit/
+        // jabatan change takes effect on existing sessions instead of living
+        // in the JWT until re-login
+        token.role = fresh.role;
+        token.unitId = fresh.unitId;
+        token.jabatanId = fresh.jabatanId;
         token.checkedAt = Date.now();
       }
 

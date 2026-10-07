@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import {
   Center,
   Paper,
@@ -142,9 +142,22 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
     { refreshInterval: 15000 }
   );
   const [evacLoading, setEvacLoading] = useState(false);
-  const [evacState, setEvacState] = useState<
-    { kind: "done"; floorName: string } | { kind: "not-in-roster" } | null
-  >(null);
+  // "done" is ONLY valid for the session and the record it was made for —
+  // cleared on check-out/re-check-in (resetToForm/applyVisit), on a floor
+  // change (restore effect), and when a NEW alarm activates (below)
+  const [evacState, setEvacState] = useState<{
+    kind: "done";
+    floorName: string;
+  } | null>(null);
+
+  // A new alarm (status false → true) invalidates any stale acknowledgement
+  // from a previous session; within the SAME session the ack must survive
+  const wasActive = useRef(false);
+  useEffect(() => {
+    const active = !!evacStatus?.active;
+    if (active && !wasActive.current) setEvacState(null);
+    wasActive.current = active;
+  }, [evacStatus?.active]);
 
   const handleEvacConfirm = async () => {
     if (!attendanceId) return;
@@ -166,9 +179,9 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
           kind: "done",
           floorName: data.floorName || strings.unknownFloor,
         });
-      } else if (res.status === 409 && data.error === strings.evacNotInRoster) {
-        setEvacState({ kind: "not-in-roster" });
       } else {
+        // Every failure (unknown phone, not on roster, closed session) comes
+        // back with one neutral message — see visitor-confirm/route.ts
         notifications.show({
           title: strings.error,
           message: data.error || strings.serverError,
@@ -201,6 +214,8 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
 
   // Restore an existing sign-in after a reload (same device)
   useEffect(() => {
+    // Floor changed → any ack belonged to the previous floor's record
+    setEvacState(null);
     const stored = readStoredVisit(floorId);
     if (!stored) return;
 
@@ -221,6 +236,8 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
     setPanelNote(note);
     setError(null);
     setCheckedIn(true);
+    // A different record = any previous "Saya Selamat" ack no longer applies
+    setEvacState(null);
   };
 
   /** Only for records this device actually created (it owns the token). */
@@ -237,6 +254,7 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
     setCheckedInName("");
     setCheckedInFloor("");
     setPanelNote(null);
+    setEvacState(null);
     form.reset();
   };
 
@@ -387,27 +405,21 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
                 {strings.evacVisitorConfirmed(evacState.floorName)}
               </Alert>
             ) : evacStatus?.active ? (
-              evacState?.kind === "not-in-roster" ? (
-                <Alert icon={<IconAlertCircle size={16} />} color="warning">
-                  {strings.evacNotInRoster}
-                </Alert>
-              ) : (
-                <Stack gap="xs">
-                  <Text size="sm" fw={500} ta="center">
-                    {strings.evacVisitorPrompt}
-                  </Text>
-                  <Button
-                    fullWidth
-                    color="danger"
-                    size="lg"
-                    loading={evacLoading}
-                    leftSection={<IconCheck size={18} />}
-                    onClick={handleEvacConfirm}
-                  >
-                    {strings.evacImSafe}
-                  </Button>
-                </Stack>
-              )
+              <Stack gap="xs">
+                <Text size="sm" fw={500} ta="center">
+                  {strings.evacVisitorPrompt}
+                </Text>
+                <Button
+                  fullWidth
+                  color="danger"
+                  size="lg"
+                  loading={evacLoading}
+                  leftSection={<IconCheck size={18} />}
+                  onClick={handleEvacConfirm}
+                >
+                  {strings.evacImSafe}
+                </Button>
+              </Stack>
             ) : null}
             {checkoutToken ? (
               <Button

@@ -56,9 +56,10 @@ export async function POST() {
     }
 
     const confirmedAt = new Date();
-    await Evacuation.updateOne(
+    // No _id in the filter: this targets whoever THE active session is right
+    // now, so a session swap between our read and our write cannot misfire.
+    const result = await Evacuation.updateOne(
       {
-        _id: session._id,
         status: "active",
         roster: { $elemMatch: { userId: user.id, confirmedAt: null } },
       },
@@ -70,7 +71,25 @@ export async function POST() {
       }
     );
 
-    return success({ confirmedAt: confirmedAt.toISOString() });
+    if (result.matchedCount === 1) {
+      return success({ confirmedAt: confirmedAt.toISOString() });
+    }
+
+    // Matched nothing: the session closed, a warden confirmed this entry, or
+    // a new session replaced the one we read. Re-read and report the TRUTH —
+    // never a timestamp that isn't in the database (a dropped confirmation
+    // must never look saved).
+    const fresh = await Evacuation.findOne({ status: "active" });
+    const freshEntry = fresh?.roster.find(
+      (item) => item.userId?.toString() === user.id
+    );
+    if (freshEntry?.confirmedAt) {
+      return success({ confirmedAt: freshEntry.confirmedAt.toISOString() });
+    }
+    return NextResponse.json(
+      { error: fresh ? strings.evacNotInRoster : strings.evacNoSession },
+      { status: 409 }
+    );
   } catch (error) {
     console.error("Error confirming evacuation:", error);
     return serverError();
@@ -150,7 +169,28 @@ export async function PATCH(request: Request) {
           }
         );
 
-    if (result.modifiedCount > 0) {
+    if (result.matchedCount === 0) {
+      // The session closed between read and write — never answer 200 for a
+      // discarded action. If the entry is already in the requested state
+      // (someone else did it first), that is an idempotent success.
+      const freshActive = await Evacuation.findOne({ status: "active" });
+      const freshEntry = freshActive?.roster.find(
+        (item) => item._id.toString() === body.rosterId
+      );
+      const alreadyInRequestedState =
+        !!freshEntry && Boolean(freshEntry.confirmedAt) === body.confirm;
+      if (!alreadyInRequestedState) {
+        return NextResponse.json(
+          {
+            error: freshActive
+              ? strings.evacEntryNotFound
+              : strings.evacNoSession,
+          },
+          { status: 409 }
+        );
+      }
+      // Already there → idempotent 200; no audit (we changed nothing)
+    } else if (result.modifiedCount > 0) {
       await AuditLog.create({
         actorUserId: user.id,
         action: "evacuation_confirm_other",

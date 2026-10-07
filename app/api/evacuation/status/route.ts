@@ -2,6 +2,13 @@ import { connectDB } from "@/lib/db/mongoose";
 import { success, serverError } from "@/lib/api/utils";
 import Evacuation from "@/lib/db/models/Evacuation";
 
+// The whole point of this route is a LIVE boolean — it must never be
+// prerendered. Without this export Next 14 treats a GET handler that takes
+// no Request and touches no dynamic API as STATIC (the build log shows "○"),
+// freezing {"active": false} at build time so the visitor-facing "Saya
+// Selamat" button could never appear after a deploy.
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/evacuation/status — PUBLIC.
  *

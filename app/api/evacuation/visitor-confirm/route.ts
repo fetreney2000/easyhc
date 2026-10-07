@@ -96,28 +96,61 @@ export async function POST(request: Request) {
 
     // Only people on the roster SNAPSHOT can be confirmed; whoever checked in
     // after the alarm is not expected, and staff resolve that in person.
+    // NOT-found and NOT-on-roster return the IDENTICAL neutral 404: two
+    // distinguishable responses would turn this public endpoint into a
+    // per-phone presence oracle during an evacuation.
     const entry = session.roster.find(
       (item) =>
         item.visitorAttendanceId?.toString() === record._id.toString()
     );
     if (!entry) {
       return NextResponse.json(
-        { error: strings.evacNotInRoster },
-        { status: 409 }
+        { error: strings.evacVisitorNoMatch },
+        { status: 404 }
       );
     }
 
     if (!entry.confirmedAt) {
       const confirmedAt = new Date();
-      await Evacuation.updateOne(
+      // No _id in the filter: targets THE active session's entry, so a
+      // session swap between our read and our write cannot misfire
+      const result = await Evacuation.updateOne(
         {
-          _id: session._id,
           status: "active",
-          roster: { $elemMatch: { _id: entry._id, confirmedAt: null } },
+          roster: {
+            $elemMatch: {
+              visitorAttendanceId: record._id,
+              confirmedAt: null,
+            },
+          },
         },
         { $set: { "roster.$.confirmedAt": confirmedAt } }
       );
-      entry.confirmedAt = confirmedAt;
+
+      if (result.matchedCount === 0) {
+        // Session closed or someone confirmed it between read and write —
+        // reconcile with the database; never report a write that didn't happen
+        const fresh = await Evacuation.findOne({ status: "active" });
+        if (!fresh) {
+          return NextResponse.json(
+            { error: strings.evacNoSession },
+            { status: 409 }
+          );
+        }
+        const freshEntry = fresh.roster.find(
+          (item) =>
+            item.visitorAttendanceId?.toString() === record._id.toString()
+        );
+        if (!freshEntry?.confirmedAt) {
+          return NextResponse.json(
+            { error: strings.evacVisitorNoMatch },
+            { status: 404 }
+          );
+        }
+        entry.confirmedAt = freshEntry.confirmedAt;
+      } else {
+        entry.confirmedAt = confirmedAt;
+      }
     }
 
     // No stats: floor context only (their own), as per the product spec

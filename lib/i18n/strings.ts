@@ -236,12 +236,22 @@ export const strings = {
 
   // Row counts / export feedback
   recordsCount: (n: number) => `${n} rekod`,
+  showingXofY: (shown: number, total: number) =>
+    `Memaparkan ${shown} daripada ${total} rekod`,
   showingRange: (from: number, to: number, total: number) =>
     `Memaparkan ${from}–${to} daripada ${total} rekod`,
   attendanceHistory: "Sejarah Kehadiran",
   csvExported: "Fail CSV berjaya dimuat turun",
   csvLimited: (n: number) => `Eksport dihadkan kepada ${n} rekod`,
   invalidDate: "Tarikh tidak sah",
+
+  // Muster mode — the large-type emergency display
+  musterMode: "Mod Muster",
+  musterModeDesc: "Paparan langsung bersaiz besar untuk masa kecemasan",
+  musterFullscreen: "Skrin Penuh",
+  musterExitFullscreen: "Keluar Skrin Penuh",
+  musterStale: "Data mungkin lapuk — sila semak semula",
+  musterByFloor: "Mengikut Lantai",
 
   // Tables, filters and forms (previously inline literals)
   typeLabel: "Jenis",

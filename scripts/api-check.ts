@@ -183,6 +183,23 @@ async function main(): Promise<void> {
     JSON.stringify(Object.keys(attRows[0] ?? {}))
   );
 
+  const attBig = await authed("/api/attendance?active=true&pageSize=500");
+  check(
+    "attendance honours pageSize (muster view dependency)",
+    attBig.body.pageSize === 500,
+    `pageSize=${attBig.body.pageSize}`
+  );
+
+  // Muster mode: reachable for a signed-in user, nav item rendered server-side
+  const musterHtml = await fetch(`${BASE}/muster`, {
+    headers: { cookie },
+  }).then((r) => r.text());
+  check(
+    "muster page renders with nav entry",
+    musterHtml.includes("Mod Muster") && !musterHtml.includes("<title>Log Masuk"),
+    `${musterHtml.length} bytes`
+  );
+
   const searched = await authed("/api/attendance?active=true&q=zzz-no-such-person");
   check(
     "attendance q= search is honoured (no match -> empty)",

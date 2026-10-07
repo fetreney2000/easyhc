@@ -23,11 +23,13 @@ import {
   IconUsers,
   IconUser,
   IconUserStar,
+  IconUsersGroup,
   IconRefresh,
   IconLogout,
   IconSearch,
   IconDoorExit,
 } from "@tabler/icons-react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
@@ -204,14 +206,23 @@ export default function DashboardPage() {
       <PageHeader
         title={strings.dashboard}
         actions={
-          <Button
-            variant="light"
-            leftSection={<IconRefresh size={16} />}
-            onClick={() => mutate()}
-            loading={isLoading}
-          >
-            {strings.refresh}
-          </Button>
+          <>
+            <Button
+              component={Link}
+              href="/muster"
+              leftSection={<IconUsersGroup size={16} />}
+            >
+              {strings.musterMode}
+            </Button>
+            <Button
+              variant="light"
+              leftSection={<IconRefresh size={16} />}
+              onClick={() => mutate()}
+              loading={isLoading}
+            >
+              {strings.refresh}
+            </Button>
+          </>
         }
       />
 

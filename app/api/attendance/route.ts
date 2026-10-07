@@ -16,6 +16,8 @@ import { scopeFilter } from "@/lib/auth/scope";
 
 /** Rows per request — `page=` slices the result set by this size. */
 const ATTENDANCE_PAGE_SIZE = 200;
+/** Hard ceiling (the muster view asks for the whole building at once). */
+const ATTENDANCE_PAGE_MAX = 1000;
 
 function positiveInt(value: string | null, fallback: number): number {
   const parsed = Number.parseInt(value ?? "", 10);
@@ -35,6 +37,10 @@ export async function GET(request: Request) {
   const floorId = searchParams.get("floorId");
   const type = searchParams.get("type") as "employee" | "visitor" | null;
   const page = positiveInt(searchParams.get("page"), 1);
+  const pageSize = Math.min(
+    positiveInt(searchParams.get("pageSize"), ATTENDANCE_PAGE_SIZE),
+    ATTENDANCE_PAGE_MAX
+  );
   const q = searchParams.get("q")?.trim() ?? "";
 
   const query: FilterQuery<IAttendance> = {};
@@ -84,7 +90,7 @@ export async function GET(request: Request) {
     totalPresent: 0,
     lastUpdated: new Date().toISOString(),
     rowCount: 0,
-    pageSize: ATTENDANCE_PAGE_SIZE,
+    pageSize,
     page,
   };
 
@@ -121,8 +127,8 @@ export async function GET(request: Request) {
         .populate("userId", "name role")
         .populate("floorId", "name")
         .sort({ checkedInAt: -1 })
-        .skip((page - 1) * ATTENDANCE_PAGE_SIZE)
-        .limit(ATTENDANCE_PAGE_SIZE)
+        .skip((page - 1) * pageSize)
+        .limit(pageSize)
         .lean(),
       Attendance.countDocuments(query),
       countActive("employee"),
@@ -139,7 +145,7 @@ export async function GET(request: Request) {
       lastUpdated: new Date().toISOString(),
       /** Rows on THIS page (capped at pageSize). */
       rowCount: attendance.length,
-      pageSize: ATTENDANCE_PAGE_SIZE,
+      pageSize,
       page,
     });
   } catch (error) {

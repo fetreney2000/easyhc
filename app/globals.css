@@ -86,3 +86,29 @@ html {
     color: black;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Muster mode (app/(app)/muster): type sized for reading at a distance —
+ * a warden holding a clipboard, or a projected screen. clamp() scales from
+ * phone to large display without a second stylesheet.
+ * ------------------------------------------------------------------------- */
+.muster-number {
+  font-size: clamp(3rem, 10vw, 6.5rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.muster-floor-name {
+  font-size: clamp(1.375rem, 4vw, 2.5rem);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.muster-label {
+  font-size: clamp(0.8125rem, 2vw, 1.125rem);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}

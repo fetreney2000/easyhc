@@ -19,6 +19,7 @@ import {
   IconQrcode,
   IconReport,
   IconUsers,
+  IconUsersGroup,
   IconBuilding,
   IconUser,
   IconLogout,
@@ -66,6 +67,7 @@ const NAV_COLORS: Record<string, string> = {
   // GROUP 1 — Kehadiran
   "/dashboard": "brandPrimary",
   "/scan": "brandPrimary",
+  "/muster": "danger", // emergency display
   // GROUP 2 — Lantai & Lokasi
   "/floors": "teal",
   "/my-unit": "teal",
@@ -115,6 +117,13 @@ export function AppShellLayout({ children, user }: AppShellLayoutProps) {
       label: strings.scanQR,
       icon: <IconQrcode size={20} stroke={1.5} />,
       href: "/scan",
+    },
+    {
+      // Emergency display — kept in the always-visible group so every role
+      // can reach it during a drill (it respects their data scope anyway)
+      label: strings.musterMode,
+      icon: <IconUsersGroup size={20} stroke={1.5} />,
+      href: "/muster",
     },
   ];
 

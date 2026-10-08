@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   Alert,
   Badge,
@@ -24,7 +24,7 @@ import {
 import { notifications } from "@mantine/notifications";
 import { modals } from "@mantine/modals";
 import { strings } from "@/lib/i18n/strings";
-import { clock } from "@/lib/format";
+import { clock, duration } from "@/lib/format";
 import { can } from "@/lib/auth/rbac";
 import { DataTable } from "@/components/ui/DataTable";
 import type { EvacuationResponse } from "@/lib/evacuation";
@@ -37,24 +37,55 @@ interface EvacuationModeProps {
   onRefresh: () => Promise<unknown>;
 }
 
+/* All colours for the dark emergency ground are explicit here (and in the
+   .evac-* classes) so nothing depends on the user's light/dark scheme or on
+   Mantine's semantic tokens, whose light shades fail contrast on black. */
+const TONE_COLOR = {
+  miss: "#ff6b6b",
+  ok: "#63e6a0",
+  total: "#f1f3f5",
+} as const;
+const CARD_STYLE: CSSProperties = {
+  background: "#14161b",
+  borderColor: "#2a2f37",
+};
+const TABLE_STYLE: CSSProperties = { background: "transparent" };
+const TH_STYLE: CSSProperties = {
+  background: "#15181d",
+  color: "#b7bec7",
+  borderColor: "#2a2f37",
+};
+const TD_STYLE: CSSProperties = { borderColor: "#2a2f37" };
+const BADGE_OK: CSSProperties = {
+  background: "rgba(81, 207, 102, 0.16)",
+  color: "#7ee7a0",
+  border: "1px solid rgba(81, 207, 102, 0.45)",
+};
+const BADGE_MISS: CSSProperties = {
+  background: "rgba(255, 82, 82, 0.16)",
+  color: "#ff9b9b",
+  border: "1px solid rgba(255, 82, 82, 0.45)",
+};
+const DARK_WARNING: CSSProperties = {
+  background: "rgba(255, 169, 77, 0.12)",
+  color: "#ffd8a8",
+  border: "1px solid rgba(255, 169, 77, 0.45)",
+};
+
 function StatCard({
   label,
   value,
-  color,
-  emphasis,
+  tone,
 }: {
   label: string;
   value: number;
-  color?: string;
-  emphasis?: boolean;
+  tone: keyof typeof TONE_COLOR;
 }) {
   return (
-    <Paper p="lg" radius="md" withBorder shadow={emphasis ? "sm" : undefined}>
+    <Paper p="lg" radius="md" withBorder style={CARD_STYLE}>
       <Stack gap={4} align="center">
-        <Text className="evac-label" c="var(--app-text-secondary)">
-          {label}
-        </Text>
-        <Text className="evac-number" c={color}>
+        <Text className="evac-label">{label}</Text>
+        <Text className="evac-number" style={{ color: TONE_COLOR[tone] }}>
           {value}
         </Text>
       </Stack>
@@ -65,12 +96,18 @@ function StatCard({
 /**
  * The ENTIRE app while an evacuation session is active (spec): this component
  * replaces the shell — no header, no sidebar, no footer, no page content —
- * at every route, until the session is closed.
+ * at every route, until the session is closed. Restyled as an emergency
+ * display: dark takeover, hazard band, pulsing alarm, giant numbers.
  *
- * Flow: everyone gets one giant "Saya Selamat" button; only after confirming
- * do the building-wide stats, the scoped floor locations and (for warden
- * roles) the name list appear. Visitors never reach this component — they
- * confirm from their own public check-in page and see no stats at all.
+ * Three states, decided by the roster SNAPSHOT (which now contains only
+ * people with an OPEN check-in at alarm time):
+ *  1. NOT on the roster (was never checked in) → informational page only:
+ *     no button, no stats — they were never counted as expected;
+ *  2. on the roster, not confirmed → one giant "Saya Selamat" button;
+ *  3. confirmed → building-wide stats (missing count first), scoped floor
+ *     locations and — for warden roles — the name list.
+ * Visitors never reach this component: they confirm from their own public
+ * check-in page and see no stats at all.
  */
 export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
   const [fullscreen, setFullscreen] = useState(false);
@@ -223,34 +260,49 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
 
   if (!session) return null;
 
+  // On the roster ⇔ had an open check-in when the alarm went off
+  const checkedIn = session.mine.inRoster;
   const confirmed = !!session.mine.confirmedAt;
   const canClose = can(user.role, "evacuation:close");
   const canConfirmOthers = can(user.role, "evacuation:confirm_others");
   const counts = session.counts;
   const floors = session.floors ?? [];
   const roster = session.roster ?? [];
+  const elapsed = duration(session.startedAt, new Date().toISOString());
 
   return (
     <div ref={contentRef} className="evac-fullscreen">
-      <Stack gap="xl" py={{ base: "md", md: "xl" }} px={{ base: "md", md: "xl" }}>
-        {/* Header — the only chrome: title, time, display controls */}
+      {/* The signature hazard band */}
+      <div className="evac-hazard" aria-hidden="true" />
+
+      <Stack
+        gap="xl"
+        py={{ base: "md", md: "xl" }}
+        px={{ base: "md", md: "xl" }}
+      >
+        {/* Header: alarm dot, headline, meta (with live elapsed chip), controls */}
         <Group justify="space-between" gap="md" wrap="wrap">
-          <Stack gap={4}>
-            <Title order={1} className="evac-headline" c="danger">
-              {strings.evacSessionActive}
-            </Title>
-            {/* clock() renders in the VIEWER's timezone but this line is
-                server-rendered (UTC on Vercel) — let hydration take the
-                client's value instead of erroring on the mismatch */}
-            <Text
-              className="evac-label"
-              c="var(--app-text-secondary)"
-              suppressHydrationWarning
-            >
-              {strings.evacStartedAt(clock(session.startedAt))} ·{" "}
-              {session.startedByName}
-            </Text>
-          </Stack>
+          <Group gap="md" align="center">
+            <span className="evac-pulse" aria-hidden="true" />
+            <Stack gap={4}>
+              <Title order={1} className="evac-headline">
+                {strings.evacSessionActive}
+              </Title>
+              {/* clock() renders in the VIEWER's timezone but this line is
+                  server-rendered (UTC on Vercel) — let hydration take the
+                  client's value instead of erroring on the mismatch */}
+              <Text
+                className="evac-label"
+                suppressHydrationWarning
+              >
+                {strings.evacStartedAt(clock(session.startedAt))} ·{" "}
+                {session.startedByName}
+                <span className="evac-chip">
+                  {strings.evacElapsed(elapsed)}
+                </span>
+              </Text>
+            </Stack>
+          </Group>
           <Group gap="xs">
             <Button
               variant="light"
@@ -274,68 +326,92 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
         </Group>
 
         {sessionTooLong && (
-          <Alert icon={<IconAlertCircle size={16} />} color="warning">
+          <Alert
+            icon={<IconAlertCircle size={16} />}
+            color="warning"
+            style={DARK_WARNING}
+          >
             {strings.evacSessionOld}
           </Alert>
         )}
 
-        {/* Always mounted across BOTH states: a live region created together
-            with its content announces nothing, and the pollable counts grid
-            must not be aria-live (it would re-announce every 3s). This text
-            changes exactly once — at the confirm transition. */}
+        {/* Always mounted across ALL states: a live region created together
+            with its content announces nothing, and the pollable counts must
+            not be aria-live (they would re-announce every 3s). This text
+            changes exactly at the state transitions. */}
         <div role="status" aria-live="polite" className="sr-only">
-          {confirmed ? strings.evacYouAreSafe : strings.evacSafePrompt}
+          {!checkedIn
+            ? strings.evacNotInRoster
+            : confirmed
+              ? strings.evacYouAreSafe
+              : strings.evacSafePrompt}
         </div>
 
-        {!confirmed ? (
-          /* Gate: one giant button, no stats until they have confirmed */
+        {!checkedIn ? (
+          /* STATE 1 — not on the roster: informational only. No button,
+             no stats: this person was never in the building (as far as the
+             app knows) and is not counted as expected anywhere. */
+          <Center mih="55vh">
+            <Stack align="center" gap="lg" maw={760}>
+              <IconAlertTriangle
+                size={96}
+                stroke={1.5}
+                className="evac-alerticon"
+                aria-hidden
+              />
+              <Title order={2} className="evac-state-title">
+                {strings.evacNotInRoster}
+              </Title>
+              <Text className="evac-prompt" ta="center">
+                {strings.evacNotOnRosterDesc}
+              </Text>
+            </Stack>
+          </Center>
+        ) : !confirmed ? (
+          /* STATE 2 — checked in, not confirmed: one giant button */
           <Center mih="55vh">
             <Stack align="center" gap="xl" w="100%">
               <Text className="evac-prompt" ta="center">
                 {strings.evacSafePrompt}
               </Text>
-              {session.mine.inRoster ? (
-                <Button
-                  autoFocus
-                  className="evac-safe-btn"
-                  color="danger"
-                  size="xl"
-                  loading={submitting}
-                  leftSection={<IconCircleCheck size={32} />}
-                  onClick={confirmSelf}
-                >
-                  {strings.evacImSafe}
-                </Button>
-              ) : (
-                <Text className="evac-prompt" c="danger" ta="center">
-                  {strings.evacNotInRoster}
-                </Text>
-              )}
+              <Button
+                autoFocus
+                className="evac-safe-btn"
+                color="danger"
+                size="xl"
+                loading={submitting}
+                leftSection={<IconCircleCheck size={32} />}
+                onClick={confirmSelf}
+              >
+                {strings.evacImSafe}
+              </Button>
             </Stack>
           </Center>
         ) : (
+          /* STATE 3 — confirmed: stats with MISSING FIRST (the emergency
+             priority), then scoped locations, then the warden's list */
           <Stack
             gap="xl"
             ref={statsRef}
             tabIndex={-1}
             style={{ outline: "none" }}
           >
-            {/* Visual only: updates every poll — an aria-live here would
-                re-announce the counts every 3 seconds. The transition itself
-                is announced by the persistent sr-only region above. */}
             <SimpleGrid cols={{ base: 1, sm: 3 }}>
-              <StatCard
-                label={strings.evacSafe}
-                value={counts.confirmed}
-                color="success"
-                emphasis
-              />
               <StatCard
                 label={strings.evacMissing}
                 value={counts.missing}
-                color="danger"
+                tone="miss"
               />
-              <StatCard label={strings.evacExpected} value={counts.total} />
+              <StatCard
+                label={strings.evacSafe}
+                value={counts.confirmed}
+                tone="ok"
+              />
+              <StatCard
+                label={strings.evacExpected}
+                value={counts.total}
+                tone="total"
+              />
             </SimpleGrid>
 
             {floors.length > 0 && (
@@ -345,22 +421,33 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
                 </Title>
                 <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
                   {floors.map((floor) => (
-                    <Paper key={floor.floorId} p="lg" radius="md" withBorder>
+                    <Paper
+                      key={floor.floorId}
+                      p="lg"
+                      radius="md"
+                      withBorder
+                      style={CARD_STYLE}
+                    >
                       <Stack gap="xs" align="center">
                         <Text className="evac-floor-name" ta="center">
                           {floor.name}
                         </Text>
                         <Text
                           className="evac-number"
-                          c={floor.missing > 0 ? "danger" : "success"}
+                          style={{
+                            color:
+                              floor.missing > 0
+                                ? TONE_COLOR.miss
+                                : TONE_COLOR.ok,
+                          }}
                         >
                           {floor.confirmed}/{floor.expected}
                         </Text>
                         <Group gap="md">
-                          <Badge size="lg" color="success" variant="light">
+                          <Badge size="lg" style={BADGE_OK}>
                             {strings.evacSafe}: {floor.confirmed}
                           </Badge>
-                          <Badge size="lg" color="danger" variant="light">
+                          <Badge size="lg" style={BADGE_MISS}>
                             {strings.evacMissing}: {floor.missing}
                           </Badge>
                         </Group>
@@ -376,43 +463,49 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
                 <Title order={2} size="h2">
                   {strings.evacRosterTitle}
                 </Title>
-                <DataTable isEmpty={roster.length === 0} minWidth={760}>
+                {/* Explicit cell styles + theme striping/hover off: the dark
+                    takeover must not inherit the light table theme */}
+                <Table
+                  striped={false}
+                  highlightOnHover={false}
+                  style={TABLE_STYLE}
+                >
                   <Table.Thead>
                     <Table.Tr>
-                      <Table.Th>{strings.name}</Table.Th>
-                      <Table.Th>{strings.typeLabel}</Table.Th>
-                      <Table.Th>{strings.floors}</Table.Th>
-                      <Table.Th>{strings.status}</Table.Th>
+                      <Table.Th style={TH_STYLE}>{strings.name}</Table.Th>
+                      <Table.Th style={TH_STYLE}>{strings.typeLabel}</Table.Th>
+                      <Table.Th style={TH_STYLE}>{strings.floors}</Table.Th>
+                      <Table.Th style={TH_STYLE}>{strings.status}</Table.Th>
                       {canConfirmOthers && (
-                        <Table.Th>{strings.actions}</Table.Th>
+                        <Table.Th style={TH_STYLE}>{strings.actions}</Table.Th>
                       )}
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
                     {roster.map((row) => (
                       <Table.Tr key={row._id}>
-                        <Table.Td>{row.name}</Table.Td>
-                        <Table.Td>
+                        <Table.Td style={TD_STYLE}>{row.name}</Table.Td>
+                        <Table.Td style={TD_STYLE}>
                           {row.type === "employee"
                             ? strings.employee
                             : strings.visitor}
                         </Table.Td>
-                        <Table.Td>{row.floorName ?? strings.unknownFloor}</Table.Td>
-                        <Table.Td>
+                        <Table.Td style={TD_STYLE}>
+                          {row.floorName ?? strings.unknownFloor}
+                        </Table.Td>
+                        <Table.Td style={TD_STYLE}>
                           {row.confirmedAt ? (
-                            <Badge
-                              color="success"
-                              leftSection={<IconCircleCheck size={12} />}
-                              suppressHydrationWarning
-                            >
+                            <Badge style={BADGE_OK} suppressHydrationWarning>
                               {strings.evacSafe} · {clock(row.confirmedAt)}
                             </Badge>
                           ) : (
-                            <Badge color="danger">{strings.evacMissing}</Badge>
+                            <Badge style={BADGE_MISS}>
+                              {strings.evacMissing}
+                            </Badge>
                           )}
                         </Table.Td>
                         {canConfirmOthers && (
-                          <Table.Td>
+                          <Table.Td style={TD_STYLE}>
                             <Button
                               size="xs"
                               variant="light"
@@ -431,10 +524,10 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
                       </Table.Tr>
                     ))}
                   </Table.Tbody>
-                </DataTable>
+                </Table>
               </Stack>
             ) : (
-              <Text size="sm" c="var(--app-text-secondary)">
+              <Text size="sm" className="evac-quiet">
                 {strings.evacNamesNote}
               </Text>
             )}

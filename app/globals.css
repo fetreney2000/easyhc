@@ -115,13 +115,54 @@ html {
 
 /* ---------------------------------------------------------------------------
  * Evacuation mode (components/shell/EvacuationMode): the ONLY view while a
- * session runs, sized for reading at a distance — a warden's clipboard, a
- * phone held at arm's length, or a projected screen. clamp() scales from
- * phone to large display without a second stylesheet.
+ * session runs — an emergency display by design: dark takeover (regardless
+ * of the user's scheme), hazard band, pulsing alarm, giant numbers. clamp()
+ * scales from phone to projector. Colours are chosen for the dark ground
+ * (all ≥ 4.5:1 except the deliberately huge headline, which clears the
+ * large-text 3:1 floor).
  * ------------------------------------------------------------------------- */
 .evac-fullscreen {
   min-height: 100dvh;
-  background: var(--mantine-color-body);
+  background: #0b0d10;
+  color: #e7eaef;
+}
+
+/* The signature band: universal hazard stripes under the header */
+.evac-hazard {
+  height: 14px;
+  background: repeating-linear-gradient(
+    -45deg,
+    #f5c518 0 18px,
+    #0b0d10 18px 36px
+  );
+}
+
+/* Alarm dot — the display is LIVE */
+.evac-pulse {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex: none;
+  background: #ff5252;
+  animation: evac-alarm 1.4s ease-out infinite;
+}
+
+@keyframes evac-alarm {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 82, 82, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 16px rgba(255, 82, 82, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 82, 82, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .evac-pulse {
+    animation: none;
+  }
 }
 
 .evac-headline {
@@ -129,6 +170,7 @@ html {
   font-weight: 800;
   line-height: 1.05;
   letter-spacing: -0.02em;
+  color: #ff5454;
 }
 
 .evac-number {
@@ -152,10 +194,42 @@ html {
   letter-spacing: 0.06em;
 }
 
+/* Labels only appear on the dark takeover — the report modal's StatMini
+   also uses .evac-label, so the colour is scoped, not baked in */
+.evac-fullscreen .evac-label {
+  color: #9aa4b0;
+}
+
 .evac-prompt {
   font-size: clamp(1.125rem, 3.5vw, 1.75rem);
   font-weight: 600;
-  max-width: 32ch;
+  max-width: 36ch;
+}
+
+.evac-state-title {
+  font-size: clamp(1.5rem, 4.5vw, 2.75rem);
+  font-weight: 800;
+  text-align: center;
+}
+
+.evac-quiet {
+  color: #9aa4b0;
+}
+
+/* Elapsed-time chip in the header */
+.evac-chip {
+  display: inline-block;
+  color: #f5c518;
+  border: 1px solid rgba(245, 197, 24, 0.55);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-weight: 700;
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+.evac-alerticon {
+  color: #f5c518;
 }
 
 /* The one control that matters before confirmation */

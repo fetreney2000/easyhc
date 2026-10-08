@@ -435,6 +435,10 @@ async function main(): Promise<void> {
 
   if (evacCookie) {
     let createdId: string | null = null;
+    // Staff check-in fixtures (roster = open check-ins only) — ids kept for
+    // the finally-cleanup even if the flow dies midway
+    let plainFixtureId: string | null = null;
+    let targetFixtureId: string | null = null;
     // A visitor present in the building when the alarm goes off (roster
     // fixture) — later confirms through the PUBLIC endpoint
     const evacVisitorPhone = `018${String(Date.now()).slice(-7)}`;
@@ -462,6 +466,14 @@ async function main(): Promise<void> {
       }));
 
     try {
+      /* The plain staff account — the gate + self-confirm subject. Hoisted
+         to the top: the roster fixtures below need it */
+      const plainUser =
+        (staffAccount && staffAccount.status === "active"
+          ? staffAccount
+          : null) ??
+        (await User.findOne({ role: "user", status: "active" }).lean());
+
       /* a visitor already checked in BEFORE the alarm (they land on the
          roster snapshot) */
       if (!floor) {
@@ -493,6 +505,47 @@ async function main(): Promise<void> {
         );
       }
 
+      /* Staff fixtures: only people with an OPEN check-in land on the roster
+         now — check in the plain user (gate + self-confirm) and a second
+         staffer (the warden-tap target, left unconfirmed) */
+      let expectedMin = visitorCheckin?.attendance?._id ? 1 : 0;
+      if (floor && plainUser) {
+        plainFixtureId = (
+          await Attendance.create({
+            type: "employee",
+            userId: plainUser._id,
+            floorId: floor._id,
+            checkedInAt: new Date(),
+            method: "manual",
+          })
+        )._id.toString();
+        expectedMin += 1;
+      }
+      const wardenTarget = floor
+        ? await User.findOne({
+            status: "active",
+            role: { $ne: "superadmin" },
+            ...(plainUser ? { _id: { $ne: plainUser._id } } : {}),
+          }).lean()
+        : null;
+      if (floor && wardenTarget) {
+        targetFixtureId = (
+          await Attendance.create({
+            type: "employee",
+            userId: wardenTarget._id,
+            floorId: floor._id,
+            checkedInAt: new Date(),
+            method: "manual",
+          })
+        )._id.toString();
+        expectedMin += 1;
+      }
+      check(
+        "staff check-in fixtures (roster = checked-in only)",
+        !!plainFixtureId && !!targetFixtureId,
+        `plain=${!!plainFixtureId} target=${!!targetFixtureId}`
+      );
+
       /* start */
       const started = await call("/api/evacuation", "POST", evacCookie, {});
       check("evacuation start -> 201", started.status === 201, `${started.status}`);
@@ -501,9 +554,9 @@ async function main(): Promise<void> {
         | undefined;
       createdId = startedSession?._id ?? null;
       check(
-        "roster snapshot has people",
-        (startedSession?.counts?.total ?? 0) >= 1,
-        `total=${startedSession?.counts?.total}`
+        "roster snapshot = everyone checked in at the alarm",
+        (startedSession?.counts?.total ?? -1) >= expectedMin,
+        `total=${startedSession?.counts?.total} expected>=${expectedMin}`
       );
 
       const dupStart = await call("/api/evacuation", "POST", evacCookie, {});
@@ -538,30 +591,28 @@ async function main(): Promise<void> {
         cacheControl || "no header"
       );
 
-      /* The takeover is SSR'd from the server layout (no flash of the shell):
-         nobody has confirmed yet → the gate, not the stats */
+      /* The takeover is SSR'd from the server layout (no flash of the shell).
+         The ADMIN has NO open check-in → state 1: the informational
+         "in progress" page — NO button, NO stats (they were never on the
+         roster, so they were never counted as expected). */
       const takeover = await fetch(`${BASE}/dashboard`, {
         headers: { cookie: evacCookie },
       }).then((r) => r.text());
       check(
         "active session: app SSRs the full-screen takeover (no shell)",
-        takeover.includes("SESI EVAKUASI AKTIF") &&
+        takeover.includes(strings.evacSessionActive) &&
           !takeover.includes('id="main-content"'),
         `${takeover.length} bytes`
       );
       check(
-        "takeover gates everything behind 'Saya Selamat'",
-        takeover.includes("Saya Selamat") && !takeover.includes("Belum Kesan"),
-        ""
+        "staff WITHOUT a check-in gets the in-progress page (no button, no stats)",
+        takeover.includes(strings.evacNotInRoster) &&
+          !takeover.includes(strings.evacImSafe) &&
+          !takeover.includes(strings.evacMissing),
+        `${takeover.length} bytes`
       );
 
-      /* plain user: light projection, roster privacy, self-confirm */
-      const plainUser =
-        (staffAccount && staffAccount.status === "active"
-          ? staffAccount
-          : null) ??
-        (await User.findOne({ role: "user", status: "active" }).lean());
-
+      /* plain user: light projection, roster privacy, gate, self-confirm */
       if (plainUser) {
         const plainCookie = await mintCookie(plainUser);
 
@@ -576,6 +627,17 @@ async function main(): Promise<void> {
           "plain user sees the active session + own roster status",
           !!lightSession && lightSession.mine?.inRoster === true,
           JSON.stringify(lightSession?.mine ?? null)
+        );
+
+        // Checked in + not yet confirmed → state 2: the giant button, no stats
+        const gateHtml = await fetch(`${BASE}/dashboard`, {
+          headers: { cookie: plainCookie },
+        }).then((r) => r.text());
+        check(
+          "checked-in staff gets the 'Saya Selamat' gate (no stats yet)",
+          gateHtml.includes(strings.evacImSafe) &&
+            !gateHtml.includes(strings.evacMissing),
+          `${gateHtml.length} bytes`
         );
         check(
           "light payload carries no roster",
@@ -1115,6 +1177,16 @@ async function main(): Promise<void> {
         await Attendance.deleteMany({ visitorPhone: evacVisitorPhone });
       } catch (cleanupError) {
         console.error("cleanup: visitor delete failed:", cleanupError);
+      }
+      const staffFixtureIds = [plainFixtureId, targetFixtureId].filter(
+        (id): id is string => !!id
+      );
+      if (staffFixtureIds.length) {
+        try {
+          await Attendance.deleteMany({ _id: { $in: staffFixtureIds } });
+        } catch (cleanupError) {
+          console.error("cleanup: staff fixture delete failed:", cleanupError);
+        }
       }
     }
   }

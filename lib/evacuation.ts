@@ -1,6 +1,5 @@
 import { Types } from "mongoose";
 import User from "@/lib/db/models/User";
-import Unit from "@/lib/db/models/Unit";
 import Floor from "@/lib/db/models/Floor";
 import Attendance from "@/lib/db/models/Attendance";
 import Evacuation from "@/lib/db/models/Evacuation";
@@ -343,47 +342,66 @@ export async function evacuationResponse(
 }
 
 /**
- * The roster SNAPSHOT taken when the session starts: every active employee
- * (floor resolved through their unit's home floor) plus every visitor with
- * an open check-in. Names are copied in so the API never needs a populate.
+ * The roster SNAPSHOT taken when the session starts: every person with an
+ * OPEN check-in at that instant — staff and visitors alike. Anyone not
+ * checked in wasn't in the building (as far as the app knows) and gets the
+ * "evacuation in progress" view instead of the confirmation button, so they
+ * are never counted as missing either. floorId is the ACTUAL scanned floor
+ * (better than the unit's default one), and the hidden superadmin account
+ * can never appear because check-in is blocked for it anyway.
  */
 export async function buildRoster(): Promise<IRosterEntry[]> {
-  const [users, units, floors, visitors] = await Promise.all([
-    // The superadmin is a hidden control account, not a person expected in
-    // the building: including it would make every drill show it as
-    // "belum kesan" forever
-    User.find({ status: "active", role: { $ne: "superadmin" } })
-      .select("name unitId")
+  const [employeeRows, visitorRows, floors] = await Promise.all([
+    // At most one open record per person (every check-in path auto-checks
+    // out any other floor first); the `seen` set below still de-dupes
+    // defensively against a race that created two.
+    Attendance.find({ type: "employee", checkedOutAt: null })
+      .select("userId floorId")
       .lean(),
-    Unit.find({}).select("homeFloorId").lean(),
-    Floor.find({}).select("name").lean(),
     Attendance.find({ type: "visitor", checkedOutAt: null })
       .select("visitorName floorId")
       .lean(),
+    Floor.find({}).select("name").lean(),
   ]);
 
-  const floorName = new Map(floors.map((floor) => [floor._id.toString(), floor.name]));
-  const unitFloor = new Map(
-    units
-      .filter((unit) => unit.homeFloorId)
-      .map((unit) => [unit._id.toString(), unit.homeFloorId])
+  const floorName = new Map(
+    floors.map((floor) => [floor._id.toString(), floor.name])
   );
 
-  const employees: IRosterEntry[] = users.map((account) => {
-    const floorId = account.unitId
-      ? unitFloor.get(account.unitId.toString())
-      : undefined;
-    return {
-      _id: new Types.ObjectId(),
-      userId: account._id,
-      name: account.name,
-      type: "employee",
-      floorId,
-      floorName: floorId ? floorName.get(floorId.toString()) : undefined,
-    };
-  });
+  const userIds = employeeRows
+    .map((row) => row.userId)
+    .filter((id): id is Types.ObjectId => !!id);
+  const accounts = userIds.length
+    ? await User.find({ _id: { $in: userIds }, role: { $ne: "superadmin" } })
+        .select("name")
+        .lean()
+    : [];
+  const nameById = new Map(
+    accounts.map((account) => [account._id.toString(), account.name])
+  );
 
-  const visitorRows: IRosterEntry[] = visitors.map((record) => ({
+  const employees: IRosterEntry[] = [];
+  const seen = new Set<string>();
+  for (const row of employeeRows) {
+    if (!row.userId) continue;
+    const uid = row.userId.toString();
+    if (seen.has(uid)) continue; // one entry per person, race or not
+    const name = nameById.get(uid);
+    if (!name) continue; // hidden control account or deleted user
+    seen.add(uid);
+    employees.push({
+      _id: new Types.ObjectId(),
+      userId: row.userId,
+      name,
+      type: "employee",
+      floorId: row.floorId,
+      floorName: row.floorId
+        ? floorName.get(row.floorId.toString())
+        : undefined,
+    });
+  }
+
+  const visitors: IRosterEntry[] = visitorRows.map((record) => ({
     _id: new Types.ObjectId(),
     visitorAttendanceId: record._id,
     name: record.visitorName?.trim() || strings.visitor,
@@ -392,8 +410,8 @@ export async function buildRoster(): Promise<IRosterEntry[]> {
     floorName: floorName.get(record.floorId.toString()),
   }));
 
-  // Employees first, each group alphabetical — a warden scans one list
-  return [...employees, ...visitorRows].sort((a, b) =>
+  // Staff first, each group alphabetical — a warden scans one list
+  return [...employees, ...visitors].sort((a, b) =>
     a.type === b.type
       ? a.name.localeCompare(b.name)
       : a.type === "employee"

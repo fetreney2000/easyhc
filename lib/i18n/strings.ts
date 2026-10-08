@@ -307,6 +307,11 @@ export const strings = {
   evacVisitorNoMatch: "Nombor ini tidak dapat disahkan untuk sesi evakuasi semasa.",
   evacStatusUnknown:
     "Status evakuasi tidak dapat disemak. Jika sesi sedang berlangsung, tekan butang di bawah.",
+  // Staff WITHOUT an open check-in at alarm time: informational page only —
+  // no button, no stats (they were never counted as expected)
+  evacNotOnRosterDesc:
+    "Sesi ini mengambil kira mereka yang berdaftar masuk sebelum sesi bermula. Jika anda berada di bangunan, sila lapor kepada ketua lantai atau ketua keselamatan.",
+  evacElapsed: (elapsed: string) => `Berlangsung ${elapsed}`,
 
   // Evacuation after-action reports (evacuation:view_report)
   evacReportTitle: "Laporan Evakuasi",
@@ -329,7 +334,7 @@ export const strings = {
   evacYouAreSafe: "Anda selamat",
   evacStart: "Mula Sesi Evakuasi",
   evacStartConfirm:
-    "Mulakan sesi evakuasi sekarang? Semua kakitangan aktif dan pelawat yang berdaftar masuk akan disenaraikan untuk pengesahan ketibaan.",
+    "Mulakan sesi evakuasi sekarang? Semua kakitangan dan pelawat yang berdaftar masuk akan disenaraikan untuk pengesahan ketibaan.",
   evacStartSuccess: "Sesi evakuasi dimulakan",
   evacClose: "Tutup Sesi",
   evacCloseConfirm:

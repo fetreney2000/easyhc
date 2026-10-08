@@ -161,14 +161,17 @@ Notes:
 - Evacuation mode: four roles activate it (superadmin, admin, floor_head,
   safety_head). While a session runs it takes over the ENTIRE app — full
   screen, no header/sidebar/footer, at every route — until someone closes
-  it. The roster is snapshotted (active employees + open visitor check-ins)
-  when started, so "belum kesan" is always expected-minus-confirmed at that
-  instant. Confirmations are atomic positional updates (many taps land
-  within seconds at a muster point); start/close are audited, and a partial
-  unique index guarantees at most one active session. Logged-in users see
-  stats only after confirming, plus floor locations scoped to their role;
-  names are visible to `safety_head`/admins (whole building) and `floor_head`
-  (own floor) only. Visitors confirm from their public check-in page (device
+  it. The roster is snapshotted as **everyone with an open check-in at that
+  instant** (staff and visitors alike), so "belum kesan" is always
+  expected-minus-confirmed and nobody who was never in the building is
+  counted. Three display states follow from that snapshot: no check-in →
+  an informational "in progress" page with **no button and no stats**;
+  checked in → one giant "Saya Selamat" button; confirmed → building-wide
+  stats (missing first), floor locations scoped to the role, and — for
+  wardens — the name list. Confirmations are atomic positional updates
+  (many taps land within seconds at a muster point); start/close are
+  audited, and a partial unique index guarantees at most one active
+  session. Visitors confirm from their public check-in page (device
   token or phone, rate-limited) and never see statistics. Closed sessions
   become after-action reports (`evacuation:view_report`, the same four
   roles): history with duration and counts, drill-down into per-floor

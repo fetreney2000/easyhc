@@ -136,11 +136,18 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
   // action a visitor can take. Confirmation is by this device's check-out
   // token, or by phone if the device never held one. Per spec: no statistics
   // for visitors — only their own confirmation.
-  const { data: evacStatus } = useSWR<{ active: boolean }>(
+  const {
+    data: evacStatus,
+    error: evacStatusError,
+  } = useSWR<{ active: boolean }>(
     EVACUATION_STATUS_KEY,
     fetcher,
     { refreshInterval: 15000 }
   );
+  // A failed status poll must not silently REMOVE the visitor's only action
+  // during an alarm — offer the button anyway (the POST itself will say if
+  // there is no session) and explain the uncertainty
+  const statusUnknown = !!evacStatusError && !evacStatus;
   const [evacLoading, setEvacLoading] = useState(false);
   // "done" is ONLY valid for the session and the record it was made for —
   // cleared on check-out/re-check-in (resetToForm/applyVisit), on a floor
@@ -404,8 +411,16 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
               <Alert icon={<IconCheck size={16} />} color="success">
                 {strings.evacVisitorConfirmed(evacState.floorName)}
               </Alert>
-            ) : evacStatus?.active ? (
+            ) : evacStatus?.active || statusUnknown ? (
               <Stack gap="xs">
+                {statusUnknown && (
+                  <Alert
+                    icon={<IconAlertCircle size={16} />}
+                    color="warning"
+                  >
+                    {strings.evacStatusUnknown}
+                  </Alert>
+                )}
                 <Text size="sm" fw={500} ta="center">
                   {strings.evacVisitorPrompt}
                 </Text>

@@ -72,7 +72,7 @@ export async function POST(request: Request) {
       await superadmin.save();
       
       return NextResponse.json({
-        message: "Kata laluan superadmin berjaya ditetap semula",
+        message: strings.superadminPasswordReset,
         user: {
           id: superadmin._id,
           name: superadmin.name,
@@ -107,7 +107,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Error resetting superadmin:", error);
     return NextResponse.json(
-      { error: "Ralat pelayan dalaman" },
+      { error: strings.serverError },
       { status: 500 }
     );
   }

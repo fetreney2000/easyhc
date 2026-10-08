@@ -16,7 +16,7 @@ import { scopeFilter } from "@/lib/auth/scope";
 
 /** Rows per request — `page=` slices the result set by this size. */
 const ATTENDANCE_PAGE_SIZE = 200;
-/** Hard ceiling (the muster view asks for the whole building at once). */
+/** Hard ceiling (the evacuation view asks for the whole building at once). */
 const ATTENDANCE_PAGE_MAX = 1000;
 
 function positiveInt(value: string | null, fallback: number): number {

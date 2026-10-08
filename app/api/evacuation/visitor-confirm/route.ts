@@ -37,9 +37,24 @@ export async function POST(request: Request) {
     );
   }
 
-  await connectDB();
-
   try {
+    await connectDB();
+
+    // Validate the payload FIRST: a malformed body is a deterministic 400
+    // regardless of session state (an empty object must not surface as
+    // "no active session")
+    const body = (await request.json().catch(() => null)) as {
+      phone?: unknown;
+      attendanceId?: unknown;
+      token?: unknown;
+    } | null;
+    const validShape =
+      !!body &&
+      (typeof body.phone === "string" ||
+        (typeof body.attendanceId === "string" &&
+          typeof body.token === "string"));
+    if (!validShape || !body) return badRequest(strings.evacInvalidPayload);
+
     const session = await Evacuation.findOne({ status: "active" });
     if (!session) {
       return NextResponse.json(
@@ -47,13 +62,6 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
-
-    const body = (await request.json().catch(() => null)) as {
-      phone?: unknown;
-      attendanceId?: unknown;
-      token?: unknown;
-    } | null;
-    if (!body) return badRequest(strings.evacInvalidPayload);
 
     let record;
     if (typeof body.attendanceId === "string" && typeof body.token === "string") {

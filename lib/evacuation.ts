@@ -5,7 +5,10 @@ import Floor from "@/lib/db/models/Floor";
 import Attendance from "@/lib/db/models/Attendance";
 import Evacuation from "@/lib/db/models/Evacuation";
 import { getEvacuationScope, can, type Scope } from "@/lib/auth/rbac";
-import { unitMembership, departmentMembership } from "@/lib/auth/scope";
+import {
+  unitHomeFloorIds,
+  departmentHomeFloorIds,
+} from "@/lib/auth/scope";
 import type { AuthUser } from "@/lib/api/utils";
 import type { IEvacuation, IRosterEntry } from "@/lib/db/types";
 import { strings } from "@/lib/i18n/strings";
@@ -136,24 +139,23 @@ async function accessibleFloorIds(
   if (scope === "all") return null;
 
   if (scope === "own_floor") {
-    const membership = await unitMembership(user.unitId);
     return new Set(
-      membership?.homeFloorIds.map((floor) => floor.toString()) ?? []
+      (await unitHomeFloorIds(user.unitId)).map((floor) => floor.toString())
     );
   }
 
   // Not a warden — they still get "where is MY part of the building":
   // department heads their jabatan's floors, everyone else their unit's
   if (user.role === "dept_head") {
-    const membership = await departmentMembership(user.jabatanId);
     return new Set(
-      membership?.homeFloorIds.map((floor) => floor.toString()) ?? []
+      (await departmentHomeFloorIds(user.jabatanId)).map((floor) =>
+        floor.toString()
+      )
     );
   }
 
-  const membership = await unitMembership(user.unitId);
   return new Set(
-    membership?.homeFloorIds.map((floor) => floor.toString()) ?? []
+    (await unitHomeFloorIds(user.unitId)).map((floor) => floor.toString())
   );
 }
 
@@ -176,7 +178,11 @@ export async function sessionView(
     !allowed ||
     (!!entry.floorId && allowed.has(entry.floorId.toString()));
 
-  const canSeeNames = scope !== "none";
+  // A floor_head whose home floor cannot be resolved sees no NAMES (an empty
+  // table would read as "nobody is missing"); headline counts and floor
+  // stats are unaffected. Fail-closed flag, matching the empty row set.
+  const canSeeNames =
+    scope !== "none" && (scope === "all" || (allowed?.size ?? 0) > 0);
   const rows = canSeeNames ? session.roster.filter(inScope).map(toRow) : [];
 
   const byFloor = new Map<string, EvacFloorStat>();
@@ -245,14 +251,44 @@ export async function evacuationResponse(
   }
 
   if (opts.closed) {
-    const last = await Evacuation.findOne({ status: "closed" }).sort({
-      closedAt: -1,
-    });
+    // Counts via aggregation: loading the whole last-closed roster (a
+    // building's worth of rows) just to print three numbers would run on
+    // every poll that asks for it
+    const [last] = await Evacuation.aggregate<{
+      startedAt: Date;
+      closedAt: Date;
+      total: number;
+      confirmed: number;
+    }>([
+      { $match: { status: "closed" } },
+      { $sort: { closedAt: -1 } },
+      { $limit: 1 },
+      {
+        $project: {
+          startedAt: 1,
+          closedAt: 1,
+          total: { $size: "$roster" },
+          confirmed: {
+            $size: {
+              $filter: {
+                input: "$roster",
+                as: "entry",
+                cond: "$$entry.confirmedAt",
+              },
+            },
+          },
+        },
+      },
+    ]);
     payload.lastClosed = last
       ? {
           startedAt: last.startedAt.toISOString(),
           closedAt: (last.closedAt ?? last.startedAt).toISOString(),
-          counts: countsFor(last.roster),
+          counts: {
+            total: last.total,
+            confirmed: last.confirmed,
+            missing: last.total - last.confirmed,
+          },
         }
       : null;
   }

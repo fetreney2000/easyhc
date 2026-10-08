@@ -2,12 +2,20 @@
  * Read-only verification of the scope/RBAC changes (no writes).
  * Usage: npx tsx scripts/review-check.ts
  */
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
+import type { Action } from "@/lib/auth/rbac";
+import type { Role } from "@/lib/db/types";
 
 async function main(): Promise<void> {
   // Load .env.local (tsx does not do this) — never printed
   const envPath = resolve(process.cwd(), ".env.local");
+  if (!existsSync(envPath)) {
+    console.error(
+      "FAILED: .env.local not found — create it (MONGODB_URI, NEXTAUTH_SECRET) first."
+    );
+    process.exit(1);
+  }
   for (const line of readFileSync(envPath, "utf8").split(/\r?\n/)) {
     const match = /^([A-Za-z0-9_]+)=(.*)$/.exec(line.trim());
     if (match && process.env[match[1]] === undefined) {
@@ -69,37 +77,62 @@ async function main(): Promise<void> {
     // admin: everything except managing admins
     ["admin users:manage_admin", rbac.can("admin", "users:manage_admin"), false],
     ["admin floors:manage", rbac.can("admin", "floors:manage"), true],
-    // evacuation sessions: safety runs them, wardens confirm their floor,
-    // employees only self-confirm
-    ["admin evacuation:start", rbac.can("admin", "evacuation:start"), true],
-    ["safety_head evacuation:start", rbac.can("safety_head", "evacuation:start"), true],
-    ["safety_head evacuation:close", rbac.can("safety_head", "evacuation:close"), true],
-    ["safety_head evacuation:confirm_others", rbac.can("safety_head", "evacuation:confirm_others"), true],
-    ["safety_head evacuation:confirm_own", rbac.can("safety_head", "evacuation:confirm_own"), true],
-    ["floor_head evacuation:start", rbac.can("floor_head", "evacuation:start"), true],
-    ["floor_head evacuation:close", rbac.can("floor_head", "evacuation:close"), true],
-    ["floor_head evacuation:confirm_others", rbac.can("floor_head", "evacuation:confirm_others"), true],
-    ["dept_head evacuation:start (denied)", rbac.can("dept_head", "evacuation:start"), false],
-    ["dept_head evacuation:confirm_others (denied)", rbac.can("dept_head", "evacuation:confirm_others"), false],
-    ["dept_head evacuation:confirm_own", rbac.can("dept_head", "evacuation:confirm_own"), true],
-    ["unit_head evacuation:confirm_others (denied)", rbac.can("unit_head", "evacuation:confirm_others"), false],
-    ["unit_head evacuation:start (denied)", rbac.can("unit_head", "evacuation:start"), false],
-    ["user evacuation:start (denied)", rbac.can("user", "evacuation:start"), false],
-    ["user evacuation:close (denied)", rbac.can("user", "evacuation:close"), false],
-    ["user evacuation:confirm_others (denied)", rbac.can("user", "evacuation:confirm_others"), false],
-    ["user evacuation:confirm_own", rbac.can("user", "evacuation:confirm_own"), true],
-    ["admin evacuation:view_report", rbac.can("admin", "evacuation:view_report"), true],
-    ["safety_head evacuation:view_report", rbac.can("safety_head", "evacuation:view_report"), true],
-    ["floor_head evacuation:view_report", rbac.can("floor_head", "evacuation:view_report"), true],
-    ["dept_head evacuation:view_report (denied)", rbac.can("dept_head", "evacuation:view_report"), false],
-    ["unit_head evacuation:view_report (denied)", rbac.can("unit_head", "evacuation:view_report"), false],
-    ["user evacuation:view_report (denied)", rbac.can("user", "evacuation:view_report"), false],
-    ["user evacuation scope is none", rbac.getEvacuationScope("user") === "none", true],
-    ["floor_head evacuation scope is own_floor", rbac.getEvacuationScope("floor_head") === "own_floor", true],
-    ["safety_head evacuation scope is all", rbac.getEvacuationScope("safety_head") === "all", true],
+    // Regression guards for the deny-by-default flip: these three roles must
+    // still hold every grant their nav/report/checkout OR-chains rely on
+    ["dept_head floors:view_all", rbac.can("dept_head", "floors:view_all"), true],
+    ["dept_head reports:generate_department", rbac.can("dept_head", "reports:generate_department"), true],
+    ["dept_head locations:track_department", rbac.can("dept_head", "locations:track_department"), true],
+    ["unit_head floors:view_own_floor", rbac.can("unit_head", "floors:view_own_floor"), true],
+    ["unit_head reports:generate_own_unit", rbac.can("unit_head", "reports:generate_own_unit"), true],
+    ["unit_head locations:track_own_unit", rbac.can("unit_head", "locations:track_own_unit"), true],
+    ["floor_head reports:generate_own_floor", rbac.can("floor_head", "reports:generate_own_floor"), true],
+    ["floor_head locations:track_own_unit (still denied)", rbac.can("floor_head", "locations:track_own_unit"), false],
+    ["dept_head floors:view_own_floor (harmless, view_all covers nav)", rbac.can("dept_head", "floors:view_own_floor"), false],
   ];
   for (const [label, actual, expected] of expectations) {
     results.push([label, actual === expected, `expected ${expected}`]);
+  }
+
+  // FULL evacuation matrix — every role × every evacuation action. The old
+  // hand-picked rows missed 12 of 35 cells, precisely the ones served by
+  // the switches' default branches.
+  console.log("\n--- evacuation matrix (role × action) ---");
+  const activators: Role[] = ["superadmin", "admin", "safety_head", "floor_head"];
+  const allRoles: Role[] = [...ROLES];
+  const evacMatrix: Array<[Action, Role[]]> = [
+    ["evacuation:confirm_own", allRoles], // every role self-confirms
+    ["evacuation:confirm_others", activators],
+    ["evacuation:start", activators],
+    ["evacuation:close", activators],
+    ["evacuation:view_report", activators],
+  ];
+  for (const [action, allowed] of evacMatrix) {
+    for (const role of allRoles) {
+      const expected = allowed.includes(role);
+      results.push([
+        `${role} ${action}`,
+        rbac.can(role, action) === expected,
+        `expected ${expected}`,
+      ]);
+    }
+  }
+
+  // Scope helpers must agree with can() (the file's own stated invariant)
+  const scopeExpectations: Array<[string, string, string]> = [
+    ["superadmin", rbac.getEvacuationScope("superadmin"), "all"],
+    ["admin", rbac.getEvacuationScope("admin"), "all"],
+    ["safety_head", rbac.getEvacuationScope("safety_head"), "all"],
+    ["floor_head", rbac.getEvacuationScope("floor_head"), "own_floor"],
+    ["dept_head", rbac.getEvacuationScope("dept_head"), "none"],
+    ["unit_head", rbac.getEvacuationScope("unit_head"), "none"],
+    ["user", rbac.getEvacuationScope("user"), "none"],
+  ];
+  for (const [role, actual, expected] of scopeExpectations) {
+    results.push([
+      `${role} evacuation scope is ${expected}`,
+      actual === expected,
+      `expected ${expected}`,
+    ]);
   }
 
   console.log("\n--- force checkout outside a boundary must be denied ---");

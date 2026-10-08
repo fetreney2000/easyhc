@@ -10,7 +10,7 @@ A PWA for tracking employee and visitor presence on building floors, primarily f
 - **Auth**: NextAuth v5 (Auth.js) — username + password, JWT sliding-window sessions
 - **QR**: `qrcode` (generation), `html5-qrcode` (camera-only scanning)
 - **Validation**: Zod
-- **Data Fetching**: SWR (polling, 25s intervals)
+- **Data Fetching**: SWR polling — presence boards every 25s, the evacuation takeover every 30s while idle / 3s during a session (instant revalidation on window focus; hidden tabs never poll)
 - **Hosting**: Vercel Hobby tier
 
 ## Getting Started
@@ -67,14 +67,20 @@ app/
   (app)/                         — Authenticated shell layout
     layout.tsx                   — AppShell wrapper, role-aware nav
     dashboard/page.tsx           — Live presence dashboard
+    evacuation/page.tsx          — Evacuation launch pad + after-action reports
     scan/page.tsx                — QR code scanner (camera only)
-    reports/page.tsx             — Reports with CSV export & print
+    reports/page.tsx             — Reports with CSV export & print (both dates required)
     profile/page.tsx             — User profile & password change
     users/page.tsx               — User management (Admin)
     floors/manage/page.tsx       — Floor management (Admin)
-  visitor/[floorId]/page.tsx     — Public visitor check-in
+  visitor/[floorId]/page.tsx     — Public visitor check-in (+ "Saya Selamat" during an alarm)
   api/
     auth/[...nextauth]/route.ts  — NextAuth API
+    evacuation/route.ts          — Session light/roster/history + start/close
+    evacuation/confirm/route.ts  — Self + warden confirmations (atomic, scoped)
+    evacuation/[id]/route.ts     — After-action report detail (view_report)
+    evacuation/status/route.ts   — Public live boolean (force-dynamic)
+    evacuation/visitor-confirm/route.ts — Public visitor confirm (token/phone)
     attendance/route.ts          — GET active attendance
     attendance/checkin/route.ts  — POST check-in (QR token)
     attendance/checkout/route.ts — POST checkout (self/force)
@@ -91,16 +97,39 @@ app/
     cron/daily-checkout/route.ts — 3 AM auto-checkout cron
     jabatans/route.ts            — Department CRUD
     units/route.ts               — Unit CRUD
+  middleware.ts                  — /muster → /evacuation redirect (308)
 components/
   providers/                     — Mantine & Session providers
-  shell/                         — AppShell layout components
+  shell/                         — AppShell layout + EvacuationMode takeover
 lib/
   auth/                          — NextAuth config, RBAC helper
   db/                            — Mongoose models & connection
-  i18n/                          — Bahasa Melayu strings
+  i18n/                          — Bahasa Melayu strings (all user-facing copy)
   validation/                    — Zod schemas
+scripts/                         — Verification suites (see "Verification")
 theme/                           — Mantine theme config
 ```
+
+## Verification
+
+| Command | Needs | Covers |
+|---|---|---|
+| `npm run check` | DB | permission matrix + fail-closed scopes (`review-check`), partial-unique indexes (`index-check`) |
+| `npm run check:api` | `npm run dev` + DB | end-to-end API flow: pagination, privacy, visitor race, the full evacuation lifecycle, report detail/history/400s/404s, audit rows |
+| `npm run check:visitor` | `npm run dev` + DB | visitor check-in/out and token rules |
+| `npm run check:index` | DB | both partial-unique indexes actually build |
+
+Notes:
+
+- **Write guard**: `check:api`'s visitor-race and evacuation sections write to
+  the database. They run only against a local database or with
+  `E2E_WRITES=1` set — `.env.local` normally points at the same Atlas cluster
+  the deployed app uses, and a test session would flash the real full-screen
+  takeover onto every open production screen for ~40 seconds.
+- **Never run `npm run build` while `npm run dev` is up**: both own
+  `.next/`, and the dev server serves stale chunks (500s) until it recompiles.
+- `npm run check` deliberately excludes the two HTTP suites (they need the dev
+  server); skips inside a suite are reported as `SKIP`, never as passes.
 
 ## Roles & Permissions
 
@@ -143,10 +172,18 @@ Notes:
   token or phone, rate-limited) and never see statistics. Closed sessions
   become after-action reports (`evacuation:view_report`, the same four
   roles): history with duration and counts, drill-down into per-floor
-  tallies and the full roster (own-floor scoped for ketua lantai), and CSV
-  export for incident documentation. The takeover signal polls every 30s
-  while idle and 3s during a session (instant on window focus) — sized for
-  Vercel Hobby's 1M invocations/month; only visible tabs poll.
+  tallies and the full roster, and CSV export for incident documentation.
+  Headline counts are building-wide for every viewer; the per-floor tallies
+  and the roster are floor-scoped for ketua lantai. The one-line
+  last-session summary shown to roles WITHOUT the report table carries
+  counts and times only (no names), and the "stats appear after confirming"
+  rule is UI ordering, not a security boundary — the API serves aggregates
+  to any authenticated caller. The takeover signal polls every 30s while
+  idle and 3s during a session (instant on window focus) — sized for Vercel
+  Hobby's 1M invocations/month; only visible tabs poll. Employees without a
+  unit (or whose unit has no home floor) appear in the headline counts but
+  on no floor's tally and no warden's name list — fail-closed by design;
+  admins/safety see them and reconcile in person.
 - A floor has no static membership, so `floor_head`'s directory scope is
   "own" only — who is standing on their floor comes from the floor board.
 - Visitor check-in/out is capability-based (the floor's QR token), not

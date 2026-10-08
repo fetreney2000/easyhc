@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { strings } from "@/lib/i18n/strings";
 import QRCode from "qrcode";
 import { connectDB } from "@/lib/db/mongoose";
 import { getAuthenticatedUser } from "@/lib/api/utils";
@@ -25,7 +26,7 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (!can(user.role, "floors:manage")) {
-    return NextResponse.json({ error: "Akses ditolak" }, { status: 403 });
+    return NextResponse.json({ error: strings.forbidden }, { status: 403 });
   }
 
   await connectDB();
@@ -38,7 +39,7 @@ export async function GET(
     const floor = await Floor.findById(params.floorId).lean();
     if (!floor) {
       return NextResponse.json(
-        { error: "Lantai tidak dijumpai" },
+        { error: strings.floorNotFound },
         { status: 404 }
       );
     }
@@ -94,7 +95,7 @@ export async function GET(
   } catch (error) {
     console.error("Error generating QR:", error);
     return NextResponse.json(
-      { error: "Ralat menjana kod QR" },
+      { error: strings.qrGenerateError },
       { status: 500 }
     );
   }

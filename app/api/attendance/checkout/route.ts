@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { strings } from "@/lib/i18n/strings";
 import { connectDB } from "@/lib/db/mongoose";
 import {
   getAuthenticatedUser,
@@ -25,17 +26,17 @@ export async function POST(request: Request) {
   const { attendanceId, force } = body;
 
   if (!attendanceId) {
-    return badRequest("ID kehadiran diperlukan");
+    return badRequest(strings.attendanceIdRequired);
   }
 
   try {
     const record = await Attendance.findById(attendanceId);
     if (!record) {
-      return badRequest("Rekod kehadiran tidak dijumpai");
+      return badRequest(strings.attendanceNotFound);
     }
 
     if (record.checkedOutAt) {
-      return badRequest("Pengguna ini sudah didaftar keluar");
+      return badRequest(strings.userAlreadyCheckedOut);
     }
 
     // If force checkout, resolve the actor's scope and verify that THIS
@@ -79,8 +80,8 @@ export async function POST(request: Request) {
 
     return success({
       message: force
-        ? "Berjaya memaksa keluar"
-        : "Berjaya daftar keluar",
+        ? strings.forceCheckoutSuccess
+        : strings.checkOutSuccess,
     });
   } catch (error) {
     console.error("Error checking out:", error);

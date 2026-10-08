@@ -53,12 +53,12 @@ export async function POST(request: Request) {
       user = await User.findOne({ username: authUser.username });
     }
     if (!user) {
-      return badRequest("Pengguna tidak dijumpai. Sila log keluar dan log masuk semula.");
+      return badRequest(strings.userNotFoundRelogin);
     }
 
     const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!isValid) {
-      return badRequest("Kata laluan semasa salah");
+      return badRequest(strings.currentPasswordIncorrect);
     }
 
     user.passwordHash = await bcrypt.hash(newPassword, 12);
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
 
     resetRateLimit(rateKey);
 
-    return success({ message: "Kata laluan berjaya ditukar" });
+    return success({ message: strings.passwordChanged });
   } catch (error) {
     console.error("Error changing password:", error);
     return serverError();

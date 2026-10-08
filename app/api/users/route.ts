@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { strings } from "@/lib/i18n/strings";
 import type { FilterQuery } from "mongoose";
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db/mongoose";
@@ -143,7 +144,7 @@ export async function POST(request: Request) {
       username: data.username,
     });
     if (existingUser) {
-      return badRequest("Nama pengguna sudah wujud");
+      return badRequest(strings.usernameExists);
     }
 
     const passwordHash = await bcrypt.hash(data.password, 12);

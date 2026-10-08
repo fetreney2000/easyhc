@@ -12,7 +12,7 @@ import {
 import Evacuation from "@/lib/db/models/Evacuation";
 import AuditLog from "@/lib/db/models/AuditLog";
 import { can, getEvacuationScope } from "@/lib/auth/rbac";
-import { unitMembership } from "@/lib/auth/scope";
+import { unitHomeFloorIds } from "@/lib/auth/scope";
 import { strings } from "@/lib/i18n/strings";
 import { countsFor } from "@/lib/evacuation";
 
@@ -31,9 +31,8 @@ export async function POST() {
   if (!user) return unauthorized();
   if (!can(user.role, "evacuation:confirm_own")) return forbidden();
 
-  await connectDB();
-
   try {
+    await connectDB();
     const session = await Evacuation.findOne({ status: "active" });
     if (!session) {
       return NextResponse.json({ error: strings.evacNoSession }, { status: 409 });
@@ -114,9 +113,8 @@ export async function PATCH(request: Request) {
     return badRequest(strings.evacInvalidPayload);
   }
 
-  await connectDB();
-
   try {
+    await connectDB();
     const session = await Evacuation.findOne({ status: "active" });
     if (!session) {
       return NextResponse.json({ error: strings.evacNoSession }, { status: 409 });
@@ -138,9 +136,9 @@ export async function PATCH(request: Request) {
     const scope = getEvacuationScope(user.role);
     if (scope === "none") return forbidden();
     if (scope === "own_floor") {
-      const membership = await unitMembership(user.unitId);
-      const homeFloorIds =
-        membership?.homeFloorIds.map((floor) => floor.toString()) ?? [];
+      const homeFloorIds = (await unitHomeFloorIds(user.unitId)).map(
+        (floor) => floor.toString()
+      );
       const floorId = entry.floorId?.toString();
       if (!floorId || !homeFloorIds.includes(floorId)) return forbidden();
     }
@@ -191,18 +189,27 @@ export async function PATCH(request: Request) {
       }
       // Already there → idempotent 200; no audit (we changed nothing)
     } else if (result.modifiedCount > 0) {
-      await AuditLog.create({
-        actorUserId: user.id,
-        action: "evacuation_confirm_other",
-        targetId: session._id,
-        metadata: {
-          rosterId: body.rosterId,
-          name: entry.name,
-          type: entry.type,
-          floorId: entry.floorId?.toString(),
-          confirm: body.confirm,
-        },
-      });
+      try {
+        await AuditLog.create({
+          actorUserId: user.id,
+          action: "evacuation_confirm_other",
+          targetId: session._id,
+          metadata: {
+            rosterId: body.rosterId,
+            name: entry.name,
+            type: entry.type,
+            floorId: entry.floorId?.toString(),
+            confirm: body.confirm,
+          },
+        });
+      } catch (auditError) {
+        // The confirmation DID happen — an audit failure must not turn it
+        // into a 500 the client would retry
+        console.error(
+          "Audit write failed (evacuation_confirm_other):",
+          auditError
+        );
+      }
     }
 
     const fresh = await Evacuation.findById(session._id);

@@ -80,6 +80,34 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
 
   const session = data.session;
 
+  // Client-only staleness check: computing Date.now() during SSR would put
+  // the 2h boundary in a DIFFERENT place server vs client → a STRUCTURAL
+  // hydration mismatch (Alert present on one side only), far worse than a
+  // text mismatch. Evaluated after mount instead.
+  const [sessionTooLong, setSessionTooLong] = useState(false);
+  useEffect(() => {
+    if (session?.startedAt) {
+      setSessionTooLong(
+        Date.now() - new Date(session.startedAt).getTime() >
+          2 * 60 * 60 * 1000
+      );
+    }
+  }, [session?.startedAt]);
+
+  // Gate → stats transition: the giant button unmounts, so focus would drop
+  // to <body>. Move it to the stats block instead. The ref is seeded with
+  // the CURRENT state, so a session already confirmed at mount never steals
+  // focus (only real transitions do).
+  const statsRef = useRef<HTMLDivElement>(null);
+  const wasConfirmed = useRef(!!session?.mine.confirmedAt);
+  useEffect(() => {
+    const confirmedNow = !!session?.mine.confirmedAt;
+    if (confirmedNow && !wasConfirmed.current) {
+      statsRef.current?.focus();
+    }
+    wasConfirmed.current = confirmedNow;
+  }, [session?.mine.confirmedAt]);
+
   useEffect(() => {
     const onChange = () => setFullscreen(Boolean(document.fullscreenElement));
     document.addEventListener("fullscreenchange", onChange);
@@ -201,8 +229,6 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
   const counts = session.counts;
   const floors = session.floors ?? [];
   const roster = session.roster ?? [];
-  const sessionTooLong =
-    Date.now() - new Date(session.startedAt).getTime() > 2 * 60 * 60 * 1000;
 
   return (
     <div ref={contentRef} className="evac-fullscreen">
@@ -213,7 +239,14 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
             <Title order={1} className="evac-headline" c="danger">
               {strings.evacSessionActive}
             </Title>
-            <Text className="evac-label" c="var(--app-text-secondary)">
+            {/* clock() renders in the VIEWER's timezone but this line is
+                server-rendered (UTC on Vercel) — let hydration take the
+                client's value instead of erroring on the mismatch */}
+            <Text
+              className="evac-label"
+              c="var(--app-text-secondary)"
+              suppressHydrationWarning
+            >
               {strings.evacStartedAt(clock(session.startedAt))} ·{" "}
               {session.startedByName}
             </Text>
@@ -246,6 +279,14 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
           </Alert>
         )}
 
+        {/* Always mounted across BOTH states: a live region created together
+            with its content announces nothing, and the pollable counts grid
+            must not be aria-live (it would re-announce every 3s). This text
+            changes exactly once — at the confirm transition. */}
+        <div role="status" aria-live="polite" className="sr-only">
+          {confirmed ? strings.evacYouAreSafe : strings.evacSafePrompt}
+        </div>
+
         {!confirmed ? (
           /* Gate: one giant button, no stats until they have confirmed */
           <Center mih="55vh">
@@ -273,9 +314,16 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
             </Stack>
           </Center>
         ) : (
-          <Stack gap="xl">
-            {/* role=status + aria-live: count changes are announced */}
-            <SimpleGrid cols={{ base: 1, sm: 3 }} role="status" aria-live="polite">
+          <Stack
+            gap="xl"
+            ref={statsRef}
+            tabIndex={-1}
+            style={{ outline: "none" }}
+          >
+            {/* Visual only: updates every poll — an aria-live here would
+                re-announce the counts every 3 seconds. The transition itself
+                is announced by the persistent sr-only region above. */}
+            <SimpleGrid cols={{ base: 1, sm: 3 }}>
               <StatCard
                 label={strings.evacSafe}
                 value={counts.confirmed}
@@ -355,6 +403,7 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
                             <Badge
                               color="success"
                               leftSection={<IconCircleCheck size={12} />}
+                              suppressHydrationWarning
                             >
                               {strings.evacSafe} · {clock(row.confirmedAt)}
                             </Badge>

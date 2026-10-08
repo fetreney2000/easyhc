@@ -1,4 +1,5 @@
 import { connectDB } from "@/lib/db/mongoose";
+import { strings } from "@/lib/i18n/strings";
 import { getAuthenticatedUser, unauthorized, serverError, success, badRequest, forbidden } from "@/lib/api/utils";
 import Jabatan from "@/lib/db/models/Jabatan";
 import { createJabatanSchema } from "@/lib/validation/schemas";
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
     if (!validation.success) return badRequest(validation.error.errors[0].message);
 
     const existing = await Jabatan.findOne({ name: validation.data.name });
-    if (existing) return badRequest("Nama jabatan sudah wujud");
+    if (existing) return badRequest(strings.jabatanExists);
 
     const jabatan = await Jabatan.create({ name: validation.data.name });
     return success(jabatan, 201);

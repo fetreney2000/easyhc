@@ -29,7 +29,7 @@ import { strings } from "@/lib/i18n/strings";
 import { clock, duration } from "@/lib/format";
 import { downloadCsv } from "@/lib/csv";
 import { can } from "@/lib/auth/rbac";
-import { EVACUATION_KEY, EVACUATION_HISTORY_KEY } from "@/lib/evacuationKey";
+import { EVACUATION_KEY, EVACUATION_HISTORY_KEY, EVACUATION_LAST_CLOSED_KEY } from "@/lib/evacuationKey";
 import type { EvacuationResponse } from "@/lib/evacuation";
 
 function StatMini({
@@ -90,6 +90,15 @@ export default function EvacuationPage() {
     isLoading: historyLoading,
   } = useSWR<EvacuationResponse>(
     canViewReport ? EVACUATION_HISTORY_KEY : null,
+    fetcher,
+    { refreshInterval: 60000 }
+  );
+
+  // The one-line last-session summary is only for roles WITHOUT the history
+  // table (it would repeat its first row) — its own slow key so the
+  // takeover's polling never drags closed-session data along
+  const { data: lastClosedData } = useSWR<EvacuationResponse>(
+    session?.user && !canViewReport ? EVACUATION_LAST_CLOSED_KEY : null,
     fetcher,
     { refreshInterval: 60000 }
   );
@@ -179,7 +188,9 @@ export default function EvacuationPage() {
           ? new Date(row.confirmedAt).toLocaleString("ms-MY")
           : "",
       ]),
-      `laporan-evakuasi-${detailSession.startedAt.split("T")[0]}.csv`
+      // Local calendar date (startedAt is UTC — slicing it filed sessions
+      // that start before 00:00 MYT under yesterday's date)
+      `laporan-evakuasi-${new Date(detailSession.startedAt).toLocaleDateString("sv-SE")}.csv`
     );
     notifications.show({
       title: strings.success,
@@ -225,12 +236,12 @@ export default function EvacuationPage() {
             )}
             {/* One-line summary only for roles that cannot see the history
                 table below (it would just repeat its first row) */}
-            {!canViewReport && data?.lastClosed && (
+            {!canViewReport && lastClosedData?.lastClosed && (
               <Text size="sm" c="var(--app-text-secondary)">
                 {strings.evacLastClosed(
-                  clock(data.lastClosed.closedAt),
-                  data.lastClosed.counts.confirmed,
-                  data.lastClosed.counts.total
+                  clock(lastClosedData.lastClosed.closedAt),
+                  lastClosedData.lastClosed.counts.confirmed,
+                  lastClosedData.lastClosed.counts.total
                 )}
               </Text>
             )}
@@ -350,36 +361,40 @@ export default function EvacuationPage() {
 
             {(detailSession.floors?.length ?? 0) > 0 && (
               <div>
-                <Title order={4} mb={4}>
+                <Title order={3} mb={4}>
                   {strings.evacByFloor}
                 </Title>
-                <Table>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>{strings.floors}</Table.Th>
-                      <Table.Th>{strings.evacExpected}</Table.Th>
-                      <Table.Th>{strings.evacSafe}</Table.Th>
-                      <Table.Th>{strings.evacMissing}</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {(detailSession.floors ?? []).map((floor) => (
-                      <Table.Tr key={floor.floorId}>
-                        <Table.Td>{floor.name}</Table.Td>
-                        <Table.Td>{floor.expected}</Table.Td>
-                        <Table.Td>{floor.confirmed}</Table.Td>
-                        <Table.Td>{floor.missing}</Table.Td>
+                {/* Horizontal scroll like every other table in the app —
+                    WCAG 1.4.10 reflow at 320-400px */}
+                <Table.ScrollContainer minWidth={520}>
+                  <Table>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>{strings.floors}</Table.Th>
+                        <Table.Th>{strings.evacExpected}</Table.Th>
+                        <Table.Th>{strings.evacSafe}</Table.Th>
+                        <Table.Th>{strings.evacMissing}</Table.Th>
                       </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {(detailSession.floors ?? []).map((floor) => (
+                        <Table.Tr key={floor.floorId}>
+                          <Table.Td>{floor.name}</Table.Td>
+                          <Table.Td>{floor.expected}</Table.Td>
+                          <Table.Td>{floor.confirmed}</Table.Td>
+                          <Table.Td>{floor.missing}</Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </Table.ScrollContainer>
               </div>
             )}
 
             {detailSession.rosterVisible ? (
               <div>
                 <Group justify="space-between" mb={4}>
-                  <Title order={4}>{strings.evacRosterTitle}</Title>
+                  <Title order={3}>{strings.evacRosterTitle}</Title>
                   <Button
                     size="xs"
                     leftSection={<IconDownload size={14} />}
@@ -388,13 +403,14 @@ export default function EvacuationPage() {
                     {strings.exportCSV}
                   </Button>
                 </Group>
-                <Table>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>{strings.name}</Table.Th>
-                      <Table.Th>{strings.typeLabel}</Table.Th>
-                      <Table.Th>{strings.floors}</Table.Th>
-                      <Table.Th>{strings.status}</Table.Th>
+                <Table.ScrollContainer minWidth={560}>
+                  <Table>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>{strings.name}</Table.Th>
+                        <Table.Th>{strings.typeLabel}</Table.Th>
+                        <Table.Th>{strings.floors}</Table.Th>
+                        <Table.Th>{strings.status}</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
@@ -422,6 +438,7 @@ export default function EvacuationPage() {
                     ))}
                   </Table.Tbody>
                 </Table>
+                </Table.ScrollContainer>
               </div>
             ) : (
               <Text size="sm" c="var(--app-text-secondary)">

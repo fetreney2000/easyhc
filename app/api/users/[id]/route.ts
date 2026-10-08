@@ -1,4 +1,5 @@
 import { connectDB } from "@/lib/db/mongoose";
+import { strings } from "@/lib/i18n/strings";
 import { Types } from "mongoose";
 import bcrypt from "bcryptjs";
 import {
@@ -38,7 +39,7 @@ export async function GET(
       .populate("unitId", "name")
       .lean();
 
-    if (!user) return badRequest("Pengguna tidak dijumpai");
+    if (!user) return badRequest(strings.userNotFound);
     return success(user);
   } catch (error) {
     console.error("Error fetching user:", error);
@@ -65,7 +66,7 @@ export async function PUT(
   try {
     const body = await request.json();
     const user = await User.findById(params.id);
-    if (!user) return badRequest("Pengguna tidak dijumpai");
+    if (!user) return badRequest(strings.userNotFound);
 
     // Editing a superadmin account requires users:manage_admin
     if (
@@ -142,11 +143,11 @@ export async function DELETE(
 
   try {
     const user = await User.findById(params.id);
-    if (!user) return badRequest("Pengguna tidak dijumpai");
+    if (!user) return badRequest(strings.userNotFound);
 
     // Can't delete yourself
     if (params.id === authUser.id) {
-      return badRequest("Anda tidak boleh memadam akaun sendiri");
+      return badRequest(strings.cannotDeleteOwnAccount);
     }
 
     // Deleting a superadmin account requires users:manage_admin
@@ -171,7 +172,7 @@ export async function DELETE(
 
     await User.findByIdAndDelete(params.id);
 
-    return success({ message: "Pengguna berjaya dipadam" });
+    return success({ message: strings.userDeleted });
   } catch (error) {
     console.error("Error deleting user:", error);
     return serverError();

@@ -4,5 +4,8 @@
       "path": "/api/cron/daily-checkout",
       "schedule": "0 19 * * *"
     }
-  ]
+  ],
+  "env": {
+    "TZ": "Asia/Kuala_Lumpur"
+  }
 }

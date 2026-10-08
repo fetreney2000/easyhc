@@ -6,11 +6,18 @@
  *
  * Usage: npx tsx scripts/index-check.ts
  */
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 
 async function main(): Promise<void> {
-  for (const line of readFileSync(resolve(process.cwd(), ".env.local"), "utf8").split(/\r?\n/)) {
+  const envPath = resolve(process.cwd(), ".env.local");
+  if (!existsSync(envPath)) {
+    console.error(
+      "FAILED: .env.local not found — create it (MONGODB_URI, NEXTAUTH_SECRET) first."
+    );
+    process.exit(1);
+  }
+  for (const line of readFileSync(envPath, "utf8").split(/\r?\n/)) {
     const m = /^([A-Za-z0-9_]+)=(.*)$/.exec(line.trim());
     if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2];
   }

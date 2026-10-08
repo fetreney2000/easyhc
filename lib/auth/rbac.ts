@@ -70,6 +70,10 @@ export function can(role: Role, action: Action): boolean {
         case "evacuation:view_report":
         case "evacuation:confirm_others":
           return false;
+        // Department heads see every floor (their department's units span
+        // them) — this grant used to ride the old `default: true` branch
+        case "floors:view_all":
+          return true;
         // Global scope is replaced by department scope
         case "users:view_all":
         case "attendance:checkout_all":
@@ -91,9 +95,14 @@ export function can(role: Role, action: Action): boolean {
         case "reports:generate_department":
         case "locations:track_department":
           return true;
-        // Everything else (own profile, floor metadata, own data) stays open
-        default:
+        // Everyone confirms their OWN arrival at the assembly point
+        case "evacuation:confirm_own":
           return true;
+        // DENY by default: a NEW action must be granted here explicitly —
+        // the old `default: true` silently handed every future permission
+        // to this role (the exact contradiction the file warns about)
+        default:
+          return false;
       }
 
     case "unit_head":
@@ -131,8 +140,13 @@ export function can(role: Role, action: Action): boolean {
         // (their view_all is false); the unit scope already covers their data
         case "floors:view_own_floor":
           return true;
-        default:
+        // Everyone confirms their OWN arrival at the assembly point
+        case "evacuation:confirm_own":
           return true;
+        // DENY by default — a NEW action must be granted here explicitly
+        // (see the dept_head note above)
+        default:
+          return false;
       }
 
     case "floor_head":
@@ -164,9 +178,13 @@ export function can(role: Role, action: Action): boolean {
         case "reports:generate_own_floor":
         // …and as the floor's warden they confirm people on their own floor
         case "evacuation:confirm_others":
+        // Everyone confirms their OWN arrival at the assembly point
+        case "evacuation:confirm_own":
           return true;
+        // DENY by default — a NEW action must be granted here explicitly
+        // (see the dept_head note above)
         default:
-          return true;
+          return false;
       }
 
     case "safety_head":
@@ -196,7 +214,7 @@ export function can(role: Role, action: Action): boolean {
 
     case "user":
       switch (action) {
-        // The floor board: everyone can see who is on their own floor
+        // The live floor board: everyone can see who is on their own floor
         case "floors:view_own_floor":
           return true;
         // …and their own attendance history (scoped to "own" by
@@ -213,23 +231,6 @@ export function can(role: Role, action: Action): boolean {
     default:
       return false;
   }
-}
-
-/**
- * Get all roles that have a specific permission.
- * Useful for conditional UI rendering.
- */
-export function getRolesWithPermission(action: Action): Role[] {
-  const allRoles: Role[] = [
-    "superadmin",
-    "admin",
-    "dept_head",
-    "unit_head",
-    "floor_head",
-    "safety_head",
-    "user",
-  ];
-  return allRoles.filter((role) => can(role, action));
 }
 
 /**

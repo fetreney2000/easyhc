@@ -114,7 +114,14 @@ export interface IRosterEntry {
   floorId?: Types.ObjectId;
   floorName?: string;
   confirmedAt?: Date;
-  /** Who recorded the confirmation — self, or a warden for visitors. */
+  /**
+   * Who recorded the confirmation — derivable provenance, no extra field:
+   * employee self-confirm stores their OWN userId, a warden's mark stores
+   * the warden's id (for any roster entry), and a visitor confirming from
+   * their own device leaves this undefined. So `confirmedBy === userId` =
+   * self, `confirmedBy` set + different id = warden, `confirmedBy` absent
+   * on a visitor entry = their device.
+   */
   confirmedBy?: Types.ObjectId;
 }
 

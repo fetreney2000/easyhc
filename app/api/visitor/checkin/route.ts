@@ -80,7 +80,7 @@ export async function POST(request: Request) {
     // Validate floor exists
     const floor = await Floor.findById(floorId);
     if (!floor) {
-      return badRequest("Lantai tidak dijumpai");
+      return badRequest(strings.floorNotFound);
     }
 
     // The visitor check-in page is public, so the scanned QR token is the

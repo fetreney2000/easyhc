@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { strings } from "@/lib/i18n/strings";
 import { connectDB } from "@/lib/db/mongoose";
 import {
   getAuthenticatedUser,
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
     const { qrToken, method = "qr" } = body;
 
     if (method !== "manual" && (typeof qrToken !== "string" || !qrToken.trim())) {
-      return badRequest("Token QR diperlukan");
+      return badRequest(strings.qrTokenRequired);
     }
 
     // Manual check-in is only for admin/superadmin
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
       // Manual check-in: floorId is sent directly in the body
       const { floorId } = body;
       if (!floorId) {
-        return badRequest("ID lantai diperlukan untuk daftar masuk manual");
+        return badRequest(strings.manualCheckinFloorRequired);
       }
       floor = await Floor.findById(floorId);
     } else {
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
       }
 
       if (!floor) {
-        return badRequest("Kod QR tidak sah");
+        return badRequest(strings.invalidQrCode);
       }
     }
 
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
     const targetUserId = method === "manual" ? body.userId : user.id;
 
     if (method === "manual" && !targetUserId) {
-      return badRequest("Pengguna diperlukan untuk daftar masuk manual");
+      return badRequest(strings.manualCheckinUserRequired);
     }
 
     // Check if target user already has an open attendance record on THIS floor (toggle behavior)

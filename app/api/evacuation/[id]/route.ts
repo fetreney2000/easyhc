@@ -37,9 +37,8 @@ export async function GET(
     );
   }
 
-  await connectDB();
-
   try {
+    await connectDB();
     const session = await Evacuation.findById(params.id);
     if (!session) {
       return NextResponse.json(
@@ -47,7 +46,10 @@ export async function GET(
         { status: 404 }
       );
     }
-    return success({ session: await displayPayload(session, user) });
+    const response = success({ session: await displayPayload(session, user) });
+    // Roster names in this payload: never let a proxy cache one user's view
+    response.headers.set("Cache-Control", "private, no-store");
+    return response;
   } catch (error) {
     console.error("Error reading evacuation report:", error);
     return serverError();

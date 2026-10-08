@@ -1,4 +1,5 @@
 import { connectDB } from "@/lib/db/mongoose";
+import { strings } from "@/lib/i18n/strings";
 import { Types } from "mongoose";
 import { getAuthenticatedUser, unauthorized, forbidden, badRequest, serverError, success } from "@/lib/api/utils";
 import Unit from "@/lib/db/models/Unit";
@@ -12,7 +13,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
   await connectDB();
   try {
     const unit = await Unit.findById(params.id).lean();
-    if (!unit) return badRequest("Unit tidak dijumpai");
+    if (!unit) return badRequest(strings.unitNotFound);
     return success(unit);
   } catch (error) {
     console.error("Error fetching unit:", error);
@@ -38,7 +39,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         ? new Types.ObjectId(validation.data.homeFloorId)
         : null,
     }, { new: true });
-    if (!unit) return badRequest("Unit tidak dijumpai");
+    if (!unit) return badRequest(strings.unitNotFound);
     return success(unit);
   } catch (error) {
     console.error("Error updating unit:", error);
@@ -61,8 +62,8 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     }
 
     const unit = await Unit.findByIdAndDelete(params.id);
-    if (!unit) return badRequest("Unit tidak dijumpai");
-    return success({ message: "Unit berjaya dipadam" });
+    if (!unit) return badRequest(strings.unitNotFound);
+    return success({ message: strings.unitDeleted });
   } catch (error) {
     console.error("Error deleting unit:", error);
     return serverError();

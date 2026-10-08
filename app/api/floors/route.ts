@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { strings } from "@/lib/i18n/strings";
 import { connectDB } from "@/lib/db/mongoose";
 import {
   getAuthenticatedUser,
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
     // Check for duplicate name
     const existing = await Floor.findOne({ name });
     if (existing) {
-      return badRequest("Nama lantai sudah wujud");
+      return badRequest(strings.floorExists);
     }
 
     const floor = await Floor.create({

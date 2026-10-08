@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "check": "npm run check:review && npm run check:index",
+    "check:review": "tsx scripts/review-check.ts",
+    "check:index": "tsx scripts/index-check.ts",
+    "check:api": "tsx scripts/api-check.ts",
+    "check:visitor": "tsx scripts/visitor-check.ts"
   },
   "dependencies": {
     "@mantine/core": "^7.17.8",
@@ -40,6 +45,7 @@
     "postcss": "^8.5.4",
     "postcss-preset-mantine": "^1.17.0",
     "postcss-simple-vars": "^7.0.1",
+    "tsx": "^4.19.2",
     "typescript": "^5.8.3"
   }
 }

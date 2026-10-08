@@ -91,7 +91,7 @@ export async function scopeFilter(
       return isId(actor.id) ? { userId: new Types.ObjectId(actor.id) } : NO_MATCH;
 
     case "own_and_floor": {
-      // Muster board for a plain employee: their own record (always, even
+      // Live floor board for a plain employee: their own record (always, even
       // with no unit configured) PLUS everyone present on their unit's home
       // floor — visitors included. Fails safe to "own", never to "everything".
       const own = isId(actor.id)
@@ -145,6 +145,29 @@ export async function scopeFilter(
     default:
       return null;
   }
+}
+
+/**
+ * Floors only — the evacuation payload resolves a role's visible floors on
+ * every poll and has no use for member ids, so it must not pay for
+ * unitMembership's extra User.find.
+ */
+export async function unitHomeFloorIds(
+  unitId?: string
+): Promise<Types.ObjectId[]> {
+  if (!isId(unitId)) return [];
+  const unit = await Unit.findById(unitId).select("homeFloorId").lean();
+  return unit?.homeFloorId ? [unit.homeFloorId] : [];
+}
+
+export async function departmentHomeFloorIds(
+  jabatanId?: string
+): Promise<Types.ObjectId[]> {
+  if (!isId(jabatanId)) return [];
+  const units = await Unit.find({ jabatanId }).select("homeFloorId").lean();
+  return units
+    .map((unit) => unit.homeFloorId)
+    .filter((floor): floor is Types.ObjectId => !!floor);
 }
 
 /**

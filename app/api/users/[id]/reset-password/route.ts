@@ -1,4 +1,5 @@
 import { connectDB } from "@/lib/db/mongoose";
+import { strings } from "@/lib/i18n/strings";
 import bcrypt from "bcryptjs";
 import {
   getAuthenticatedUser,
@@ -46,7 +47,7 @@ export async function POST(
     }
 
     const target = await User.findById(params.id);
-    if (!target) return badRequest("Pengguna tidak dijumpai");
+    if (!target) return badRequest(strings.userNotFound);
 
     // Admins cannot reset a superadmin's password
     if (authUser.role === "admin" && target.role === "superadmin") {
@@ -63,7 +64,7 @@ export async function POST(
       targetId: target._id,
     });
 
-    return success({ message: "Kata laluan berjaya ditetap semula" });
+    return success({ message: strings.passwordResetDone });
   } catch (error) {
     console.error("Error resetting password:", error);
     return serverError();

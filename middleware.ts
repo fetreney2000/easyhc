@@ -6,14 +6,22 @@ import type { NextRequest } from "next/server";
  * the EDGE, before the dynamic layout renders: that yields a real HTTP 308
  * the browser (and fetch) follows, instead of the HTML meta-refresh fallback
  * Next emits when a redirect is thrown mid-stream.
+ *
+ * The query string is preserved (a 308 is expected to keep it), the
+ * `/muster/` trailing-slash form is covered by the matcher, and subpaths
+ * would 308 too rather than 404.
  */
 export function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname === "/muster") {
-    return NextResponse.redirect(new URL("/evacuation", request.url), 308);
+  const { pathname, search } = request.nextUrl;
+  if (pathname === "/muster" || pathname.startsWith("/muster/")) {
+    return NextResponse.redirect(
+      new URL(`/evacuation${search}`, request.url),
+      308
+    );
   }
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/muster"],
+  matcher: ["/muster", "/muster/:path*"],
 };

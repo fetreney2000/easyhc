@@ -10,10 +10,8 @@ import {
   Select,
   Stack,
   Text,
-  Loader,
   Center,
   Badge,
-  TextInput,
   Pagination,
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
@@ -21,7 +19,6 @@ import {
   IconDownload,
   IconPrinter,
   IconRefresh,
-  IconSearch,
 } from "@tabler/icons-react";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
@@ -92,6 +89,13 @@ export default function ReportsPage() {
     setPage(1);
   }, [fromDate, toDate, floorFilter, typeFilter]);
 
+  // Floor options only exist while the range is set (that lookup is gated
+  // too): dropping a date must drop the filter as well, otherwise the Select
+  // shows an empty field while silently keeping an invisible floor id
+  useEffect(() => {
+    if (!datesReady) setFloorFilter(null);
+  }, [datesReady]);
+
   const { data, error, isLoading, mutate } = useSWR<{
     records: ReportRecord[];
     rowCount: number;
@@ -135,12 +139,12 @@ export default function ReportsPage() {
       if (!full.records.length) return;
 
       const headers = [
-        "Nama",
-        "Jenis",
-        "Lantai",
-        "Daftar Masuk",
-        "Daftar Keluar",
-        "Kaedah",
+        strings.name,
+        strings.typeLabel,
+        strings.floors,
+        strings.checkIn,
+        strings.checkOut,
+        strings.methodColumn,
       ];
 
       const rows = full.records.map((r) => [
@@ -150,16 +154,18 @@ export default function ReportsPage() {
         new Date(r.checkedInAt).toLocaleString("ms-MY"),
         r.checkedOutAt
           ? new Date(r.checkedOutAt).toLocaleString("ms-MY")
-          : "Masih aktif",
-        r.method === "qr" ? "QR" : "Manual",
+          : strings.stillActive,
+        r.method === "qr" ? "QR" : strings.methodManual,
       ]);
 
       // RFC 4180 quoting + formula-injection guard + BOM live in lib/csv.ts
       // (shared with the evacuation report export)
+      // Filename carries the RANGE (local dates), so two exports on the same
+      // day for different ranges can never collide or be mislabelled
       downloadCsv(
         headers,
         rows,
-        `laporan-kehadiran-${new Date().toISOString().split("T")[0]}.csv`
+        `laporan-kehadiran-${fromDate!.toLocaleDateString("sv-SE")}_${toDate!.toLocaleDateString("sv-SE")}.csv`
       );
 
       // The export is invisible otherwise (Nielsen #1: visibility of status),
@@ -216,6 +222,7 @@ export default function ReportsPage() {
               variant="light"
               leftSection={<IconPrinter size={16} />}
               onClick={() => window.print()}
+              disabled={!datesReady}
             >
               {strings.printReport}
             </Button>
@@ -275,6 +282,15 @@ export default function ReportsPage() {
           </Button>
         </Group>
       </Paper>
+
+      {/* The range this report covers — hidden on screen (the filter bar
+          shows it) but ALWAYS present in print/PDF output */}
+      {datesReady && (
+        <Text size="sm" className="print-only">
+          {strings.fromDate}: {fromDate?.toLocaleDateString("ms-MY")} —{" "}
+          {strings.toDate}: {toDate?.toLocaleDateString("ms-MY")}
+        </Text>
+      )}
 
       {/* Report table — nothing renders (and nothing is fetched) until both
           dates are chosen */}

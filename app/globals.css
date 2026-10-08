@@ -88,6 +88,32 @@ html {
 }
 
 /* ---------------------------------------------------------------------------
+ * WCAG 1.4.3 (contrast) overrides for the semantic status colours.
+ *
+ * Mantine resolves `c="success"` / `color="danger"` (light scheme) to shade 6
+ * of the tuple in theme/theme.ts: #40c057 on white is 2.36:1 (fails even the
+ * 3:1 large-text floor for the giant muster counts) and white-on-#fa5252 is
+ * 3.28:1 for 14px button labels. These overrides replace ONLY the text/fill
+ * variables with AA-compliant shades while the full scales stay available
+ * for backgrounds, borders and the dark scheme:
+ *   #237a34 on white = 5.4:1 · #c92a2a on white = 5.5:1 · #ab3000 = 6.7:1
+ * ------------------------------------------------------------------------- */
+:root[data-mantine-color-scheme="light"] {
+  --mantine-color-success-text: #237a34;
+  --mantine-color-success-light-color: #237a34;
+  --mantine-color-success-filled: #237a34;
+  --mantine-color-success-filled-hover: #1e6e2f;
+  --mantine-color-danger-text: #c92a2a;
+  --mantine-color-danger-light-color: #c92a2a;
+  --mantine-color-danger-filled: #c92a2a;
+  --mantine-color-danger-filled-hover: #a61e1e;
+  --mantine-color-warning-text: #ab3000;
+  --mantine-color-warning-light-color: #ab3000;
+  --mantine-color-warning-filled: #ab3000;
+  --mantine-color-warning-filled-hover: #8f2800;
+}
+
+/* ---------------------------------------------------------------------------
  * Evacuation mode (components/shell/EvacuationMode): the ONLY view while a
  * session runs, sized for reading at a distance — a warden's clipboard, a
  * phone held at arm's length, or a projected screen. clamp() scales from
@@ -139,5 +165,29 @@ html {
   min-height: 4.5rem;
   padding-inline: clamp(2rem, 8vw, 5rem);
   font-weight: 800;
+}
+
+/* Captions that only matter on paper (the printed reports page) */
+.print-only {
+  display: none;
+}
+
+@media print {
+  .print-only {
+    display: block;
+  }
+}
+
+/* Visually hidden but screen-reader reachable (live regions, focus targets) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 

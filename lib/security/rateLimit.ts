@@ -69,8 +69,14 @@ export function resetRateLimit(key: string): void {
 export function clientIp(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) {
-    const first = forwarded.split(",")[0]?.trim();
-    if (first) return first;
+    // Proxies APPEND, so the RIGHTMOST entry is the one added by the hop
+    // closest to us (trusted); entries further left can be client-supplied —
+    // taking the leftmost one turned the rate limit into a bypass by simply
+    // sending a fresh header per request. On Vercel the header holds a single
+    // value, so this changes nothing there.
+    const entries = forwarded.split(",");
+    const last = entries[entries.length - 1]?.trim();
+    if (last) return last;
   }
   return request.headers.get("x-real-ip") ?? "unknown";
 }

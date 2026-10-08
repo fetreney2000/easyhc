@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 import { Role } from "@/lib/db/types";
+import { strings } from "@/lib/i18n/strings";
 
 export interface AuthUser {
   id: string;
@@ -60,24 +61,18 @@ export function escapeRegex(value: string): string {
 }
 
 export function unauthorized() {
-  return NextResponse.json(
-    { error: "Anda tidak mempunyai kebenaran untuk tindakan ini" },
-    { status: 401 }
-  );
+  return NextResponse.json({ error: strings.unauthorized }, { status: 401 });
 }
 
 export function forbidden() {
-  return NextResponse.json(
-    { error: "Akses ditolak" },
-    { status: 403 }
-  );
+  return NextResponse.json({ error: strings.forbidden }, { status: 403 });
 }
 
 export function badRequest(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
 }
 
-export function serverError(message = "Ralat pelayan dalaman") {
+export function serverError(message = strings.serverError) {
   return NextResponse.json({ error: message }, { status: 500 });
 }
 

@@ -26,24 +26,30 @@ import {
  *      ?closed=1                   → + summary of the last closed session
  * POST /api/evacuation             → start (evacuation:start)
  * PATCH /api/evacuation            → close the active session (evacuation:close)
+ *                                    Response is the FLAT { closedAt, counts }
+ *                                    (not a { lastClosed } envelope like GET):
+ *                                    the only in-tree consumer reads exactly
+ *                                    this shape — intentional asymmetry.
  */
 
 export async function GET(request: Request) {
   const user = await getAuthenticatedUser();
   if (!user) return unauthorized();
 
-  await connectDB();
-
   const url = new URL(request.url);
 
   try {
-    return success(
+    await connectDB();
+    const response = success(
       await evacuationResponse(user, {
         roster: url.searchParams.get("roster") === "1",
         closed: url.searchParams.get("closed") === "1",
         history: url.searchParams.get("history") === "1",
       })
     );
+    // Roster names in this payload: never let a proxy cache one user's view
+    response.headers.set("Cache-Control", "private, no-store");
+    return response;
   } catch (error) {
     console.error("Error reading evacuation session:", error);
     return serverError();
@@ -55,9 +61,13 @@ export async function POST() {
   if (!user) return unauthorized();
   if (!can(user.role, "evacuation:start")) return forbidden();
 
-  await connectDB();
-
   try {
+    await connectDB();
+    // Fail loudly BEFORE creating anything if the one-active-session index
+    // cannot be built (restored dump, autoIndex off) — otherwise the 409
+    // path below would never fire and two sessions could coexist
+    await Evacuation.init();
+
     const roster = await buildRoster();
     const session = await Evacuation.create({
       startedBy: user.id,
@@ -66,12 +76,18 @@ export async function POST() {
       roster,
     });
 
-    await AuditLog.create({
-      actorUserId: user.id,
-      action: "evacuation_start",
-      targetId: session._id,
-      metadata: countsFor(session.roster),
-    });
+    try {
+      await AuditLog.create({
+        actorUserId: user.id,
+        action: "evacuation_start",
+        targetId: session._id,
+        metadata: countsFor(session.roster),
+      });
+    } catch (auditError) {
+      // The session started — an audit failure must not turn that into a 500
+      // the client would retry into a confusing 409
+      console.error("Audit write failed (evacuation_start):", auditError);
+    }
 
     return success({ session: lightSession(session, user.id) }, 201);
   } catch (error) {
@@ -93,10 +109,16 @@ export async function PATCH() {
   if (!user) return unauthorized();
   if (!can(user.role, "evacuation:close")) return forbidden();
 
-  await connectDB();
-
   try {
-    const session = await Evacuation.findOne({ status: "active" });
+    await connectDB();
+    // Atomic precondition: only THE active session can close, so a double
+    // tap yields one 200 and one 409 (one audit row, one closedAt), and the
+    // counts come from the document as it was when it actually closed
+    const session = await Evacuation.findOneAndUpdate(
+      { status: "active" },
+      { $set: { status: "closed", closedAt: new Date() } },
+      { new: true }
+    );
     if (!session) {
       return NextResponse.json(
         { error: strings.evacNoSession },
@@ -104,19 +126,21 @@ export async function PATCH() {
       );
     }
 
-    session.status = "closed";
-    session.closedAt = new Date();
-    await session.save();
-
     const counts = countsFor(session.roster);
-    await AuditLog.create({
-      actorUserId: user.id,
-      action: "evacuation_close",
-      targetId: session._id,
-      metadata: counts,
-    });
+    try {
+      await AuditLog.create({
+        actorUserId: user.id,
+        action: "evacuation_close",
+        targetId: session._id,
+        metadata: counts,
+      });
+    } catch (auditError) {
+      // The close DID happen — an audit failure must not turn it into a 500
+      // that the client would retry into a confusing 409
+      console.error("Audit write failed (evacuation_close):", auditError);
+    }
 
-    return success({ closedAt: session.closedAt.toISOString(), counts });
+    return success({ closedAt: session.closedAt?.toISOString(), counts });
   } catch (error) {
     console.error("Error closing evacuation:", error);
     return serverError();

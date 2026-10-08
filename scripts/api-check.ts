@@ -16,7 +16,7 @@
  * Usage: npm run dev (other shell), then: npx tsx scripts/api-check.ts
  *        (E2E_WRITES=1 allows writes to a remote database)
  */
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 
 const BASE = process.env.APP_URL ?? "http://localhost:3000";
@@ -29,7 +29,14 @@ const skip = (name: string, detail = "") =>
   results.push([name, "skip", detail]);
 
 async function main(): Promise<void> {
-  for (const line of readFileSync(resolve(process.cwd(), ".env.local"), "utf8").split(/\r?\n/)) {
+  const envPath = resolve(process.cwd(), ".env.local");
+  if (!existsSync(envPath)) {
+    console.error(
+      "FAILED: .env.local not found — create it (MONGODB_URI, NEXTAUTH_SECRET) first."
+    );
+    process.exit(1);
+  }
+  for (const line of readFileSync(envPath, "utf8").split(/\r?\n/)) {
     const m = /^([A-Za-z0-9_]+)=(.*)$/.exec(line.trim());
     if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2];
   }
@@ -226,11 +233,16 @@ async function main(): Promise<void> {
     attRows.length <= (att.body.pageSize as number),
     `${attRows.length} rows`
   );
-  check(
-    "attendance never returns visitorPhone",
-    attRows.every((r) => !("visitorPhone" in r)),
-    JSON.stringify(Object.keys(attRows[0] ?? {}))
-  );
+  if (attRows.length > 0) {
+    // every() over an empty array would be a vacuous PASS — skip loudly instead
+    check(
+      "attendance never returns visitorPhone",
+      attRows.every((r) => !("visitorPhone" in r)),
+      JSON.stringify(Object.keys(attRows[0] ?? {}))
+    );
+  } else {
+    skip("attendance visitorPhone privacy (no active rows to inspect)");
+  }
 
   const attBig = await authed("/api/attendance?active=true&pageSize=500");
   check(
@@ -248,10 +260,12 @@ async function main(): Promise<void> {
     evacHtml.includes("Mod Evakuasi") && !evacHtml.includes("<title>Log Masuk"),
     `${evacHtml.length} bytes`
   );
-  const oldMusterUrl = await fetch(`${BASE}/muster`, { headers: { cookie } });
+  const oldMusterUrl = await fetch(`${BASE}/muster?from=bookmark`, {
+    headers: { cookie },
+  });
   check(
-    "/muster redirects to /evacuation",
-    oldMusterUrl.url.endsWith("/evacuation"),
+    "/muster redirects to /evacuation (query preserved)",
+    oldMusterUrl.url.endsWith("/evacuation?from=bookmark"),
     oldMusterUrl.url
   );
 
@@ -272,11 +286,16 @@ async function main(): Promise<void> {
     typeof rep.body.total === "number" && "page" in rep.body && "pageSize" in rep.body,
     `total=${rep.body.total}`
   );
-  check(
-    "reports never returns visitorPhone",
-    repRows.every((r) => !("visitorPhone" in r)),
-    ""
-  );
+  if (repRows.length > 0) {
+    // every() over an empty array would be a vacuous PASS — skip loudly instead
+    check(
+      "reports never returns visitorPhone",
+      repRows.every((r) => !("visitorPhone" in r)),
+      ""
+    );
+  } else {
+    skip("reports visitorPhone privacy (no rows to inspect)");
+  }
 
   /* 4. the partial unique index (race) -------------------------------- */
   const floor = await Floor.findOne({}).sort({ name: 1 }).lean();
@@ -444,6 +463,31 @@ async function main(): Promise<void> {
         "second start while active -> 409 (one active session)",
         dupStart.status === 409,
         `${dupStart.status}`
+      );
+
+      // Public status must reflect LIVE state (this route is force-dynamic;
+      // a prerendered build would freeze it at false forever)
+      const statusWhileActive = await fetch(
+        `${BASE}/api/evacuation/status`
+      ).then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }));
+      check(
+        "public status reports active=true during a session",
+        statusWhileActive.status === 200 &&
+          (statusWhileActive.body as { active?: boolean }).active === true,
+        `status=${statusWhileActive.status} active=${(statusWhileActive.body as { active?: boolean }).active}`
+      );
+
+      // Roster names in the payload must never be cacheable by a proxy
+      const rosterFetch = await fetch(
+        `${BASE}/api/evacuation?roster=1`,
+        { headers: { cookie: evacCookie } }
+      );
+      const cacheControl = rosterFetch.headers.get("cache-control") ?? "";
+      await rosterFetch.arrayBuffer();
+      check(
+        "roster payload is Cache-Control: private, no-store",
+        cacheControl.includes("private") && cacheControl.includes("no-store"),
+        cacheControl || "no header"
       );
 
       /* The takeover is SSR'd from the server layout (no flash of the shell):
@@ -771,6 +815,15 @@ async function main(): Promise<void> {
         `${closed.status}`
       );
 
+      const statusAfterClose = await fetch(`${BASE}/api/evacuation/status`).then(
+        (r) => r.json() as Promise<{ active?: boolean }>
+      );
+      check(
+        "public status reports active=false after close",
+        statusAfterClose.active === false,
+        `active=${statusAfterClose.active}`
+      );
+
       const afterClose = await authed("/api/evacuation?closed=1");
       check(
         "no active session after close",
@@ -780,13 +833,15 @@ async function main(): Promise<void> {
         )
       );
       const lastClosed = afterClose.body.lastClosed as
-        | { counts?: { total?: number } }
+        | { closedAt?: string; counts?: { total?: number } }
         | null
         | undefined;
       check(
-        "last-closed summary available",
-        !!lastClosed && typeof lastClosed.counts?.total === "number",
-        `total=${lastClosed?.counts?.total}`
+        "last-closed summary matches the session we just closed",
+        !!lastClosed &&
+          typeof lastClosed.counts?.total === "number" &&
+          lastClosed.closedAt === (closed.body as { closedAt?: string }).closedAt,
+        `closedAt=${lastClosed?.closedAt}`
       );
 
       /* after-action reports: history + detail (evacuation:view_report) */
@@ -795,11 +850,12 @@ async function main(): Promise<void> {
         | Array<{ _id: string; counts: { total: number; confirmed: number } }>
         | undefined;
       check(
-        "activator gets the report history (newest first)",
+        "report history contains OUR session first (newest-first proven)",
         Array.isArray(history) &&
           history.length >= 1 &&
+          history[0]?._id === createdId &&
           typeof history[0]?.counts?.total === "number",
-        `rows=${history?.length}`
+        `first=${history?.[0]?._id} expected=${createdId}`
       );
 
       if (plainUser) {
@@ -839,6 +895,65 @@ async function main(): Promise<void> {
             `${detailPlain.status}`
           );
         }
+
+        const unknownId = await authed(
+          "/api/evacuation/64f000000000000000000000"
+        );
+        check(
+          "report detail of unknown id -> 404",
+          unknownId.status === 404,
+          `${unknownId.status}`
+        );
+        const malformedId = await authed("/api/evacuation/not-an-object-id");
+        check(
+          "report detail of malformed id -> 404",
+          malformedId.status === 404,
+          `${malformedId.status}`
+        );
+
+        const emptyWardenPatch = await call(
+          "/api/evacuation/confirm",
+          "PATCH",
+          evacCookie,
+          {}
+        );
+        check(
+          "confirm PATCH with empty payload -> 400",
+          emptyWardenPatch.status === 400,
+          `${emptyWardenPatch.status}`
+        );
+        const emptyVisitorPost = await fetch(
+          `${BASE}/api/evacuation/visitor-confirm`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: "{}",
+          }
+        ).then((r) => r.status);
+        check(
+          "visitor-confirm with empty payload -> 400",
+          emptyVisitorPost === 400,
+          `${emptyVisitorPost}`
+        );
+
+        const auditActions = (
+          await AuditLog.find({ targetId: createdId }).lean()
+        ).map((row) => row.action);
+        check(
+          "audit: evacuation_start recorded",
+          auditActions.includes("evacuation_start"),
+          JSON.stringify(auditActions)
+        );
+        check(
+          "audit: evacuation_close recorded",
+          auditActions.includes("evacuation_close"),
+          ""
+        );
+        check(
+          "audit: warden confirm recorded",
+          auditActions.includes("evacuation_confirm_other"),
+          ""
+        );
       }
 
       if (plainUser) {

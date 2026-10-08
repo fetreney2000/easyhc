@@ -1,4 +1,5 @@
 import { connectDB } from "@/lib/db/mongoose";
+import { strings } from "@/lib/i18n/strings";
 import {
   getAuthenticatedUser,
   unauthorized,
@@ -24,7 +25,7 @@ export async function GET(
 
   try {
     const floor = await Floor.findById(params.id).lean();
-    if (!floor) return badRequest("Lantai tidak dijumpai");
+    if (!floor) return badRequest(strings.floorNotFound);
 
     // qrToken authorises check-in → only floor managers may read it
     if (!can(user.role, "floors:manage")) {
@@ -57,14 +58,14 @@ export async function PUT(
     }
 
     const floor = await Floor.findById(params.id);
-    if (!floor) return badRequest("Lantai tidak dijumpai");
+    if (!floor) return badRequest(strings.floorNotFound);
 
     // Check duplicate name
     const existing = await Floor.findOne({
       name: validation.data.name,
       _id: { $ne: params.id },
     });
-    if (existing) return badRequest("Nama lantai sudah wujud");
+    if (existing) return badRequest(strings.floorExists);
 
     floor.name = validation.data.name;
     await floor.save();
@@ -88,7 +89,7 @@ export async function DELETE(
 
   try {
     const floor = await Floor.findById(params.id);
-    if (!floor) return badRequest("Lantai tidak dijumpai");
+    if (!floor) return badRequest(strings.floorNotFound);
 
     // Never orphan attendance history: it is exactly what a muster report
     // depends on. Active check-ins block first; older history blocks until
@@ -111,7 +112,7 @@ export async function DELETE(
 
     await Floor.findByIdAndDelete(params.id);
 
-    return success({ message: "Lantai berjaya dipadam" });
+    return success({ message: strings.floorDeleted });
   } catch (error) {
     console.error("Error deleting floor:", error);
     return serverError();
@@ -131,7 +132,7 @@ export async function PATCH(
 
   try {
     const floor = await Floor.findById(params.id);
-    if (!floor) return badRequest("Lantai tidak dijumpai");
+    if (!floor) return badRequest(strings.floorNotFound);
 
     floor.qrToken = crypto.randomUUID();
     await floor.save();

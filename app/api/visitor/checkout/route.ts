@@ -51,8 +51,8 @@ export async function POST(request: Request) {
     const { attendanceId, checkoutToken } = validation.data;
 
     const record = await Attendance.findById(attendanceId);
-    if (!record) return badRequest("Rekod tidak dijumpai");
-    if (record.checkedOutAt) return badRequest("Sudah didaftar keluar");
+    if (!record) return badRequest(strings.recordNotFound);
+    if (record.checkedOutAt) return badRequest(strings.alreadyCheckedOut);
 
     // This endpoint only ever closes visitor records
     if (record.type !== "visitor") {
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     record.checkedOutBy = "self";
     await record.save();
 
-    return success({ message: "Berjaya daftar keluar" });
+    return success({ message: strings.checkOutSuccess });
   } catch (error) {
     console.error("Error checking out visitor:", error);
     return serverError();

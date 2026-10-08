@@ -140,11 +140,19 @@ export function AppShellLayout({
 
   if (evacData?.session) {
     return (
-      <EvacuationMode
-        user={user}
-        data={evacData}
-        onRefresh={() => mutateEvac()}
-      />
+      <>
+        <EvacuationMode
+          user={user}
+          data={evacData}
+          onRefresh={() => mutateEvac()}
+        />
+        {/* Keep the current page MOUNTED but hidden: replacing it outright
+            destroyed page state every time an alarm started and ended (e.g.
+            a half-filled reports range). Its SWR timers keep running, but
+            they share the global cache with the visible UI, so the extra
+            cost is a single poll loop for the session's duration. */}
+        <div hidden>{children}</div>
+      </>
     );
   }
 

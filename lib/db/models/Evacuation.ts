@@ -44,7 +44,8 @@ EvacuationSchema.index(
   { status: 1 },
   { unique: true, partialFilterExpression: { status: "active" } }
 );
-// "Last closed" summary on the muster page
+// "Last closed" summary shown on the /evacuation page (one-liner for roles
+// without the report history table)
 EvacuationSchema.index({ status: 1, closedAt: -1 });
 
 const Evacuation: Model<IEvacuation> =

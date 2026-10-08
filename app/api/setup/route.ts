@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     const db = mongoose.connection.db;
     if (!db) {
       return NextResponse.json(
-        { error: "Ralat pelayan dalaman" },
+        { error: strings.serverError },
         { status: 500 }
       );
     }
@@ -114,7 +114,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Error creating superadmin:", error);
     return NextResponse.json(
-      { error: "Ralat pelayan dalaman" },
+      { error: strings.serverError },
       { status: 500 }
     );
   }

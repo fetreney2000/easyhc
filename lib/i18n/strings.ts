@@ -34,7 +34,6 @@ export const strings = {
 
   // Attendance
   checkIn: "Daftar Masuk",
-  checkedIn: "Daftar Masuk",
   checkOut: "Daftar Keluar",
   checkInError: "Gagal daftar masuk. Sila cuba lagi.",
   qrInvalid: "Kod QR tidak sah atau telah pun ditukar.",
@@ -142,6 +141,36 @@ export const strings = {
   profileUpdated: "Profil berjaya dikemaskini",
   profileUpdateError: "Gagal mengemaskini profil",
 
+  // API responses — route handlers draw from here (strings.ts is the single
+  // source of truth for user-facing copy; see this file's header)
+  userNotFound: "Pengguna tidak dijumpai",
+  userNotFoundRelogin:
+    "Pengguna tidak dijumpai. Sila log keluar dan log masuk semula.",
+  usernameExists: "Nama pengguna sudah wujud",
+  cannotDeleteOwnAccount: "Anda tidak boleh memadam akaun sendiri",
+  userDeleted: "Pengguna berjaya dipadam",
+  currentPasswordIncorrect: "Kata laluan semasa salah",
+  passwordResetDone: "Kata laluan berjaya ditetap semula",
+  superadminPasswordReset: "Kata laluan superadmin berjaya ditetap semula",
+  floorNotFound: "Lantai tidak dijumpai",
+  floorExists: "Nama lantai sudah wujud",
+  jabatanNotFound: "Jabatan tidak dijumpai",
+  jabatanExists: "Nama jabatan sudah wujud",
+  unitNotFound: "Unit tidak dijumpai",
+  recordNotFound: "Rekod tidak dijumpai",
+  alreadyCheckedOut: "Sudah didaftar keluar",
+  userAlreadyCheckedOut: "Pengguna ini sudah didaftar keluar",
+  attendanceIdRequired: "ID kehadiran diperlukan",
+  attendanceNotFound: "Rekod kehadiran tidak dijumpai",
+  qrTokenRequired: "Token QR diperlukan",
+  invalidQrCode: "Kod QR tidak sah",
+  manualCheckinFloorRequired: "ID lantai diperlukan untuk daftar masuk manual",
+  manualCheckinUserRequired: "Pengguna diperlukan untuk daftar masuk manual",
+  qrGenerateError: "Ralat menjana kod QR",
+  methodColumn: "Kaedah",
+  stillActive: "Masih aktif",
+  methodManual: "Manual",
+
   // QR Scanner
   scanQRTitle: "Imbas Kod QR Lantai",
   scanQRInstruction: "Halakan kamera ke kod QR di pintu masuk lantai",
@@ -161,15 +190,12 @@ export const strings = {
   cancel: "Batal",
   delete: "Padam",
   edit: "Sunting",
-  create: "Cipta",
   confirm: "Sahkan",
   back: "Kembali",
   search: "Cari...",
   error: "Ralat",
   success: "Berjaya",
   warning: "Amaran",
-  no: "Tidak",
-  print: "Cetak",
 
   // Time/Date
 
@@ -259,6 +285,8 @@ export const strings = {
   // not on the roster): distinguishable responses would let anyone probe
   // whether a phone number is inside the building during an evacuation
   evacVisitorNoMatch: "Nombor ini tidak dapat disahkan untuk sesi evakuasi semasa.",
+  evacStatusUnknown:
+    "Status evakuasi tidak dapat disemak. Jika sesi sedang berlangsung, tekan butang di bawah.",
 
   // Evacuation after-action reports (evacuation:view_report)
   evacReportTitle: "Laporan Evakuasi",
@@ -278,6 +306,7 @@ export const strings = {
   evacExpected: "Dijangka",
   evacImSafe: "Saya Selamat",
   evacSafeRecorded: "Pengesahan anda telah direkodkan",
+  evacYouAreSafe: "Anda selamat",
   evacStart: "Mula Sesi Evakuasi",
   evacStartConfirm:
     "Mulakan sesi evakuasi sekarang? Semua kakitangan aktif dan pelawat yang berdaftar masuk akan disenaraikan untuk pengesahan ketibaan.",
@@ -329,5 +358,3 @@ export const strings = {
   superadminCreated: "Superadmin berjaya dicipta",
   invalidSecret: "Rahsia tidak sah",
 } as const;
-
-export type StringKeys = keyof typeof strings;

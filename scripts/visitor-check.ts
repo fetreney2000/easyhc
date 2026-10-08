@@ -5,7 +5,7 @@
  *
  * Usage: npm run dev (in another shell), then: npx tsx scripts/visitor-check.ts
  */
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 
 const BASE = process.env.APP_URL ?? "http://localhost:3000";
@@ -26,7 +26,14 @@ async function post(path: string, body: unknown): Promise<{ status: number; data
 
 async function main(): Promise<void> {
   // Load .env.local (tsx does not do this) — never printed
-  for (const line of readFileSync(resolve(process.cwd(), ".env.local"), "utf8").split(/\r?\n/)) {
+  const envPath = resolve(process.cwd(), ".env.local");
+  if (!existsSync(envPath)) {
+    console.error(
+      "FAILED: .env.local not found — create it (MONGODB_URI, NEXTAUTH_SECRET) first."
+    );
+    process.exit(1);
+  }
+  for (const line of readFileSync(envPath, "utf8").split(/\r?\n/)) {
     const match = /^([A-Za-z0-9_]+)=(.*)$/.exec(line.trim());
     if (match && process.env[match[1]] === undefined) process.env[match[1]] = match[2];
   }

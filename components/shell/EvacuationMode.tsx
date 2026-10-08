@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import {
+import { useEffect, useRef, useState, type CSSProperties } from "react";import {
   Alert,
   Badge,
   Button,
@@ -20,9 +19,12 @@ import {
   IconCircleCheck,
   IconMaximize,
   IconMinimize,
+  IconUser,
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { modals } from "@mantine/modals";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { strings } from "@/lib/i18n/strings";
 import { clock, duration } from "@/lib/format";
 import { can } from "@/lib/auth/rbac";
@@ -114,6 +116,11 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
   const [submitting, setSubmitting] = useState(false);
   const [pendingRosterId, setPendingRosterId] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // The display outlives a dead session (stale SWR fallback keeps it on
+  // screen after the cookie expires) — surface a login/switch escape rather
+  // than stranding the viewer with no navigation at all
+  const { status: sessionStatus } = useSession();
 
   const session = data.session;
 
@@ -265,6 +272,16 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
   const confirmed = !!session.mine.confirmedAt;
   const canClose = can(user.role, "evacuation:close");
   const canConfirmOthers = can(user.role, "evacuation:confirm_others");
+  // The four roles that may start/close the session also get the STATS
+  // without a check-in — they manage the incident; they do NOT get the
+  // confirm button (not on the roster → a self-confirm would 409 anyway)
+  const canManage = can(user.role, "evacuation:start");
+  const state: "gate" | "info" | "stats" =
+    checkedIn && !confirmed
+      ? "gate"
+      : !checkedIn && !canManage
+        ? "info"
+        : "stats";
   const counts = session.counts;
   const floors = session.floors ?? [];
   const roster = session.roster ?? [];
@@ -304,6 +321,19 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
             </Stack>
           </Group>
           <Group gap="xs">
+            {/* The display hides all navigation — this is the escape hatch:
+                switch accounts mid-drill, or log back in after the session
+                cookie died while staring at the screen */}
+            <Button
+              component={Link}
+              href="/login"
+              variant="light"
+              leftSection={<IconUser size={18} />}
+            >
+              {sessionStatus === "authenticated"
+                ? strings.evacSwitchAccount
+                : strings.evacLogin}
+            </Button>
             <Button
               variant="light"
               leftSection={
@@ -340,14 +370,16 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
             not be aria-live (they would re-announce every 3s). This text
             changes exactly at the state transitions. */}
         <div role="status" aria-live="polite" className="sr-only">
-          {!checkedIn
+          {state === "info"
             ? strings.evacNotInRoster
-            : confirmed
-              ? strings.evacYouAreSafe
-              : strings.evacSafePrompt}
+            : state === "gate"
+              ? strings.evacSafePrompt
+              : confirmed
+                ? strings.evacYouAreSafe
+                : strings.evacSessionActive}
         </div>
 
-        {!checkedIn ? (
+        {state === "info" ? (
           /* STATE 1 — not on the roster: informational only. No button,
              no stats: this person was never in the building (as far as the
              app knows) and is not counted as expected anywhere. */
@@ -367,7 +399,7 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
               </Text>
             </Stack>
           </Center>
-        ) : !confirmed ? (
+        ) : state === "gate" ? (
           /* STATE 2 — checked in, not confirmed: one giant button */
           <Center mih="55vh">
             <Stack align="center" gap="xl" w="100%">

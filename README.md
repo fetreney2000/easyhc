@@ -168,11 +168,14 @@ Notes:
   an informational "in progress" page with **no button and no stats**;
   checked in → one giant "Saya Selamat" button; confirmed → building-wide
   stats (missing first), floor locations scoped to the role, and — for
-  wardens — the name list. Confirmations are atomic positional updates
-  (many taps land within seconds at a muster point); start/close are
-  audited, and a partial unique index guarantees at most one active
-  session. Visitors confirm from their public check-in page (device
-  token or phone, rate-limited) and never see statistics. Closed sessions
+  wardens — the name list. The four activators are the exception to the
+  informational state: they see the stats without a check-in (they manage
+  the incident), and since the display hides all navigation it always
+  offers a log-in/account-switch escape. Confirmations are atomic
+  positional updates (many taps land within seconds at a muster point);
+  start/close are audited, and a partial unique index guarantees at most
+  one active session. Visitors confirm from their public check-in page
+  (device token or phone, rate-limited) and never see statistics. Closed sessions
   become after-action reports (`evacuation:view_report`, the same four
   roles): history with duration and counts, drill-down into per-floor
   tallies and the full roster, and CSV export for incident documentation.

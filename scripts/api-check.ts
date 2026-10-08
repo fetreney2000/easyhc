@@ -546,6 +546,25 @@ async function main(): Promise<void> {
         `plain=${!!plainFixtureId} target=${!!targetFixtureId}`
       );
 
+      /* State-1 subject: a NON-activator with no open check-in. One $nin —
+         two separate `_id` spreads would silently overwrite each other. */
+      const excludedIds = [
+        plainUser?._id.toString(),
+        wardenTarget?._id.toString(),
+      ].filter((id): id is string => !!id);
+      const noShowUser = await User.findOne({
+        status: "active",
+        role: { $in: ["unit_head", "dept_head", "user"] },
+        ...(excludedIds.length ? { _id: { $nin: excludedIds } } : {}),
+      }).lean();
+      const noShowCheckedIn = noShowUser
+        ? await Attendance.exists({
+            userId: noShowUser._id,
+            type: "employee",
+            checkedOutAt: null,
+          })
+        : true;
+
       /* start */
       const started = await call("/api/evacuation", "POST", evacCookie, {});
       check("evacuation start -> 201", started.status === 201, `${started.status}`);
@@ -592,9 +611,9 @@ async function main(): Promise<void> {
       );
 
       /* The takeover is SSR'd from the server layout (no flash of the shell).
-         The ADMIN has NO open check-in → state 1: the informational
-         "in progress" page — NO button, NO stats (they were never on the
-         roster, so they were never counted as expected). */
+         The ADMIN is an activator WITHOUT a check-in → the STATS view with
+         NO confirm button: the four roles manage the incident straight from
+         the display even if they never scanned in. */
       const takeover = await fetch(`${BASE}/dashboard`, {
         headers: { cookie: evacCookie },
       }).then((r) => r.text());
@@ -605,12 +624,36 @@ async function main(): Promise<void> {
         `${takeover.length} bytes`
       );
       check(
-        "staff WITHOUT a check-in gets the in-progress page (no button, no stats)",
-        takeover.includes(strings.evacNotInRoster) &&
+        "activators see the stats without a check-in (no confirm button)",
+        takeover.includes(strings.evacMissing) &&
+          takeover.includes(strings.evacExpected) &&
           !takeover.includes(strings.evacImSafe) &&
-          !takeover.includes(strings.evacMissing),
+          !takeover.includes(strings.evacNotInRoster),
         `${takeover.length} bytes`
       );
+      check(
+        "takeover offers a login/account-switch escape",
+        takeover.includes('href="/login"'),
+        ""
+      );
+
+      /* A NON-activator with no check-in → the informational page */
+      if (noShowUser && !noShowCheckedIn) {
+        const noShowHtml = await fetch(`${BASE}/dashboard`, {
+          headers: { cookie: await mintCookie(noShowUser) },
+        }).then((r) => r.text());
+        check(
+          "staff WITHOUT a check-in gets the in-progress page (no button, no stats)",
+          noShowHtml.includes(strings.evacNotInRoster) &&
+            !noShowHtml.includes(strings.evacImSafe) &&
+            !noShowHtml.includes(strings.evacMissing),
+          `${noShowHtml.length} bytes`
+        );
+      } else {
+        skip(
+          "in-progress page (no non-activator without a check-in available)"
+        );
+      }
 
       /* plain user: light projection, roster privacy, gate, self-confirm */
       if (plainUser) {

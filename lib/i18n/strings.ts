@@ -312,6 +312,10 @@ export const strings = {
   evacNotOnRosterDesc:
     "Sesi ini mengambil kira mereka yang berdaftar masuk sebelum sesi bermula. Jika anda berada di bangunan, sila lapor kepada ketua lantai atau ketua keselamatan.",
   evacElapsed: (elapsed: string) => `Berlangsung ${elapsed}`,
+  // The display's escape hatch: switch accounts mid-drill (an activator may
+  // be logged in as the wrong person) or log back in after a dead session
+  evacLogin: "Log Masuk",
+  evacSwitchAccount: "Tukar Akaun",
 
   // Evacuation after-action reports (evacuation:view_report)
   evacReportTitle: "Laporan Evakuasi",

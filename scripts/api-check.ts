@@ -297,6 +297,19 @@ async function main(): Promise<void> {
     encodedQrUrl === BASE.replace(/\/$/, ""),
     `encoded=${encodedQrUrl} expected=${BASE}`
   );
+  // The production path: origin assembled from forwarded headers (this is
+  // the branch that replaces the request.url parsing which threw in prod)
+  const forwardedQr = await fetch(`${BASE}/api/qr/app`, {
+    headers: {
+      "x-forwarded-proto": "https",
+      "x-forwarded-host": "easyhc.example",
+    },
+  });
+  check(
+    "staff QR honours forwarded proto/host (production path)",
+    (forwardedQr.headers.get("x-qr-url") ?? "") === "https://easyhc.example",
+    forwardedQr.headers.get("x-qr-url") ?? "none"
+  );
   const loginHtml = await fetch(`${BASE}/login`).then((r) => r.text());
   check(
     "login page shows the add-to-home-screen tip",

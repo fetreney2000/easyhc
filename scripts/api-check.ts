@@ -144,6 +144,19 @@ async function main(): Promise<void> {
     Array.isArray(allRows) && typeof allUsers.body.total === "number" && allRows.length === (allUsers.body.total as number),
     `${allRows?.length}/${allUsers.body.total}`
   );
+  check(
+    "superadmin never appears in staff listings",
+    (allRows ?? []).every(
+      (u) => (u as { role?: string }).role !== "superadmin"
+    ),
+    JSON.stringify(((allRows ?? []) as { role?: string }[]).map((u) => u.role))
+  );
+  const saFilter = await authed("/api/users?role=superadmin");
+  check(
+    "explicit ?role=superadmin returns nothing (hidden)",
+    ((saFilter.body.users as unknown[]) ?? []).length === 0,
+    `rows=${((saFilter.body.users as unknown[]) ?? []).length}`
+  );
 
   /* 1b. list endpoints are gated -------------------------------------- */
   const floors = await authed("/api/floors");
@@ -702,6 +715,74 @@ async function main(): Promise<void> {
         );
       } else {
         skip("plain-user evacuation sub-flow (no active role=user)");
+      }
+
+      /* superadmin: hidden control account — invisible in listings, off the
+         roster, and it can never acquire a presence record */
+      const superadminAccount = await User.findOne({
+        role: "superadmin",
+      }).lean();
+      const saRoster = await authed("/api/evacuation?roster=1", evacCookie);
+      const saRosterSession = saRoster.body.session as
+        | { roster?: Array<{ name?: string }> }
+        | undefined;
+      if (superadminAccount) {
+        check(
+          "superadmin is not on the evacuation roster",
+          !(saRosterSession?.roster ?? []).some(
+            (row) => row.name === superadminAccount.name
+          ),
+          `name=${superadminAccount.name}`
+        );
+      } else {
+        skip("superadmin roster exclusion (no superadmin account)");
+      }
+
+      if (superadminAccount && superadminAccount.status === "active" && floor) {
+        const saCookie = await mintCookie(superadminAccount);
+        const qrBlocked = await fetch(`${BASE}/api/attendance/checkin`, {
+          method: "POST",
+          headers: { cookie: saCookie, "Content-Type": "application/json" },
+          body: JSON.stringify({ qrToken: floor.qrToken }),
+        }).then((r) => r.status);
+        check(
+          "superadmin QR self check-in blocked (403)",
+          qrBlocked === 403,
+          `${qrBlocked}`
+        );
+
+        const manualActor = await User.findOne({
+          role: { $in: ["superadmin", "admin"] },
+          status: "active",
+        }).lean();
+        if (manualActor) {
+          const manualBlocked = await fetch(
+            `${BASE}/api/attendance/checkin`,
+            {
+              method: "POST",
+              headers: {
+                cookie: await mintCookie(manualActor),
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                method: "manual",
+                userId: superadminAccount._id.toString(),
+                floorId: floor._id.toString(),
+              }),
+            }
+          ).then((r) => r.status);
+          check(
+            "manual check-in targeting superadmin blocked (403)",
+            manualBlocked === 403,
+            `${manualBlocked}`
+          );
+        } else {
+          skip("manual check-in block (no active admin actor)");
+        }
+      } else {
+        skip(
+          "superadmin check-in blocks (no active superadmin or no floor)"
+        );
       }
 
       /* floor_head: sees only their own floor's names, and may not confirm

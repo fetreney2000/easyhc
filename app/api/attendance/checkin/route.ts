@@ -11,6 +11,7 @@ import {
 } from "@/lib/api/utils";
 import Attendance from "@/lib/db/models/Attendance";
 import Floor from "@/lib/db/models/Floor";
+import User from "@/lib/db/models/User";
 import AuditLog from "@/lib/db/models/AuditLog";
 import { can } from "@/lib/auth/rbac";
 import { decryptQrPayload } from "@/lib/qr/token";
@@ -31,6 +32,14 @@ export async function POST(request: Request) {
 
     // Manual check-in is only for admin/superadmin
     if (method === "manual" && !can(user.role, "attendance:manual_checkin")) {
+      return forbidden();
+    }
+
+    // The superadmin is a HIDDEN control account, not a person in the
+    // building: it must never hold a presence record (it would otherwise
+    // surface on floor boards, presence counts and evacuation rosters).
+    // The manual branch below blocks the same account as a TARGET.
+    if (method !== "manual" && user.role === "superadmin") {
       return forbidden();
     }
 
@@ -65,7 +74,9 @@ export async function POST(request: Request) {
     }
 
     if (!floor) {
-      return badRequest(method === "manual" ? "Lantai tidak dijumpai" : "Kod QR tidak sah");
+      return badRequest(
+        method === "manual" ? strings.floorNotFound : strings.invalidQrCode
+      );
     }
 
     // For manual check-in, the target user is selected by the admin
@@ -73,6 +84,16 @@ export async function POST(request: Request) {
 
     if (method === "manual" && !targetUserId) {
       return badRequest(strings.manualCheckinUserRequired);
+    }
+
+    // …and nobody may give the hidden control account a presence record
+    if (method === "manual" && targetUserId) {
+      const targetUser = await User.findById(targetUserId)
+        .select("role")
+        .lean();
+      if (targetUser?.role === "superadmin") {
+        return forbidden();
+      }
     }
 
     // Check if target user already has an open attendance record on THIS floor (toggle behavior)
@@ -90,7 +111,7 @@ export async function POST(request: Request) {
       await existingOnThisFloor.save();
 
       return success({
-        message: `Berjaya daftar keluar dari ${floor.name}`,
+        message: strings.checkedOutFrom(floor.name),
         action: "checkout",
         attendance: {
           _id: existingOnThisFloor._id,
@@ -137,7 +158,7 @@ export async function POST(request: Request) {
 
     return success(
       {
-        message: `Berjaya daftar masuk ke ${floor.name}`,
+        message: strings.checkedInTo(floor.name),
         action: "checkin",
         attendance: {
           _id: attendance._id,

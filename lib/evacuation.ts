@@ -349,7 +349,12 @@ export async function evacuationResponse(
  */
 export async function buildRoster(): Promise<IRosterEntry[]> {
   const [users, units, floors, visitors] = await Promise.all([
-    User.find({ status: "active" }).select("name unitId").lean(),
+    // The superadmin is a hidden control account, not a person expected in
+    // the building: including it would make every drill show it as
+    // "belum kesan" forever
+    User.find({ status: "active", role: { $ne: "superadmin" } })
+      .select("name unitId")
+      .lean(),
     Unit.find({}).select("homeFloorId").lean(),
     Floor.find({}).select("name").lean(),
     Attendance.find({ type: "visitor", checkedOutAt: null })

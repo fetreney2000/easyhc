@@ -151,7 +151,7 @@ export async function POST(request: Request) {
 
     return success(
       {
-        message: `Berjaya daftar masuk sebagai pelawat di ${floor.name}`,
+        message: strings.visitorCheckedInAt(floor.name),
         attendance: {
           _id: attendance._id,
           floorName: floor.name,

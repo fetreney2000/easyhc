@@ -47,6 +47,12 @@ export const strings = {
   visitorUseOriginalDevice:
     "Sila daftar keluar dengan peranti yang anda guna untuk mendaftar masuk, atau minta bantuan staf.",
   checkOutSuccess: "Berjaya daftar keluar",
+  checkedOutFrom: (floorName: string) =>
+    `Berjaya daftar keluar dari ${floorName}`,
+  checkedInTo: (floorName: string) =>
+    `Berjaya daftar masuk ke ${floorName}`,
+  visitorCheckedInAt: (floorName: string) =>
+    `Berjaya daftar masuk sebagai pelawat di ${floorName}`,
   checkOutError: "Gagal daftar keluar. Sila cuba lagi.",
   forceCheckout: "Paksa Keluar",
   forceCheckoutConfirm: "Anda pasti mahu memaksa keluar pengguna ini?",

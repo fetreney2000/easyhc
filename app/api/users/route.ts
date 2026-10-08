@@ -50,6 +50,13 @@ export async function GET(request: Request) {
 
   const query: FilterQuery<IUser> = {};
 
+  // The superadmin is a HIDDEN control account, not an individual: it must
+  // never appear in any staff listing (users page, all-staff, my-unit, the
+  // manual check-in picker — they all read this endpoint). By-id access
+  // (its own profile) still works; it is simply never listed. Via $and this
+  // stays enforced even when a role filter explicitly asks for it.
+  query.$and = [{ role: { $ne: "superadmin" } }];
+
   if (role) {
     query.role = role as Role;
   }

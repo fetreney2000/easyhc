@@ -135,7 +135,7 @@ Notes:
 
 | Role | Code | Description |
 |---|---|---|
-| Superadmin | `superadmin` | Full access, including assigning admin/superadmin accounts |
+| Superadmin | `superadmin` | Full access, including assigning admin/superadmin accounts. **Hidden control account, not an individual**: it never appears in any staff listing (users, all-staff, my-unit, the manual check-in picker), is off every evacuation roster, and cannot hold a presence record — it can only log in and reach its own profile by id |
 | Admin | `admin` | Manage users, floors, manual check-in; everything except managing admin accounts |
 | Ketua Jabatan | `dept_head` | Department-wide presence, directory, reports and live locations + department force check-out |
 | Ketua Unit | `unit_head` | Unit-wide presence, directory, reports and live locations + unit force check-out |

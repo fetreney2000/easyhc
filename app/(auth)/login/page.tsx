@@ -17,6 +17,7 @@ import { IconAlertCircle, IconLogin } from "@tabler/icons-react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { strings } from "@/lib/i18n/strings";
+import { InstallAppButton } from "@/components/InstallAppButton";
 
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
@@ -117,6 +118,18 @@ export default function LoginPage() {
             </Button>
           </Stack>
         </form>
+
+        {/* Android/Chrome: the real install dialog, as soon as the browser
+            says the PWA is installable. iOS and anything else keeps the
+            printed/manual "Add to Home Screen" instructions in the tip below. */}
+        <InstallAppButton />
+
+        {/* The exact moment someone WITHOUT a bookmark reaches the app:
+            teach them how to never need this address again (the app is an
+            installable PWA — see public/manifest.json) */}
+        <Text size="xs" c="var(--app-text-secondary)" ta="center" mt="lg">
+          {strings.loginAddToHomeTip}
+        </Text>
       </Paper>
     </Center>
   );

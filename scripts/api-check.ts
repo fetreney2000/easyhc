@@ -47,6 +47,7 @@ async function main(): Promise<void> {
   const Attendance = (await import("@/lib/db/models/Attendance")).default;
   const AuditLog = (await import("@/lib/db/models/AuditLog")).default;
   const Evacuation = (await import("@/lib/db/models/Evacuation")).default;
+  const { strings } = await import("@/lib/i18n/strings");
 
   await connectDB();
 
@@ -280,6 +281,27 @@ async function main(): Promise<void> {
     "/muster redirects to /evacuation (query preserved)",
     oldMusterUrl.url.endsWith("/evacuation?from=bookmark"),
     oldMusterUrl.url
+  );
+
+  /* Staff access QR + the no-bookmark nudge ----------------------------- */
+  const appQr = await fetch(`${BASE}/api/qr/app`);
+  const appQrType = appQr.headers.get("content-type") ?? "";
+  check(
+    "staff access QR serves image/png",
+    appQr.status === 200 && appQrType.includes("image/png"),
+    `${appQr.status} ${appQrType}`
+  );
+  const encodedQrUrl = appQr.headers.get("x-qr-url") ?? "";
+  check(
+    "staff access QR encodes this deployment's origin",
+    encodedQrUrl === BASE.replace(/\/$/, ""),
+    `encoded=${encodedQrUrl} expected=${BASE}`
+  );
+  const loginHtml = await fetch(`${BASE}/login`).then((r) => r.text());
+  check(
+    "login page shows the add-to-home-screen tip",
+    loginHtml.includes(strings.loginAddToHomeTip),
+    `${loginHtml.length} bytes`
   );
 
   const searched = await authed("/api/attendance?active=true&q=zzz-no-such-person");

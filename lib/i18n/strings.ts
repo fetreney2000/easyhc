@@ -173,6 +173,20 @@ export const strings = {
   manualCheckinFloorRequired: "ID lantai diperlukan untuk daftar masuk manual",
   manualCheckinUserRequired: "Pengguna diperlukan untuk daftar masuk manual",
   qrGenerateError: "Ralat menjana kod QR",
+
+  // Staff access QR — the notice-board poster that opens the app itself
+  qrAppLabel: "QR Akses Kakitangan",
+  qrAppHint:
+    "Satu kod tetap untuk papan kenyataan — imbas untuk membuka EasyHC: akaun log masuk terus ke papan pemuka, pengguna baharu ke halaman log masuk.",
+  qrAppAlt: "Kod QR akses aplikasi EasyHC",
+  qrAppPrintTitle: "EasyHC — Imbas untuk Buka Aplikasi",
+  qrAppStep1: "Imbas kod QR ini dengan kamera telefon anda",
+  qrAppStep2: "Log masuk dengan nama pengguna dan kata laluan anda",
+  qrAppStep3:
+    "Tambah ke Skrin Utama (Add to Home Screen) supaya EasyHC boleh dibuka terus tanpa perlu imbas lagi",
+  loginAddToHomeTip:
+    "Tip: tambah EasyHC ke skrin utama anda untuk akses pantas — tidak perlu bookmark alamat.",
+  installApp: "Pasang Aplikasi",
   methodColumn: "Kaedah",
   stillActive: "Masih aktif",
   methodManual: "Manual",

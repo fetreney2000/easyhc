@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   Title,
   Paper,
@@ -32,6 +33,13 @@ export default function QRCodesPage() {
     "/api/floors",
     fetcher
   );
+
+  // Set after mount: SSR must not guess a host it doesn't have (hydration
+  // mismatch), and the printed text must show EXACTLY what the QR encodes
+  const [origin, setOrigin] = useState("");
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
 
   const handlePrintSingle = (floor: Floor, type: "employee" | "visitor") => {
     const printWindow = window.open("", "_blank");
@@ -82,6 +90,56 @@ export default function QRCodesPage() {
     setTimeout(doPrint, 2500);
   };
 
+  /** Notice-board poster: big QR + the address + the three steps that turn
+   *  a scan into a lasting home-screen shortcut (the fix for "no bookmark").
+   *  Same DOM-API/textContent construction as the floor posters above. */
+  const handlePrintAppQr = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    const doc = printWindow.document;
+    doc.title = strings.qrAppPrintTitle;
+
+    const heading = doc.createElement("h1");
+    heading.textContent = strings.qrAppPrintTitle;
+
+    const img = doc.createElement("img");
+    img.src = "/api/qr/app";
+    img.alt = strings.qrAppAlt;
+    img.style.cssText = "width:300px;height:300px;";
+
+    const url = doc.createElement("p");
+    url.textContent = window.location.origin;
+    url.style.cssText = "font-size:16px;font-weight:bold;margin-top:12px;";
+
+    const steps = doc.createElement("ol");
+    steps.style.cssText =
+      "text-align:left;display:inline-block;margin-top:20px;font-size:15px;line-height:1.9;";
+    for (const step of [
+      strings.qrAppStep1,
+      strings.qrAppStep2,
+      strings.qrAppStep3,
+    ]) {
+      const item = doc.createElement("li");
+      item.textContent = step;
+      steps.appendChild(item);
+    }
+
+    doc.body.style.cssText =
+      "text-align:center; padding:40px; font-family:'Inter',sans-serif;";
+    doc.body.append(heading, img, url, steps);
+
+    let printed = false;
+    const doPrint = () => {
+      if (printed) return;
+      printed = true;
+      printWindow.print();
+    };
+    img.addEventListener("load", doPrint);
+    img.addEventListener("error", doPrint);
+    setTimeout(doPrint, 2500);
+  };
+
   const access = useAccess(["floors:manage"]);
   if (access) return access;
 
@@ -108,6 +166,46 @@ export default function QRCodesPage() {
       <Text size="sm" c="var(--app-text-secondary)">
         {strings.qrIntro}
       </Text>
+
+      {/* Staff access QR — the app's own address, for notice boards. Shown
+          even while the floor list loads or errors: it needs no floor data */}
+      <Paper p="lg" radius="md" withBorder>
+        <Group justify="space-between" gap="md" mb="md" wrap="wrap">
+          <div>
+            <Title order={2} size="h3">
+              {strings.qrAppLabel}
+            </Title>
+            <Text size="sm" c="var(--app-text-secondary)" maw="62ch">
+              {strings.qrAppHint}
+            </Text>
+          </div>
+          <Button
+            variant="light"
+            leftSection={<IconPrinter size={16} />}
+            onClick={handlePrintAppQr}
+          >
+            {strings.printQR}
+          </Button>
+        </Group>
+        <Group gap="lg" align="center">
+          <Image
+            src="/api/qr/app"
+            alt={strings.qrAppAlt}
+            width={200}
+            height={200}
+            fit="contain"
+          />
+          <Stack gap={4}>
+            <Text fw={700} style={{ wordBreak: "break-all" }}>
+              {origin}
+            </Text>
+            <Text size="sm" c="var(--app-text-secondary)">
+              {strings.qrAppStep1} · {strings.qrAppStep2} ·{" "}
+              {strings.qrAppStep3}
+            </Text>
+          </Stack>
+        </Group>
+      </Paper>
 
       {isLoading ? (
         <Center py="xl"><Loader /></Center>

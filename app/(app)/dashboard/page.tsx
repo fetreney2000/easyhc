@@ -224,7 +224,7 @@ export default function DashboardPage() {
               <Text size="xs" c="var(--app-text-secondary)">
                 {strings.totalPresent}
               </Text>
-              <Text fw={700} size="xl">
+              <Text className="stat-number">
                 {data?.totalPresent ?? "—"}
               </Text>
             </div>
@@ -237,7 +237,7 @@ export default function DashboardPage() {
               <Text size="xs" c="var(--app-text-secondary)">
                 {strings.totalEmployees}
               </Text>
-              <Text fw={700} size="xl">
+              <Text className="stat-number">
                 {data?.totalEmployees ?? "—"}
               </Text>
             </div>
@@ -250,7 +250,7 @@ export default function DashboardPage() {
               <Text size="xs" c="var(--app-text-secondary)">
                 {strings.totalVisitors}
               </Text>
-              <Text fw={700} size="xl">
+              <Text className="stat-number">
                 {data?.totalVisitors ?? "—"}
               </Text>
             </div>

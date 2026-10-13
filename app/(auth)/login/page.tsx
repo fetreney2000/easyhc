@@ -12,6 +12,7 @@ import {
   Stack,
   Alert,
 } from "@mantine/core";
+import Image from "next/image";
 import { useForm } from "@mantine/form";
 import { IconAlertCircle, IconLogin } from "@tabler/icons-react";
 import { signIn } from "next-auth/react";
@@ -62,78 +63,103 @@ export default function LoginPage() {
   };
 
   return (
-    <Center h="100vh" bg="var(--mantine-color-default-bg)">
-      <Paper
-        shadow="md"
-        p="xl"
-        radius="md"
-        w={{ base: "100%", xs: 400 }}
-        maw={400}
-        mx="md"
-      >
-        <Title order={1} size="h2" ta="center" mb="xs">
-          {strings.appName}
-        </Title>
-        <Text fw={500} size="sm" ta="center" c="brandPrimary" mb="xs">
-          {strings.appOrg}
-        </Text>
-        <Text c="var(--app-text-secondary)" size="sm" ta="center" mb="xl">
-          {strings.loginTitle}
-        </Text>
-
-        {error && (
-          <Alert
-            icon={<IconAlertCircle size={16} />}
-            color="danger"
-            mb="md"
-            radius="md"
+    /* Brand gradient (dark end top-left): white text keeps ≥5:1 against
+       every stop, so the first screen staff ever see carries the identity
+       instead of a grey box */
+    <Center
+      mih="100vh"
+      style={{
+        background:
+          "linear-gradient(155deg, #1e3a8a 0%, #1d4ed8 45%, #2563eb 100%)",
+      }}
+    >
+      <Stack align="center" gap="lg" w="100%" maw={420} mx="md" py="xl">
+        {/* Brand block — name + organisation, white-on-blue */}
+        <Stack align="center" gap={6}>
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: 18,
+              padding: 8,
+              lineHeight: 0,
+              boxShadow: "0 8px 24px rgba(15, 23, 42, 0.28)",
+            }}
           >
-            {error}
-          </Alert>
-        )}
-
-        <form onSubmit={form.onSubmit(handleSubmit)}>
-          <Stack gap="md">
-            <TextInput
-              label={strings.username}
-              placeholder={strings.username}
-              required
-              {...form.getInputProps("username")}
-              autoComplete="username"
+            <Image
+              src="/icons/icon.svg"
+              alt={strings.appName}
+              width={48}
+              height={48}
+              priority
             />
+          </div>
+          <Title order={1} size="h2" ta="center" style={{ color: "#ffffff" }}>
+            {strings.appName}
+          </Title>
+          <Text size="sm" ta="center" style={{ color: "#f1f5f9" }}>
+            {strings.appOrg}
+          </Text>
+        </Stack>
 
-            <PasswordInput
-              label={strings.password}
-              placeholder={strings.password}
-              required
-              {...form.getInputProps("password")}
-              autoComplete="current-password"
-            />
+        <Paper shadow="md" p="xl" radius="lg" w="100%">
+          <Text fw={600} size="lg" ta="center" mb="lg">
+            {strings.loginTitle}
+          </Text>
 
-            <Button
-              type="submit"
-              fullWidth
-              loading={loading}
-              leftSection={<IconLogin size={18} />}
-              mt="sm"
+          {error && (
+            <Alert
+              icon={<IconAlertCircle size={16} />}
+              color="danger"
+              mb="md"
+              radius="md"
             >
-              {strings.loginButton}
-            </Button>
-          </Stack>
-        </form>
+              {error}
+            </Alert>
+          )}
 
-        {/* Android/Chrome: the real install dialog, as soon as the browser
-            says the PWA is installable. iOS and anything else keeps the
-            printed/manual "Add to Home Screen" instructions in the tip below. */}
-        <InstallAppButton />
+          <form onSubmit={form.onSubmit(handleSubmit)}>
+            <Stack gap="md">
+              <TextInput
+                label={strings.username}
+                placeholder={strings.username}
+                required
+                {...form.getInputProps("username")}
+                autoComplete="username"
+              />
 
-        {/* The exact moment someone WITHOUT a bookmark reaches the app:
-            teach them how to never need this address again (the app is an
-            installable PWA — see public/manifest.json) */}
-        <Text size="xs" c="var(--app-text-secondary)" ta="center" mt="lg">
-          {strings.loginAddToHomeTip}
-        </Text>
-      </Paper>
+              <PasswordInput
+                label={strings.password}
+                placeholder={strings.password}
+                required
+                {...form.getInputProps("password")}
+                autoComplete="current-password"
+              />
+
+              <Button
+                type="submit"
+                fullWidth
+                loading={loading}
+                leftSection={<IconLogin size={18} />}
+                mt="sm"
+              >
+                {strings.loginButton}
+              </Button>
+            </Stack>
+          </form>
+
+          {/* Android/Chrome: the real install dialog, as soon as the browser
+              says the PWA is installable. iOS and anything else keeps the
+              printed/manual "Add to Home Screen" instructions in the tip below. */}
+          <InstallAppButton />
+
+          {/* The exact moment someone WITHOUT a bookmark reaches the app:
+              teach them how to never need this address again (the app is an
+              installable PWA — see public/manifest.json) */}
+          <Text size="xs" c="var(--app-text-secondary)" ta="center" mt="lg">
+            {strings.loginAddToHomeTip}
+          </Text>
+        </Paper>
+      </Stack>
     </Center>
   );
 }

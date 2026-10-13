@@ -3,9 +3,34 @@
      gray-6 (3.5:1), which fails WCAG 1.4.3 at body sizes */
   --app-text-secondary: #495057;
 
+  /* Soft tinted app background (light scheme): white Papers then read as
+     cards floating on it — the cheapest, safest elevation there is */
+  --app-surface-bg: #f5f7fb;
+
   /* Elevation tokens — retune here, not at each call site */
   --app-shadow-lift: 0 4px 14px rgba(37, 99, 235, 0.45);
   --app-shadow-footer: 0 -2px 10px rgba(0, 0, 0, 0.05);
+}
+
+/* Attribute+value selector so this beats Mantine's own `:root` var block
+   regardless of stylesheet order */
+:root[data-mantine-color-scheme='light'] {
+  background: var(--app-surface-bg);
+  --mantine-color-default-bg: var(--app-surface-bg);
+}
+
+/* Type scale: tighter headings app-wide */
+.mantine-Title-root {
+  letter-spacing: -0.015em;
+}
+
+/* Hero numerals for stat cards (tabular figures keep digits aligned) */
+.stat-number {
+  font-size: clamp(1.75rem, 3.5vw, 2.5rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 [data-mantine-color-scheme='dark'] {

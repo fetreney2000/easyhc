@@ -10,7 +10,7 @@ import {
   Text,
   Stack,
   Alert,
-  Loader,
+  Skeleton,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { useSearchParams } from "next/navigation";
@@ -495,7 +495,11 @@ export default function VisitorCheckInPage({
     <Suspense
       fallback={
         <Center mih="100vh" bg="var(--mantine-color-default-bg)">
-          <Loader />
+          <Stack gap="md" w="min(420px, 90vw)">
+            <Skeleton height={28} radius="xl" width="70%" />
+            <Skeleton height={16} radius="xl" width="45%" />
+            <Skeleton height={44} radius="md" />
+          </Stack>
         </Center>
       }
     >

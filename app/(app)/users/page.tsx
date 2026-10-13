@@ -9,7 +9,6 @@ import {
   Button,
   Stack,
   Text,
-  Loader,
   Center,
   ActionIcon,
   Modal,

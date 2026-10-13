@@ -1,4 +1,4 @@
-import { Paper, Table, Center, Loader, Text } from "@mantine/core";
+import { Paper, Table, Center, Skeleton, Stack, Group, Text } from "@mantine/core";
 import { ErrorState } from "./ErrorState";
 import { strings } from "@/lib/i18n/strings";
 
@@ -38,9 +38,18 @@ export function DataTable({
   return (
     <Paper p="md" radius="md" withBorder>
       {isLoading ? (
-        <Center py="xl">
-          <Loader />
-        </Center>
+        /* Table-shaped skeleton: the layout that is coming, not a generic
+           spinner — the page reads as "already arriving" */
+        <Stack gap="sm" py="xs">
+          {Array.from({ length: 5 }).map((_, row) => (
+            <Group key={row} gap="md" wrap="nowrap">
+              <Skeleton height={28} radius="xl" width={28} />
+              <Skeleton height={16} radius="xl" style={{ flex: 1 }} />
+              <Skeleton height={16} radius="xl" width={90} />
+              <Skeleton height={16} radius="xl" width={70} />
+            </Group>
+          ))}
+        </Stack>
       ) : error ? (
         <ErrorState error={error} onRetry={onRetry} />
       ) : isEmpty ? (

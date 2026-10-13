@@ -9,7 +9,7 @@ import {
   Button,
   Stack,
   Text,
-  Loader,
+  Skeleton,
   Center,
   Image,
   Badge,
@@ -215,7 +215,11 @@ export default function QRCodesPage() {
       </Paper>
 
       {isLoading ? (
-        <Center py="xl"><Loader /></Center>
+        <Stack gap="xl">
+          {[0, 1].map((card) => (
+            <Skeleton key={card} height={300} radius="md" />
+          ))}
+        </Stack>
       ) : error ? (
         <ErrorState error={error} onRetry={mutate} />
       ) : !floors?.length ? (

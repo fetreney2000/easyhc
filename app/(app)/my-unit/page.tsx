@@ -8,7 +8,6 @@ import {
   Group,
   Stack,
   Text,
-  Loader,
   Center,
   Badge,
   Button,

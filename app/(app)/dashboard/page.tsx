@@ -11,7 +11,6 @@ import {
   Badge,
   Table,
   ActionIcon,
-  Loader,
   Center,
   Stack,
   Button,

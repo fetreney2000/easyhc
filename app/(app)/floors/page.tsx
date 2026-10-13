@@ -8,7 +8,7 @@ import {
   Group,
   Stack,
   Text,
-  Loader,
+  Skeleton,
   Center,
   Badge,
   ActionIcon,
@@ -255,7 +255,11 @@ export default function AllFloorsPage() {
 
       {/* Floor-grouped presence */}
       {isLoading ? (
-        <Center py="xl"><Loader /></Center>
+        <Stack gap="md">
+          {[0, 1, 2].map((row) => (
+            <Skeleton key={row} height={72} radius="md" />
+          ))}
+        </Stack>
       ) : error ? (
         <ErrorState error={error} onRetry={mutate} />
       ) : sortedFloors.length === 0 ? (

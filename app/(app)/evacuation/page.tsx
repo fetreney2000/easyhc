@@ -6,12 +6,11 @@ import useSWR from "swr";
 import {
   Badge,
   Button,
-  Center,
   Group,
-  Loader,
   Modal,
   Paper,
   SimpleGrid,
+  Skeleton,
   Stack,
   Table,
   Text,
@@ -213,9 +212,12 @@ export default function EvacuationPage() {
           below (a header duplicate was redundant) */}
 
       {isLoading ? (
-        <Center py="xl">
-          <Loader size="xl" />
-        </Center>
+        <Paper p="xl" radius="md" withBorder>
+          <Stack gap="md" py="lg">
+            <Skeleton height={18} radius="xl" width="45%" mx="auto" />
+            <Skeleton height={44} radius="md" width={220} mx="auto" />
+          </Stack>
+        </Paper>
       ) : error ? (
         <ErrorState error={error} onRetry={mutate} />
       ) : (
@@ -318,9 +320,19 @@ export default function EvacuationPage() {
             grows past the viewport */}
         <div style={{ maxHeight: "70vh", overflowY: "auto", paddingRight: 4 }}>
         {detailLoading ? (
-          <Center py="xl">
-            <Loader />
-          </Center>
+          /* The shape of what is coming: the stat row, then roster rows */
+          <Stack gap="md">
+            <SimpleGrid cols={{ base: 1, sm: 3 }}>
+              {[0, 1, 2].map((card) => (
+                <Skeleton key={card} height={64} radius="md" />
+              ))}
+            </SimpleGrid>
+            <Stack gap="sm">
+              {[0, 1, 2, 3].map((row) => (
+                <Skeleton key={row} height={16} radius="xl" />
+              ))}
+            </Stack>
+          </Stack>
         ) : detailError ? (
           <ErrorState error={detailError} onRetry={mutateDetail} />
         ) : detailSession ? (

@@ -114,5 +114,14 @@ export const theme = createTheme({
         highlightOnHover: true,
       },
     },
+    // One consistent, brief dialog motion (visual refresh stage 4): a 150ms
+    // fade in, a quicker fade out. Collapses to ~0ms under
+    // prefers-reduced-motion via the global rule in globals.css.
+    Modal: {
+      defaultProps: {
+        transitionProps: { transition: "fade", duration: 150 },
+        exitTransitionProps: { duration: 100 },
+      },
+    },
   },
 });

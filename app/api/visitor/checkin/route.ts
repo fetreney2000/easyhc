@@ -86,8 +86,9 @@ export async function POST(request: Request) {
     // The visitor check-in page is public, so the scanned QR token is the
     // only capability check: the caller must present the current token for
     // THIS floor. Otherwise anyone can fake presence on any floor.
+    // A mismatch means the printed poster predates a rotation — say so.
     if (!secureCompare(token, floor.qrToken)) {
-      return NextResponse.json({ error: strings.qrInvalid }, { status: 403 });
+      return NextResponse.json({ error: strings.qrRotated }, { status: 403 });
     }
 
     // One open check-in per phone, building-wide: a visitor cannot be

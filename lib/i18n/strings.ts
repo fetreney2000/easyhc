@@ -176,6 +176,8 @@ export const strings = {
   attendanceNotFound: "Rekod kehadiran tidak dijumpai",
   qrTokenRequired: "Token QR diperlukan",
   invalidQrCode: "Kod QR tidak sah",
+  qrRotated:
+    "Kod QR ini telah ditukar. Imbas kod QR terkini pada poster lantai anda.",
   manualCheckinFloorRequired: "ID lantai diperlukan untuk daftar masuk manual",
   manualCheckinUserRequired: "Pengguna diperlukan untuk daftar masuk manual",
   qrGenerateError: "Ralat menjana kod QR",

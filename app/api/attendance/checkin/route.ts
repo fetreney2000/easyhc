@@ -62,14 +62,18 @@ export async function POST(request: Request) {
 
       if (decryptedToken) {
         floor = await Floor.findOne({ qrToken: decryptedToken });
-      }
-
-      if (!floor) {
+        if (!floor) {
+          // A payload THIS deployment itself encrypted, matching no floor:
+          // the printed poster predates a token rotation (rotating revokes
+          // every printed QR). Say so — the fix is the new poster, not
+          // retaking the same photo.
+          return badRequest(strings.qrRotated);
+        }
+      } else {
         floor = await Floor.findOne({ qrToken });
-      }
-
-      if (!floor) {
-        return badRequest(strings.invalidQrCode);
+        if (!floor) {
+          return badRequest(strings.invalidQrCode);
+        }
       }
     }
 

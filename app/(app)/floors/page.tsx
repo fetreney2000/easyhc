@@ -12,6 +12,7 @@ import {
   Center,
   Badge,
   ActionIcon,
+  Avatar,
   Button,
   SimpleGrid,
   TextInput,
@@ -35,6 +36,8 @@ import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
+import { floorColor } from "@/lib/format";
+import { ROLE_LABELS } from "@/lib/db/types";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { can } from "@/lib/auth/rbac";
 import { notifications } from "@mantine/notifications";
@@ -260,7 +263,13 @@ export default function AllFloorsPage() {
       ) : (
         <Stack gap="md">
           {sortedFloors.map(([floorId, group]) => (
-            <Paper key={floorId} p="md" radius="md" withBorder>
+            <Paper
+              key={floorId}
+              p="md"
+              radius="md"
+              withBorder
+              style={{ borderLeft: `4px solid ${floorColor(floorId)}` }}
+            >
               {/* Floor header — a real <button> so it is keyboard-operable
                   (WCAG 2.1.1) and announces its state (WCAG 4.1.2). The old
                   version was a Group with onClick: not focusable, and the
@@ -273,7 +282,18 @@ export default function AllFloorsPage() {
               >
                 <Group justify="space-between" wrap="nowrap">
                   <Group gap="sm" style={{ minWidth: 0 }}>
-                    <ThemeIcon size="md" variant="light" color="brandPrimary" aria-hidden>
+                    {/* The floor's identity colour — same hue as the
+                        dashboard strip and the evacuation display */}
+                    <ThemeIcon
+                      size="md"
+                      radius="sm"
+                      variant="outline"
+                      style={{
+                        color: floorColor(floorId),
+                        borderColor: floorColor(floorId),
+                      }}
+                      aria-hidden
+                    >
                       <IconBuildingSkyscraper size={16} />
                     </ThemeIcon>
                     <Text fw={600}>{group.name}</Text>
@@ -323,6 +343,17 @@ export default function AllFloorsPage() {
                       <Table.Tr key={record._id}>
                         <Table.Td>
                           <Group gap="xs">
+                            <Avatar
+                              size="sm"
+                              radius="xl"
+                              color="brandPrimary"
+                              aria-hidden
+                            >
+                              {(record.type === "employee"
+                                ? record.userId?.name
+                                : record.visitorName
+                              )?.charAt(0).toUpperCase() || "?"}
+                            </Avatar>
                             <Text fw={500}>
                               {record.type === "employee" ? record.userId?.name : record.visitorName}
                             </Text>
@@ -333,7 +364,13 @@ export default function AllFloorsPage() {
                         </Table.Td>
                         <Table.Td>
                           {record.type === "employee" ? (
-                            <Badge size="xs" variant="light">{record.userId?.role}</Badge>
+                            <Badge size="xs" variant="light">
+                              {record.userId?.role
+                                ? ROLE_LABELS[
+                                    record.userId.role as keyof typeof ROLE_LABELS
+                                  ] ?? record.userId.role
+                                : "—"}
+                            </Badge>
                           ) : (
                             <Text size="sm" c="var(--app-text-secondary)">—</Text>
                           )}

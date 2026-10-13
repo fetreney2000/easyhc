@@ -48,3 +48,16 @@ export function relativeTime(iso: string): string {
   if (minutes < 60) return strings.minutesAgo(minutes);
   return clock(iso);
 }
+
+/**
+ * Stable per-floor identity colour (hue hashed from the id): works for any
+ * number of floors, survives renames, and means "Aras 2 is teal" everywhere
+ * it appears — dashboard strip, floor cards, the evacuation display.
+ */
+export const floorColor = (floorId: string): string => {
+  let hash = 0;
+  for (let i = 0; i < floorId.length; i++) {
+    hash = (hash * 31 + floorId.charCodeAt(i)) % 360;
+  }
+  return `hsl(${hash}, 62%, 45%)`;
+};

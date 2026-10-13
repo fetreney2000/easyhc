@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";import {
   Alert,
+  Avatar,
   Badge,
   Button,
   Center,
@@ -26,7 +27,7 @@ import { modals } from "@mantine/modals";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { strings } from "@/lib/i18n/strings";
-import { clock, duration } from "@/lib/format";
+import { clock, duration, floorColor } from "@/lib/format";
 import { can } from "@/lib/auth/rbac";
 import { DataTable } from "@/components/ui/DataTable";
 import type { EvacuationResponse } from "@/lib/evacuation";
@@ -458,7 +459,10 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
                       p="lg"
                       radius="md"
                       withBorder
-                      style={CARD_STYLE}
+                      style={{
+                        ...CARD_STYLE,
+                        borderLeft: `4px solid ${floorColor(floor.floorId)}`,
+                      }}
                     >
                       <Stack gap="xs" align="center">
                         <Text className="evac-floor-name" ta="center">
@@ -516,7 +520,22 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
                   <Table.Tbody>
                     {roster.map((row) => (
                       <Table.Tr key={row._id}>
-                        <Table.Td style={TD_STYLE}>{row.name}</Table.Td>
+                        <Table.Td style={TD_STYLE}>
+                        <Group gap="xs" wrap="nowrap">
+                          <Avatar
+                            size="sm"
+                            radius="xl"
+                            style={{
+                              background: "#2a2f37",
+                              color: "#e7eaef",
+                            }}
+                            aria-hidden
+                          >
+                            {row.name.charAt(0).toUpperCase() || "?"}
+                          </Avatar>
+                          {row.name}
+                        </Group>
+                      </Table.Td>
                         <Table.Td style={TD_STYLE}>
                           {row.type === "employee"
                             ? strings.employee

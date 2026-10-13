@@ -35,21 +35,14 @@ import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
-import { clock, relativeTime } from "@/lib/format";
+import { clock, floorColor, relativeTime } from "@/lib/format";
+import { ROLE_LABELS } from "@/lib/db/types";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable } from "@/components/ui/DataTable";
 import { can } from "@/lib/auth/rbac";
 import { LoadingScreen } from "@/components/shell/LoadingScreen";
 import { notifications } from "@mantine/notifications";
 import { modals } from "@mantine/modals";
-
-/** Stable per-floor identity colour (hue from the id — works for any
- *  number of floors and survives floor renames). */
-const floorColor = (id: string): string => {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) % 360;
-  return `hsl(${hash}, 62%, 45%)`;
-};
 
 interface PresenceRecord {
   _id: string;
@@ -542,6 +535,17 @@ export default function DashboardPage() {
                   <Table.Tr key={record._id}>
                     <Table.Td>
                       <Group gap="xs">
+                        <Avatar
+                          size="sm"
+                          radius="xl"
+                          color="brandPrimary"
+                          aria-hidden
+                        >
+                          {(record.type === "employee"
+                            ? record.userId?.name
+                            : record.visitorName
+                          )?.charAt(0).toUpperCase() || "?"}
+                        </Avatar>
                         <Text fw={500}>
                           {record.type === "employee"
                             ? record.userId?.name
@@ -558,7 +562,11 @@ export default function DashboardPage() {
                     <Table.Td>
                       {record.type === "employee" ? (
                         <Badge size="xs" variant="light">
-                          {record.userId?.role}
+                          {record.userId?.role
+                            ? ROLE_LABELS[
+                                record.userId.role as keyof typeof ROLE_LABELS
+                              ] ?? record.userId.role
+                            : "—"}
                         </Badge>
                       ) : (
                         <Text size="sm" c="var(--app-text-secondary)">—</Text>

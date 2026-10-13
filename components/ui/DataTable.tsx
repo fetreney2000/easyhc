@@ -51,7 +51,9 @@ export function DataTable({
         </Center>
       ) : (
         <Table.ScrollContainer minWidth={minWidth}>
-          <Table>{children}</Table>
+          {/* stickyHeader: the column names stay visible while scrolling a
+              long roster (only meaningful inside the scroll container) */}
+          <Table stickyHeader>{children}</Table>
         </Table.ScrollContainer>
       )}
     </Paper>

@@ -10,6 +10,7 @@ import {
   serverError,
   success,
   isCastError,
+  secureCompare,
 } from "@/lib/api/utils";
 import Attendance from "@/lib/db/models/Attendance";
 import Floor from "@/lib/db/models/Floor";
@@ -76,15 +77,24 @@ export async function POST(request: Request) {
         if (!floor) {
           // A visitor-URL QR names the floor it was printed for (the
           // scanner passes it as scannedFloorId). If that floor still
-          // exists, a token that no longer matches is a ROTATED poster —
-          // same remedy as the employee-payload case. Floor ids are
-          // public (GET /api/floors), so this reveals nothing new.
+          // exists AND the presented token is one it actually used before
+          // (prevQrToken), this is a ROTATED poster — same remedy as the
+          // employee-payload case. A hand-made URL naming the floor stays
+          // the generic message. Floor ids are public (GET /api/floors),
+          // so the distinction reveals nothing new.
           if (
             typeof scannedFloorId === "string" &&
-            Types.ObjectId.isValid(scannedFloorId) &&
-            (await Floor.exists({ _id: scannedFloorId }))
+            Types.ObjectId.isValid(scannedFloorId)
           ) {
-            return badRequest(strings.qrRotated);
+            const hinted = await Floor.findOne({ _id: scannedFloorId })
+              .select("prevQrToken")
+              .lean();
+            if (
+              hinted?.prevQrToken &&
+              secureCompare(qrToken, hinted.prevQrToken)
+            ) {
+              return badRequest(strings.qrRotated);
+            }
           }
           return badRequest(strings.invalidQrCode);
         }

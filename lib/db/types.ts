@@ -73,6 +73,8 @@ export interface IFloor {
   _id: Types.ObjectId;
   name: string;
   qrToken: string;
+  /** The token in use before the last rotation (see Floor model). */
+  prevQrToken?: string;
   /** Identity colour hue (0-359), assigned at creation with the golden
    *  angle (137°) so every floor sits as far as possible from the last —
    *  an id hash could cluster several floors in one colour. */

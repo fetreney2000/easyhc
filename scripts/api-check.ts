@@ -74,9 +74,20 @@ async function main(): Promise<void> {
       `swept ${sweptVisitors.deletedCount} stale test visitor record(s) from an interrupted run`
     );
   }
-  // Leftover floors from interrupted stale-poster runs (they carry no
-  // attendance, so deletion is always safe)
-  await Floor.deleteMany({ name: { $regex: "^E2E QR Rotasi" } });
+  // Leftover floors from interrupted stale-poster runs — same guard as
+  // every other write section, and never a floor that somehow gained a
+  // check-in (the DELETE route refuses those for the same reason)
+  if (allowWrites) {
+    const leftoverFloors = await Floor.find({
+      name: { $regex: "^E2E QR Rotasi" },
+    })
+      .select("_id")
+      .lean();
+    for (const leftover of leftoverFloors) {
+      const used = await Attendance.countDocuments({ floorId: leftover._id });
+      if (used === 0) await Floor.deleteOne({ _id: leftover._id });
+    }
+  }
 
   // Prefer an account that can see everything, so totals are meaningful
   const actor =
@@ -973,46 +984,70 @@ async function main(): Promise<void> {
           createdBy: actor._id,
         });
         const oldToken = staleFloor.qrToken;
-        const rotated = await fetch(`${BASE}/api/floors/${staleFloor._id}`, {
-          method: "PATCH",
-          headers: { cookie, "Content-Type": "application/json" },
-        }).then((r) => r.status);
+        try {
+          const rotated = await fetch(`${BASE}/api/floors/${staleFloor._id}`, {
+            method: "PATCH",
+            headers: { cookie, "Content-Type": "application/json" },
+          }).then((r) => r.status);
 
-        if (rotated === 200 && staleScanner) {
-          const scannerCookie = await mintCookie(staleScanner);
-          const withHint = await fetch(`${BASE}/api/attendance/checkin`, {
-            method: "POST",
-            headers: { cookie: scannerCookie, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              qrToken: oldToken,
-              scannedFloorId: staleFloor._id.toString(),
-            }),
-          });
-          const withHintBody = await withHint.json();
-          check(
-            "rotated visitor poster -> rotated wording (400)",
-            withHint.status === 400 && withHintBody.error === strings.qrRotated,
-            `${withHint.status} ${withHintBody.error}`
-          );
+          if (rotated === 200 && staleScanner) {
+            const scannerCookie = await mintCookie(staleScanner);
+            const withHint = await fetch(`${BASE}/api/attendance/checkin`, {
+              method: "POST",
+              headers: { cookie: scannerCookie, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                qrToken: oldToken,
+                scannedFloorId: staleFloor._id.toString(),
+              }),
+            });
+            const withHintBody = await withHint.json().catch(() => ({}));
+            check(
+              "rotated visitor poster -> rotated wording (400)",
+              withHint.status === 400 && withHintBody.error === strings.qrRotated,
+              `${withHint.status} ${withHintBody.error}`
+            );
 
-          const noHint = await fetch(`${BASE}/api/attendance/checkin`, {
-            method: "POST",
-            headers: { cookie: scannerCookie, "Content-Type": "application/json" },
-            body: JSON.stringify({ qrToken: oldToken }),
-          });
-          const noHintBody = await noHint.json();
-          check(
-            "rotated token without floor hint -> generic message (400)",
-            noHint.status === 400 &&
-              noHintBody.error === strings.invalidQrCode,
-            `${noHint.status} ${noHintBody.error}`
-          );
-        } else {
-          skip(
-            `stale-poster checks (rotate=${rotated}, scanner=${staleScanner ? "yes" : "no"})`
-          );
+            const noHint = await fetch(`${BASE}/api/attendance/checkin`, {
+              method: "POST",
+              headers: { cookie: scannerCookie, "Content-Type": "application/json" },
+              body: JSON.stringify({ qrToken: oldToken }),
+            });
+            const noHintBody = await noHint.json().catch(() => ({}));
+            check(
+              "rotated token without floor hint -> generic message (400)",
+              noHint.status === 400 &&
+                noHintBody.error === strings.invalidQrCode,
+              `${noHint.status} ${noHintBody.error}`
+            );
+
+            // A hand-made URL naming the floor but carrying a token the
+            // floor NEVER used must stay the generic message — only a
+            // real previous token earns the rotated wording
+            const fabricated = await fetch(`${BASE}/api/attendance/checkin`, {
+              method: "POST",
+              headers: { cookie: scannerCookie, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                qrToken: "never-a-real-token-000",
+                scannedFloorId: staleFloor._id.toString(),
+              }),
+            });
+            const fabricatedBody = await fabricated.json().catch(() => ({}));
+            check(
+              "fabricated floor URL -> generic message (400)",
+              fabricated.status === 400 &&
+                fabricatedBody.error === strings.invalidQrCode,
+              `${fabricated.status} ${fabricatedBody.error}`
+            );
+          } else {
+            skip(
+              `stale-poster checks (rotate=${rotated}, scanner=${staleScanner ? "yes" : "no"})`
+            );
+          }
+        } finally {
+          // Runs on every path — a thrown .json() above must not leak the
+          // fixture floor onto the live board until the next sweep
+          await Floor.findByIdAndDelete(staleFloor._id);
         }
-        await Floor.findByIdAndDelete(staleFloor._id);
       }
 
       /* floor_head: sees only their own floor's names, and may not confirm

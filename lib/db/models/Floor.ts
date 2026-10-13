@@ -16,6 +16,12 @@ const FloorSchema = new Schema<IFloor>(
       unique: true,
       default: () => crypto.randomUUID(),
     },
+    // The token this floor used before the last rotation — lets the check-in
+    // path tell a genuinely ROTATED poster (presented == prev) from a
+    // hand-made URL that merely names the floor
+    prevQrToken: {
+      type: String,
+    },
     // Identity colour hue (0-359), assigned at creation (golden angle) —
     // see IFloor in lib/db/types.ts
     hue: {

@@ -149,6 +149,9 @@ export async function PATCH(
     const floor = await Floor.findById(params.id);
     if (!floor) return badRequest(strings.floorNotFound);
 
+    // Keep the outgoing token: a scan of the poster this rotation just
+    // revoked can then be reported as ROTATED rather than plainly invalid
+    floor.prevQrToken = floor.qrToken;
     floor.qrToken = crypto.randomUUID();
     await floor.save();
 

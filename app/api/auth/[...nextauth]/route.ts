@@ -9,17 +9,27 @@ const SIGNIN_MAX_PER_MINUTE = 15;
 
 export const GET = handlers.GET;
 
-/** Absolute origin of this request, for building a client-parseable URL. */
-function requestOrigin(request: Request): string {
-  const proto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
-  const host =
-    request.headers.get("x-forwarded-host")?.split(",")[0]?.trim() ??
-    request.headers.get("host");
-  if (proto && host) return `${proto}://${host}`;
+/**
+ * Canonical app origin for the throttle response URL. Deliberately NOT
+ * derived from x-forwarded-* headers (client-influenceable on platforms
+ * that do not overwrite them): the configured NEXTAUTH_URL first, then the
+ * request's own absolute URL. The current caller only parses the `error`
+ * param, but keeping the value canonical also makes any future
+ * redirect:true caller safe.
+ */
+function appOrigin(request: Request): string {
+  const env = process.env.NEXTAUTH_URL;
+  if (env) {
+    try {
+      return new URL(env).origin;
+    } catch {
+      // fall through to the request origin
+    }
+  }
   try {
     return new URL(request.url).origin;
   } catch {
-    return process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+    return "http://localhost:3000";
   }
 }
 
@@ -43,10 +53,11 @@ export async function POST(request: Request) {
       // and reads the `error` param from it (redirect:false) — a bare
       // {error} JSON made it throw, so the login page showed the generic
       // server error instead of "too many attempts". Mimic the shape
-      // next-auth itself returns for a failed credentials callback.
+      // next-auth itself returns for a failed credentials callback, and
+      // point it at the APP's login page (not next-auth's built-in one).
       return NextResponse.json(
         {
-          url: `${requestOrigin(request)}/api/auth/signin?error=TooManyAttempts`,
+          url: `${appOrigin(request)}/login?error=TooManyAttempts`,
         },
         {
           status: 429,

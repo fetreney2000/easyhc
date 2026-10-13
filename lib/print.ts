@@ -122,25 +122,33 @@ export function openPoster(
 
   let didPrint = false;
   const printWhenReady = (imgs: HTMLImageElement[]) => {
+    if (imgs.length === 0) return; // nothing to print, nothing to wait for
     const doPrint = () => {
       if (didPrint) return;
       didPrint = true;
       win.print();
     };
     let remaining = imgs.length;
-    const settle = () => {
+    let loaded = 0;
+    const settle = (ok: boolean) => {
+      if (ok) loaded += 1;
       remaining -= 1;
-      if (remaining <= 0) doPrint();
+      // Only a FULLY rendered sheet is worth printing: an errored QR would
+      // commit four blank boxes, so the window stays open instead (blank
+      // cards are visible and can be retried or printed manually)
+      if (remaining <= 0 && loaded === imgs.length) doPrint();
     };
     for (const img of imgs) {
-      img.addEventListener("load", settle);
-      img.addEventListener("error", settle);
+      img.addEventListener("load", () => settle(true));
+      img.addEventListener("error", () => settle(false));
     }
-    // …but the timeout only prints QRs that HAVE arrived: a slow endpoint
-    // must not commit sheets with empty boxes (the window stays open and
-    // can be printed manually once the images show)
+    // …and the timeout follows the same rule: a slow endpoint must not
+    // commit sheets with empty boxes either
     setTimeout(() => {
-      if (!didPrint && imgs.every((i) => i.complete && i.naturalWidth > 0)) {
+      if (
+        !didPrint &&
+        imgs.every((i) => i.complete && i.naturalWidth > 0)
+      ) {
         doPrint();
       }
     }, 3000);

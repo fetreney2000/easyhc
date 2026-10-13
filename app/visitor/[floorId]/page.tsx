@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import {
   Center,
+  Image,
   Paper,
   TextInput,
   Button,
@@ -377,18 +378,48 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
   };
 
   return (
-    <Center mih="100vh" bg="var(--mantine-color-default-bg)">
-      <Paper
-        shadow="md"
-        p="xl"
-        radius="md"
-        w={{ base: "100%", xs: 400 }}
-        maw={400}
-        mx="md"
-      >
-        <Title order={1} size="h3" ta="center" mb="lg">
-          {strings.visitorCheckInTitle}
-        </Title>
+    /* The public page carries the same identity as the login screen:
+       brand gradient, the wordmark, then a floating white card — a
+       visitor scanning a door poster lands on something that obviously
+       belongs to the same product */
+    <Center
+      mih="100vh"
+      style={{
+        background:
+          "linear-gradient(155deg, #1e3a8a 0%, #1d4ed8 45%, #2563eb 100%)",
+      }}
+    >
+      <Stack align="center" gap="lg" w="100%" maw={420} mx="md" py="xl">
+        {/* Brand block — name + organisation, white-on-blue */}
+        <Stack align="center" gap={6}>
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: 18,
+              padding: 8,
+              lineHeight: 0,
+              boxShadow: "0 8px 24px rgba(15, 23, 42, 0.28)",
+            }}
+          >
+            <Image
+              src="/icons/icon.svg"
+              alt={strings.appName}
+              width={44}
+              height={44}
+            />
+          </div>
+          <Title order={1} size="h3" ta="center" style={{ color: "#ffffff" }}>
+            {strings.appName}
+          </Title>
+          <Text size="sm" ta="center" style={{ color: "#f1f5f9" }}>
+            {strings.appOrg}
+          </Text>
+        </Stack>
+
+        <Paper shadow="md" p="xl" radius="lg" w="100%">
+          <Title order={2} size="h4" ta="center" mb="lg">
+            {strings.visitorCheckInTitle}
+          </Title>
 
         {error && (
           <Alert icon={<IconAlertCircle size={16} />} color="danger" mb="md">
@@ -407,7 +438,7 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
                 {strings.visitorCheckInSuccess}
               </Alert>
             )}
-            <Text size="sm" c="dimmed" ta="center">
+            <Text fw={700} ta="center" size="lg">
               {checkedInName}
             </Text>
             {checkedInFloor && (
@@ -493,7 +524,8 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
             </Stack>
           </form>
         )}
-      </Paper>
+        </Paper>
+      </Stack>
     </Center>
   );
 }
@@ -507,7 +539,13 @@ export default function VisitorCheckInPage({
   return (
     <Suspense
       fallback={
-        <Center mih="100vh" bg="var(--mantine-color-default-bg)">
+        <Center
+          mih="100vh"
+          style={{
+            background:
+              "linear-gradient(155deg, #1e3a8a 0%, #1d4ed8 45%, #2563eb 100%)",
+          }}
+        >
           <Stack gap="md" w="min(420px, 90vw)">
             <Skeleton height={28} radius="xl" width="70%" />
             <Skeleton height={16} radius="xl" width="45%" />

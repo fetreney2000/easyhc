@@ -187,7 +187,7 @@ export const strings = {
   qrAppHint:
     "Satu kod tetap untuk papan kenyataan — imbas untuk membuka EasyHC: akaun log masuk terus ke papan pemuka, pengguna baharu ke halaman log masuk.",
   qrAppAlt: "Kod QR akses aplikasi EasyHC",
-  qrAppPrintTitle: "EasyHC — Imbas untuk Buka Aplikasi",
+  qrAppPrintTitle: "Imbas untuk Buka Aplikasi",
   qrAppStep1: "Imbas kod QR ini dengan kamera telefon anda",
   qrAppStep2: "Log masuk dengan nama pengguna dan kata laluan anda",
   qrAppStep3:

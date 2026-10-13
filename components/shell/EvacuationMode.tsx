@@ -461,7 +461,7 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
                       withBorder
                       style={{
                         ...CARD_STYLE,
-                        borderLeft: `4px solid ${floorColor(floor.floorId)}`,
+                        borderLeft: `4px solid ${floorColor(floor.hue ?? floor.floorId)}`,
                       }}
                     >
                       <Stack gap="xs" align="center">

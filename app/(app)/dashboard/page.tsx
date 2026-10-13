@@ -102,7 +102,7 @@ export default function DashboardPage() {
   }, [floorFilter, debouncedQuery]);
 
   // Fetch floors for filter
-  const { data: floors } = useSWR<{ _id: string; name: string }[]>(
+  const { data: floors } = useSWR<{ _id: string; name: string; hue?: number }[]>(
     "/api/floors",
     fetcher
   );
@@ -236,6 +236,7 @@ export default function DashboardPage() {
       .map((floor) => ({
         _id: floor._id,
         name: floor.name,
+        hue: floor.hue,
         count: counts.get(floor._id) ?? 0,
       }))
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
@@ -386,7 +387,7 @@ export default function DashboardPage() {
                 p="sm"
                 radius="md"
                 withBorder
-                style={{ borderLeft: `4px solid ${floorColor(floor._id)}` }}
+                style={{ borderLeft: `4px solid ${floorColor(floor.hue ?? floor._id)}` }}
               >
                 <Group justify="space-between" wrap="nowrap" gap="xs">
                   <Text size="sm" fw={600} lineClamp={1} style={{ flex: 1 }}>

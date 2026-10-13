@@ -49,7 +49,7 @@ interface PresenceRecord {
   type: "employee" | "visitor";
   userId?: { _id: string; name: string; role: string };
   visitorName?: string;
-  floorId: { _id: string; name: string };
+  floorId: { _id: string; name: string; hue?: number };
   checkedInAt: string;
   method: string;
 }
@@ -111,7 +111,13 @@ export default function AllFloorsPage() {
   const sortedFloors = useMemo(() => {
     const floorGroups = new Map<
       string,
-      { name: string; records: PresenceRecord[]; employees: number; visitors: number }
+      {
+        name: string;
+        hue?: number;
+        records: PresenceRecord[];
+        employees: number;
+        visitors: number;
+      }
     >();
 
     (data?.attendance ?? []).forEach((record) => {
@@ -119,7 +125,13 @@ export default function AllFloorsPage() {
         const floorName = record.floorId?.name || strings.unknownFloor;
         if (!floorId) return;
         if (!floorGroups.has(floorId)) {
-          floorGroups.set(floorId, { name: floorName, records: [], employees: 0, visitors: 0 });
+          floorGroups.set(floorId, {
+            name: floorName,
+            hue: record.floorId.hue,
+            records: [],
+            employees: 0,
+            visitors: 0,
+          });
         }
         const group = floorGroups.get(floorId)!;
         group.records.push(record);
@@ -272,7 +284,7 @@ export default function AllFloorsPage() {
               p="md"
               radius="md"
               withBorder
-              style={{ borderLeft: `4px solid ${floorColor(floorId)}` }}
+              style={{ borderLeft: `4px solid ${floorColor(group.hue ?? floorId)}` }}
             >
               {/* Floor header — a real <button> so it is keyboard-operable
                   (WCAG 2.1.1) and announces its state (WCAG 4.1.2). The old
@@ -293,8 +305,8 @@ export default function AllFloorsPage() {
                       radius="sm"
                       variant="outline"
                       style={{
-                        color: floorColor(floorId),
-                        borderColor: floorColor(floorId),
+                        color: floorColor(group.hue ?? floorId),
+                        borderColor: floorColor(group.hue ?? floorId),
                       }}
                       aria-hidden
                     >

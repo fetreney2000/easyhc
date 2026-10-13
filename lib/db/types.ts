@@ -73,6 +73,10 @@ export interface IFloor {
   _id: Types.ObjectId;
   name: string;
   qrToken: string;
+  /** Identity colour hue (0-359), assigned at creation with the golden
+   *  angle (137°) so every floor sits as far as possible from the last —
+   *  an id hash could cluster several floors in one colour. */
+  hue: number;
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -113,6 +117,10 @@ export interface IRosterEntry {
   /** Resolved at snapshot time (employees via their unit's home floor). */
   floorId?: Types.ObjectId;
   floorName?: string;
+  /** The floor's identity hue at snapshot time (absent on sessions
+   *  predating the stored-hue scheme — the display falls back to the
+   *  legacy id hash for those). */
+  floorHue?: number;
   confirmedAt?: Date;
   /**
    * Who recorded the confirmation — derivable provenance, no extra field:

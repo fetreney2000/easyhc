@@ -28,6 +28,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 interface Floor {
   _id: string;
   name: string;
+  hue?: number;
 }
 
 export default function QRCodesPage() {
@@ -54,7 +55,7 @@ export default function QRCodesPage() {
     // the floors page and the evacuation display (visual refresh stage 3)
     const poster = openPoster(
       `Kod QR ${isVisitor ? strings.visitor : strings.employee} - ${floor.name}`,
-      floorColor(floor._id)
+      floorColor(floor.hue ?? floor._id)
     );
     if (!poster) return;
     const { doc, main, printWhenReady } = poster;

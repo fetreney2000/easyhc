@@ -50,14 +50,19 @@ export function relativeTime(iso: string): string {
 }
 
 /**
- * Stable per-floor identity colour (hue hashed from the id): works for any
- * number of floors, survives renames, and means "Aras 2 is teal" everywhere
- * it appears — dashboard strip, floor cards, the evacuation display.
+ * Stable per-floor identity colour.
+ *
+ * Accepts the floor's STORED hue (assigned at creation with the golden
+ * angle, so any number of floors stay maximally distinct — three floors
+ * must never look the same on a wall board). The string form is the legacy
+ * id-hash fallback for snapshots taken before hues existed; it can cluster
+ * by luck, which is exactly why the stored hue replaced it.
  */
-export const floorColor = (floorId: string): string => {
+export const floorColor = (hueOrId: number | string): string => {
+  if (typeof hueOrId === "number") return `hsl(${hueOrId}, 62%, 45%)`;
   let hash = 0;
-  for (let i = 0; i < floorId.length; i++) {
-    hash = (hash * 31 + floorId.charCodeAt(i)) % 360;
+  for (let i = 0; i < hueOrId.length; i++) {
+    hash = (hash * 31 + hueOrId.charCodeAt(i)) % 360;
   }
   return `hsl(${hash}, 62%, 45%)`;
 };

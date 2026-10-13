@@ -42,6 +42,9 @@ export interface EvacRosterRow {
 export interface EvacFloorStat {
   floorId: string;
   name: string;
+  /** The floor's identity hue, snapshotted onto the roster entry at
+   *  session start (absent on sessions predating hues). */
+  hue?: number;
   expected: number;
   confirmed: number;
   missing: number;
@@ -191,6 +194,7 @@ export async function sessionView(
     const stat = byFloor.get(id) ?? {
       floorId: id,
       name: entry.floorName || strings.unknownFloor,
+      hue: entry.floorHue,
       expected: 0,
       confirmed: 0,
       missing: 0,
@@ -361,11 +365,14 @@ export async function buildRoster(): Promise<IRosterEntry[]> {
     Attendance.find({ type: "visitor", checkedOutAt: null })
       .select("visitorName floorId")
       .lean(),
-    Floor.find({}).select("name").lean(),
+    Floor.find({}).select("name hue").lean(),
   ]);
 
   const floorName = new Map(
     floors.map((floor) => [floor._id.toString(), floor.name])
+  );
+  const floorHue = new Map(
+    floors.map((floor) => [floor._id.toString(), floor.hue])
   );
 
   const userIds = employeeRows
@@ -398,6 +405,9 @@ export async function buildRoster(): Promise<IRosterEntry[]> {
       floorName: row.floorId
         ? floorName.get(row.floorId.toString())
         : undefined,
+      floorHue: row.floorId
+        ? floorHue.get(row.floorId.toString())
+        : undefined,
     });
   }
 
@@ -408,6 +418,7 @@ export async function buildRoster(): Promise<IRosterEntry[]> {
     type: "visitor",
     floorId: record.floorId,
     floorName: floorName.get(record.floorId.toString()),
+    floorHue: floorHue.get(record.floorId.toString()),
   }));
 
   // Staff first, each group alphabetical — a warden scans one list

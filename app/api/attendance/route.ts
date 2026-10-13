@@ -137,7 +137,7 @@ export async function GET(request: Request) {
         // are not needed to draw a presence list, so they are not returned.
         .select("-visitorPhone")
         .populate("userId", "name role")
-        .populate("floorId", "name")
+        .populate("floorId", "name hue")
         .sort(checkedOut ? { checkedOutAt: -1 } : { checkedInAt: -1 })
         .skip((page - 1) * pageSize)
         .limit(pageSize)

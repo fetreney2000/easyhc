@@ -14,6 +14,7 @@ const RosterEntrySchema = new Schema<IRosterEntry>(
     type: { type: String, enum: ["employee", "visitor"], required: true },
     floorId: { type: Schema.Types.ObjectId, ref: "Floor" },
     floorName: { type: String, trim: true },
+    floorHue: { type: Number },
     confirmedAt: { type: Date },
     confirmedBy: { type: Schema.Types.ObjectId, ref: "User" },
   },

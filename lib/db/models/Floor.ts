@@ -16,6 +16,14 @@ const FloorSchema = new Schema<IFloor>(
       unique: true,
       default: () => crypto.randomUUID(),
     },
+    // Identity colour hue (0-359), assigned at creation (golden angle) —
+    // see IFloor in lib/db/types.ts
+    hue: {
+      type: Number,
+      required: true,
+      min: 0,
+      max: 359,
+    },
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",

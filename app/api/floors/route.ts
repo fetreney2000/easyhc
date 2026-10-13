@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     const floors = await Floor.find()
       // qrToken is a capability (it authorises check-in), never list it;
       // createdBy is internal bookkeeping that no screen renders
-      .select("name createdAt")
+      .select("name createdAt hue")
       .sort({ name: 1 })
       .lean();
 
@@ -64,8 +64,15 @@ export async function POST(request: Request) {
       return badRequest(strings.floorExists);
     }
 
+    // Identity colour: the golden angle (137°) spaces each new floor as
+    // far as possible from every existing one, whatever the count — an id
+    // hash could land three floors in the same colour family
+    const existingCount = await Floor.countDocuments();
+    const hue = (existingCount * 137) % 360;
+
     const floor = await Floor.create({
       name,
+      hue,
       createdBy: user.id,
     });
 

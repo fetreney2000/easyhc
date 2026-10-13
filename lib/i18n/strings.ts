@@ -198,6 +198,9 @@ export const strings = {
 
   // QR Scanner
   scanQRTitle: "Imbas Kod QR Lantai",
+  scanProcessing: "Kod diimbas, sedang memproses...",
+  scanWrongQrApp:
+    "Itu kod akses aplikasi. Untuk daftar masuk, imbas kod QR di pintu masuk lantai.",
   scanQRInstruction: "Halakan kamera ke kod QR di pintu masuk lantai",
   cameraPermissionDenied: "Akses kamera dinafikan. Sila benarkan akses kamera dalam tetapan pelayar anda.",
   cameraError: "Gagal mengakses kamera. Sila pastikan kamera tersedia.",

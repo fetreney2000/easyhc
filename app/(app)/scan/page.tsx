@@ -8,6 +8,7 @@ import {
   Alert,
   Stack,
   Center,
+  Group,
   Loader,
   Button,
 } from "@mantine/core";
@@ -32,6 +33,16 @@ export default function ScanPage() {
   const processingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
+  // On-screen status card under the camera (three states). Toasts still
+  // fire, but they are no longer the only channel: the card is durable,
+  // readable at arm's length, and survives the camera resuming behind it.
+  const [scanState, setScanState] = useState<
+    "idle" | "processing" | "success" | "error"
+  >("idle");
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  // Cooldown for the same rejected code still held in front of the camera,
+  // so a poster in frame cannot spam toasts every few hundred ms
+  const lastRejectedRef = useRef<{ text: string; at: number } | null>(null);
   // Bumping this restarts the camera effect (the only recovery path after a
   // failed start — previously the page required a full reload)
   const [startAttempt, setStartAttempt] = useState(0);
@@ -40,7 +51,28 @@ export default function ScanPage() {
   const retryScan = () => {
     setError(null);
     setScanning(false);
+    setScanState("idle");
+    setStatusMessage(null);
     setStartAttempt((attempt) => attempt + 1);
+  };
+
+  /**
+   * html5-qrcode injects its own overlay div ("Scanner paused", toggled by
+   * pause/resume) into our camera box. Every visible pixel there must be
+   * ours, so the element is removed from the DOM after start — the library's
+   * later display toggles then write to a detached node, which is harmless.
+   * Matched by its text so a library-internal id change cannot break it.
+   */
+  const removeLibraryOverlay = (root: HTMLElement | null) => {
+    if (!root) return;
+    for (const child of Array.from(root.children)) {
+      if (
+        child instanceof HTMLDivElement &&
+        child.textContent?.trim() === "Scanner paused"
+      ) {
+        child.remove();
+      }
+    }
   };
 
   const handleCheckIn = useCallback(
@@ -50,7 +82,12 @@ export default function ScanPage() {
         const scanner = html5QrCodeRef.current;
         if (scanner?.isScanning) {
           await scanner.pause(true);
+          // The pause overlay is guaranteed to exist by now — make sure it
+          // is gone (our own processing overlay owns this space instead)
+          removeLibraryOverlay(scannerRef.current);
         }
+        setScanState("processing");
+        setStatusMessage(null);
 
         const res = await fetch("/api/attendance/checkin", {
           method: "POST",
@@ -67,8 +104,11 @@ export default function ScanPage() {
             color: "success",
             icon: <IconCheck size={16} />,
           });
-          // Redirect to dashboard after successful check-in
-          router.push("/dashboard");
+          // Hold the success state briefly so the message is readable, then
+          // let the dashboard itself be the proof (you appear on the board)
+          setScanState("success");
+          setStatusMessage(data.message);
+          setTimeout(() => router.push("/dashboard"), 1000);
           return;
         } else {
           notifications.show({
@@ -76,6 +116,10 @@ export default function ScanPage() {
             message: data.error || strings.checkInError,
             color: "danger",
           });
+          // The card STAYS red while the camera resumes behind it —
+          // the toast is no longer the only place this was said
+          setScanState("error");
+          setStatusMessage(data.error || strings.checkInError);
         }
 
         // Resume scanner after a short delay
@@ -92,6 +136,8 @@ export default function ScanPage() {
           message: strings.serverError,
           color: "danger",
         });
+        setScanState("error");
+        setStatusMessage(strings.serverError);
         // Resume scanner
         const scanner = html5QrCodeRef.current;
         if (scanner?.isScanning) {
@@ -131,6 +177,7 @@ export default function ScanPage() {
             try {
               // Extract QR token from URL or use raw text
               let qrToken = decodedText;
+              let ownAppUrlWithoutToken = false;
 
               // If it's a URL, extract the token
               try {
@@ -144,12 +191,49 @@ export default function ScanPage() {
                   const lastPart = pathParts[pathParts.length - 1];
                   if (lastPart && lastPart !== "scan") {
                     qrToken = lastPart;
+                  } else if (url.host === window.location.host) {
+                    // Our own app address WITHOUT a floor token: the
+                    // staff-access poster QR (or a plain link to the app).
+                    // The most likely wrong code now that posters are on
+                    // the walls — say so instantly, with no server round
+                    // trip, and keep the camera running for the right code.
+                    ownAppUrlWithoutToken = true;
                   }
                 }
               } catch {
                 // Not a URL, use raw text as token
               }
 
+              if (ownAppUrlWithoutToken) {
+                const now = Date.now();
+                if (
+                  lastRejectedRef.current?.text === decodedText &&
+                  now - lastRejectedRef.current.at < 3000
+                ) {
+                  return; // same code still in frame — no toast spam
+                }
+                lastRejectedRef.current = { text: decodedText, at: now };
+
+                notifications.show({
+                  title: strings.error,
+                  message: strings.scanWrongQrApp,
+                  color: "danger",
+                });
+                setScanState("error");
+                setStatusMessage(strings.scanWrongQrApp);
+                // The camera never paused — the user can rescan the
+                // correct floor QR immediately
+                return;
+              }
+
+              lastRejectedRef.current = null;
+              // Physical "locked on" confirmation — no-op on iOS, invaluable
+              // at a noisy muster point on Android. Only for a code we will
+              // actually process, so the poster QR never buzzes and then
+              // tells you it was wrong.
+              if (typeof navigator.vibrate === "function") {
+                navigator.vibrate(200);
+              }
               await handleCheckIn(qrToken);
             } catch (err) {
               console.error("QR processing error:", err);
@@ -165,6 +249,9 @@ export default function ScanPage() {
         if (mounted) {
           setScanning(true);
           setError(null);
+          // Remove the library's own status overlay — from here on the box
+          // shows only our state
+          removeLibraryOverlay(scannerRef.current);
         }
       } catch (err) {
         console.error("Scanner error:", err);
@@ -217,17 +304,68 @@ export default function ScanPage() {
         </Text>
 
         <Center>
+          {/* Radius/overflow live on OUR wrapper: it also clips our
+              processing overlay, so nothing of the library's can peek
+              through from underneath */}
           <div
-            id="qr-reader"
-            ref={scannerRef}
             style={{
+              position: "relative",
               width: "100%",
               maxWidth: 400,
               borderRadius: "var(--mantine-radius-md)",
               overflow: "hidden",
             }}
-          />
+          >
+            <div
+              id="qr-reader"
+              ref={scannerRef}
+              style={{ width: "100%" }}
+            />
+            {scanState === "processing" && (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  zIndex: 2,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.75rem",
+                  background: "rgba(9, 9, 9, 0.6)",
+                  color: "#ffffff",
+                }}
+              >
+                <Loader size="md" color="#ffffff" />
+                <Text size="sm" fw={500} style={{ color: "#ffffff" }}>
+                  {strings.scanProcessing}
+                </Text>
+              </div>
+            )}
+          </div>
         </Center>
+
+        {/* The status card: durable, in the user's language, and it outlives
+            the toast — success flashes briefly before the dashboard redirect,
+            errors stay red while the camera resumes behind them */}
+        {scanState === "processing" && (
+          <Group justify="center" gap="sm" mt="md">
+            <Loader size="sm" />
+            <Text size="sm" fw={500}>
+              {strings.scanProcessing}
+            </Text>
+          </Group>
+        )}
+        {scanState === "success" && (
+          <Alert icon={<IconCheck size={16} />} color="success" mt="md">
+            {statusMessage}
+          </Alert>
+        )}
+        {scanState === "error" && (
+          <Alert icon={<IconAlertCircle size={16} />} color="danger" mt="md">
+            {statusMessage}
+          </Alert>
+        )}
 
         {!scanning && !error && (
           <Center py="xl">

@@ -2,6 +2,13 @@
 
 *Jabatan Farmasi Hospital Keningau*
 
+Panduan pengguna (Bahasa Melayu):
+
+- [Pengguna Biasa](PANDUAN.md) · versi untuk WhatsApp: [PANDUAN-WHATSAPP-PENGGUNA.txt](PANDUAN-WHATSAPP-PENGGUNA.txt)
+- [Ketua Keselamatan](PANDUAN-KETUA-KESELAMATAN.md) · versi untuk WhatsApp: [PANDUAN-WHATSAPP-KETUA-KESELAMATAN.txt](PANDUAN-WHATSAPP-KETUA-KESELAMATAN.txt)
+
+Format WhatsApp menggunakan sintaks asli WhatsApp: `*tebal*`, `_italik_`, bullet `•` dan sub-bullet `◦`. Salin keseluruhan fail teks dan tampal ke dalam WhatsApp (boleh dipecahkan ikut bahagian untuk beberapa mesej).
+
 A PWA for tracking employee and visitor presence on building floors, primarily for emergency headcounts (fire, earthquake, etc.).
 
 ## Tech Stack

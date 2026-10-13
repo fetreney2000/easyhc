@@ -401,12 +401,15 @@ export function AppShellLayout({
                 priority
               />
               <div>
-                <Text fw={700} className="app-brand-name">
+                {/* Mobile keeps the SHORT brand: the full name + org would
+                    overflow the fixed-height header below sm (the org is
+                    hidden there too, and both reappear together from sm) */}
+                <Text fw={700} className="app-brand-name" hiddenFrom="sm">
+                  {strings.appShortName}
+                </Text>
+                <Text fw={700} className="app-brand-name" visibleFrom="sm">
                   {strings.appName}
                 </Text>
-                {/* Hidden on the smallest screens: the fixed-height header
-                    must never wrap (the org still appears on login, the
-                    emergency display and every printed poster) */}
                 <Text className="app-brand-org" hiddenFrom="sm">
                   {strings.appOrg}
                 </Text>

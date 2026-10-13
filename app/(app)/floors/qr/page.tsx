@@ -21,6 +21,8 @@ import { fetcher } from "@/lib/api/fetcher";
 import { useAccess } from "@/components/shell/useAccess";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
+import { floorColor } from "@/lib/format";
+import { BRAND_BLUE, openPoster } from "@/lib/print";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 interface Floor {
@@ -42,78 +44,62 @@ export default function QRCodesPage() {
   }, []);
 
   const handlePrintSingle = (floor: Floor, type: "employee" | "visitor") => {
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
-
     const isVisitor = type === "visitor";
     const label = isVisitor ? strings.qrPrintVisitorLabel : strings.qrPrintStaffLabel;
     const desc = isVisitor
       ? strings.qrPrintVisitorDesc
       : strings.qrPrintStaffDesc;
 
-    // Built with DOM APIs + textContent (never string-interpolated HTML):
-    // a floor name containing markup must print as text, not execute.
-    const doc = printWindow.document;
-    doc.title = `Kod QR ${isVisitor ? strings.visitor : strings.employee} - ${floor.name}`;
+    // The floor's identity colour — the same hue as the dashboard strip,
+    // the floors page and the evacuation display (visual refresh stage 3)
+    const poster = openPoster(
+      `Kod QR ${isVisitor ? strings.visitor : strings.employee} - ${floor.name}`,
+      floorColor(floor._id)
+    );
+    if (!poster) return;
+    const { doc, main, printWhenReady } = poster;
 
     const heading = doc.createElement("h1");
     heading.textContent = floor.name;
+    heading.style.cssText = "font-size:32px;font-weight:800;margin:0;";
 
     const typeLabel = doc.createElement("p");
     typeLabel.textContent = label;
-    typeLabel.style.cssText = `font-size:18px;font-weight:bold;color:${
-      isVisitor ? "#e65100" : "#1565c0"
-    };`;
+    typeLabel.style.cssText = `font-size:18px;font-weight:700;color:${
+      isVisitor ? "#ab3000" : "#1d4ed8"
+    };margin:6px 0 0;`;
 
     const img = doc.createElement("img");
     img.src = `/api/qr/${encodeURIComponent(floor._id)}?type=${encodeURIComponent(type)}`;
     img.alt = `Kod QR ${floor.name}`;
-    img.style.cssText = "width:300px;height:300px;";
+    img.style.cssText =
+      "display:block;width:300px;height:300px;margin:20px auto 0;";
 
     const note = doc.createElement("p");
     note.textContent = desc;
     note.style.cssText = "margin-top:16px;color:#666;";
 
-    doc.body.style.cssText =
-      "text-align:center; padding:40px; font-family:'Inter',sans-serif;";
-    doc.body.append(heading, typeLabel, img, note);
-
-    // Print once the QR image has actually loaded (with a fallback)
-    let printed = false;
-    const doPrint = () => {
-      if (printed) return;
-      printed = true;
-      printWindow.print();
-    };
-    img.addEventListener("load", doPrint);
-    img.addEventListener("error", doPrint);
-    setTimeout(doPrint, 2500);
+    main.append(heading, typeLabel, img, note);
+    printWhenReady(img);
   };
 
   /** Notice-board poster: big QR + the address + the three steps that turn
    *  a scan into a lasting home-screen shortcut (the fix for "no bookmark").
-   *  Same DOM-API/textContent construction as the floor posters above. */
+   *  The issuing organisation now lives in the shared poster footer. */
   const handlePrintAppQr = () => {
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
-
-    const doc = printWindow.document;
-    doc.title = strings.qrAppPrintTitle;
+    const poster = openPoster(strings.qrAppPrintTitle, BRAND_BLUE);
+    if (!poster) return;
+    const { doc, main, printWhenReady } = poster;
 
     const heading = doc.createElement("h1");
     heading.textContent = strings.qrAppPrintTitle;
-
-    // The issuing organisation — the poster hangs on a physical wall and
-    // must say who it belongs to
-    const org = doc.createElement("p");
-    org.textContent = strings.appOrg;
-    org.style.cssText =
-      "font-size:15px;font-weight:600;color:#555;margin-top:4px;";
+    heading.style.cssText = "font-size:28px;font-weight:800;margin:0;";
 
     const img = doc.createElement("img");
     img.src = "/api/qr/app";
     img.alt = strings.qrAppAlt;
-    img.style.cssText = "width:300px;height:300px;";
+    img.style.cssText =
+      "display:block;width:300px;height:300px;margin:20px auto 0;";
 
     const url = doc.createElement("p");
     url.textContent = window.location.origin;
@@ -132,19 +118,8 @@ export default function QRCodesPage() {
       steps.appendChild(item);
     }
 
-    doc.body.style.cssText =
-      "text-align:center; padding:40px; font-family:'Inter',sans-serif;";
-    doc.body.append(heading, org, img, url, steps);
-
-    let printed = false;
-    const doPrint = () => {
-      if (printed) return;
-      printed = true;
-      printWindow.print();
-    };
-    img.addEventListener("load", doPrint);
-    img.addEventListener("error", doPrint);
-    setTimeout(doPrint, 2500);
+    main.append(heading, img, url, steps);
+    printWhenReady(img);
   };
 
   const access = useAccess(["floors:manage"]);

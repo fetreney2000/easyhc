@@ -153,6 +153,34 @@ html {
     background: white;
     color: black;
   }
+
+  /* Long tables: repeat the column headers on every page and never split
+     a row across the page break */
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    page-break-inside: avoid;
+  }
+
+  /* Cards stay whole on the page */
+  .mantine-Paper-root {
+    page-break-inside: avoid;
+  }
+
+  /* Striped backgrounds are often dropped by printers — ruled borders keep
+     long report tables readable on paper */
+  .mantine-Table-table {
+    border: 1px solid #999;
+    border-collapse: collapse;
+  }
+
+  .mantine-Table-th,
+  .mantine-Table-td {
+    border: 1px solid #bbb;
+    padding: 6px 8px;
+  }
 }
 
 /* ---------------------------------------------------------------------------

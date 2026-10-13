@@ -134,6 +134,7 @@ export const strings = {
   // Reports
   exportCSV: "Eksport CSV",
   printReport: "Cetak Laporan",
+  printedOn: (when: string) => `Dicetak pada ${when}`,
   fromDate: "Dari Tarikh",
   toDate: "Hingga Tarikh",
   noReportData: "Tiada data untuk julat tarikh yang dipilih",

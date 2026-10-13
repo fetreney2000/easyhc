@@ -27,6 +27,7 @@ import { downloadCsv } from "@/lib/csv";
 import { useAccess } from "@/components/shell/useAccess";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
+import { clock } from "@/lib/format";
 import { notifications } from "@mantine/notifications";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable } from "@/components/ui/DataTable";
@@ -50,6 +51,9 @@ export default function ReportsPage() {
   const [toDate, setToDate] = useState<Date | null>(null);
   const [floorFilter, setFloorFilter] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  // Set when "Cetak Laporan" is pressed: the print/PDF output stamps the
+  // moment it was produced
+  const [printedAt, setPrintedAt] = useState<string | null>(null);
 
   // Memoised: this builds the SWR key, so it only needs rebuilding when a
   // filter actually changes.
@@ -221,7 +225,10 @@ export default function ReportsPage() {
             <Button
               variant="light"
               leftSection={<IconPrinter size={16} />}
-              onClick={() => window.print()}
+              onClick={() => {
+                setPrintedAt(new Date().toISOString());
+                window.print();
+              }}
               disabled={!datesReady}
             >
               {strings.printReport}
@@ -283,13 +290,23 @@ export default function ReportsPage() {
         </Group>
       </Paper>
 
-      {/* The range this report covers — hidden on screen (the filter bar
-          shows it) but ALWAYS present in print/PDF output */}
+      {/* Print/PDF letterhead — hidden on screen (the filter bar shows the
+          range) but ALWAYS present on paper: who issued the report, what
+          period it covers, and when it came off the printer */}
       {datesReady && (
-        <Text size="sm" className="print-only">
-          {strings.fromDate}: {fromDate?.toLocaleDateString("ms-MY")} —{" "}
-          {strings.toDate}: {toDate?.toLocaleDateString("ms-MY")}
-        </Text>
+        <div className="print-only">
+          <Text fw={800} size="lg" lh={1.15}>
+            {strings.appName}
+          </Text>
+          <Text size="sm" fw={600} c="var(--app-text-secondary)">
+            {strings.appOrg}
+          </Text>
+          <Text size="sm" mt={4}>
+            {strings.fromDate}: {fromDate?.toLocaleDateString("ms-MY")} —{" "}
+            {strings.toDate}: {toDate?.toLocaleDateString("ms-MY")}
+            {printedAt ? ` · ${strings.printedOn(clock(printedAt))}` : ""}
+          </Text>
+        </div>
       )}
 
       {/* Report table — nothing renders (and nothing is fetched) until both

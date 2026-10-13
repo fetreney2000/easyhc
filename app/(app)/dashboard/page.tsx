@@ -65,6 +65,8 @@ interface PresenceRecord {
     name: string;
   };
   checkedInAt: string;
+  /** Set on closed records — the recent check-outs feed uses it. */
+  checkedOutAt?: string;
   method: string;
 }
 
@@ -111,6 +113,17 @@ export default function DashboardPage() {
   const { data: floors } = useSWR<{ _id: string; name: string }[]>(
     "/api/floors",
     fetcher
+  );
+
+  // Recent check-outs ("Daftar Keluar Terkini") — who just LEFT the
+  // building; same cadence as the presence feed above
+  const { data: checkoutsData } = useSWR<DashboardData>(
+    "/api/attendance?checkedOut=true&page=1&pageSize=5",
+    fetcher,
+    {
+      refreshInterval: 25000,
+      revalidateOnFocus: true,
+    }
   );
 
   const handleSelfCheckout = async () => {
@@ -241,6 +254,38 @@ export default function DashboardPage() {
     () => (data?.attendance ?? []).slice(0, 5),
     [data?.attendance]
   );
+
+  // Latest departures (newest-checked-out-first from the API)
+  const recentOut = useMemo(
+    () => (checkoutsData?.attendance ?? []).slice(0, 5),
+    [checkoutsData?.attendance]
+  );
+
+  /** One feed row — shared by the arrivals and departures cards. */
+  const feedRow = (
+    record: PresenceRecord,
+    whenIso: string,
+    key: string
+  ) => {
+    const name =
+      record.type === "employee" ? record.userId?.name : record.visitorName;
+    return (
+      <Group key={key} gap="sm" wrap="nowrap">
+        <Avatar size="sm" radius="xl" color="brandPrimary" aria-hidden>
+          {name?.charAt(0).toUpperCase() || "?"}
+        </Avatar>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <Text size="sm" fw={500} truncate>
+            {name}
+            {record.type === "visitor" ? ` (${strings.visitor})` : ""}
+          </Text>
+          <Text size="xs" c="var(--app-text-secondary)" truncate>
+            {record.floorId?.name} · {relativeTime(whenIso)}
+          </Text>
+        </div>
+      </Group>
+    );
+  };
   const pageCount = data
     ? Math.max(1, Math.ceil(data.total / data.pageSize))
     : 1;
@@ -369,38 +414,38 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Latest arrivals: the feed that makes the board feel live */}
-      {recent.length > 0 && (
-        <Paper p="md" radius="md" withBorder>
-          <Text fw={700} size="sm" mb="xs">
-            {strings.recentCheckIns}
-          </Text>
-          <Stack gap={8}>
-            {recent.map((record) => {
-              const name =
-                record.type === "employee"
-                  ? record.userId?.name
-                  : record.visitorName;
-              return (
-                <Group key={record._id} gap="sm" wrap="nowrap">
-                  <Avatar size="sm" radius="xl" color="brandPrimary" aria-hidden>
-                    {name?.charAt(0).toUpperCase() || "?"}
-                  </Avatar>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <Text size="sm" fw={500} truncate>
-                      {name}
-                      {record.type === "visitor" ? ` (${strings.visitor})` : ""}
-                    </Text>
-                    <Text size="xs" c="var(--app-text-secondary)" truncate>
-                      {record.floorId?.name} ·{" "}
-                      {relativeTime(record.checkedInAt)}
-                    </Text>
-                  </div>
-                </Group>
-              );
-            })}
-          </Stack>
-        </Paper>
+      {/* Two-way activity: who just arrived, who just left */}
+      {(recent.length > 0 || recentOut.length > 0) && (
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+          {recent.length > 0 && (
+            <Paper p="md" radius="md" withBorder>
+              <Text fw={700} size="sm" mb="xs">
+                {strings.recentCheckIns}
+              </Text>
+              <Stack gap={8}>
+                {recent.map((record) =>
+                  feedRow(record, record.checkedInAt, record._id)
+                )}
+              </Stack>
+            </Paper>
+          )}
+          {recentOut.length > 0 && (
+            <Paper p="md" radius="md" withBorder>
+              <Text fw={700} size="sm" mb="xs">
+                {strings.recentCheckOuts}
+              </Text>
+              <Stack gap={8}>
+                {recentOut.map((record) =>
+                  feedRow(
+                    record,
+                    record.checkedOutAt ?? record.checkedInAt,
+                    record._id
+                  )
+                )}
+              </Stack>
+            </Paper>
+          )}
+        </SimpleGrid>
       )}
 
       {/* Self checkout button */}

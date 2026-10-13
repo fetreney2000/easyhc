@@ -258,6 +258,32 @@ async function main(): Promise<void> {
     skip("attendance visitorPhone privacy (no active rows to inspect)");
   }
 
+  /* recent check-outs feed (the dashboard's "Daftar Keluar Terkini") */
+  const checkedOutFeed = await authed(
+    "/api/attendance?checkedOut=true&page=1&pageSize=5"
+  );
+  check(
+    "check-outs feed -> 200 with rows",
+    checkedOutFeed.status === 200 && Array.isArray(checkedOutFeed.body.attendance),
+    `${checkedOutFeed.status}`
+  );
+  const outRows = (checkedOutFeed.body.attendance as Array<Record<string, unknown>>) ?? [];
+  if (outRows.length > 0) {
+    const closed = outRows.every((r) => typeof r.checkedOutAt === "string");
+    const sortedDesc = outRows.every(
+      (row, i) =>
+        i === 0 ||
+        String(outRows[i - 1].checkedOutAt) >= String(row.checkedOutAt)
+    );
+    check(
+      "check-outs feed: all closed, newest-checked-out first",
+      closed && sortedDesc,
+      `${outRows.length} rows`
+    );
+  } else {
+    skip("check-outs feed ordering (no closed rows yet)");
+  }
+
   const attBig = await authed("/api/attendance?active=true&pageSize=500");
   check(
     "attendance honours pageSize",

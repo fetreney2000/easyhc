@@ -196,6 +196,7 @@ export const strings = {
   // Dashboard operations board
   liveNow: "Kemas kini langsung",
   recentCheckIns: "Daftar Masuk Terkini",
+  recentCheckOuts: "Daftar Keluar Terkini",
   byFloorPresent: "Hadir Mengikut Lantai",
   dashboardEmptyHint: "Imbas kod QR di pintu masuk lantai untuk mendaftar masuk.",
   justNow: "Baru sahaja",

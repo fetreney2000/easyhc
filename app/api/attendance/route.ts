@@ -42,10 +42,17 @@ export async function GET(request: Request) {
     ATTENDANCE_PAGE_MAX
   );
   const q = searchParams.get("q")?.trim() ?? "";
+  const checkedOut = searchParams.get("checkedOut") === "true";
 
   const query: FilterQuery<IAttendance> = {};
 
-  if (activeOnly) {
+  if (checkedOut) {
+    // Recent check-outs feed (the dashboard's "Daftar Keluar Terkini"):
+    // part of the LIVE board, so it keeps the live scope and gets a
+    // newest-checked-OUT-first ordering below. `active=true` is ignored
+    // when this is set.
+    query.checkedOutAt = { $ne: null };
+  } else if (activeOnly) {
     query.checkedOutAt = null;
   }
 
@@ -99,8 +106,13 @@ export async function GET(request: Request) {
     // queries stay personal (own records). Otherwise a plain employee could
     // pull their whole floor's past straight from this endpoint.
     const roleScope = getAttendanceScope(user.role);
+    // own_and_floor is the LIVE board's scope: history degrades to "own",
+    // but the recent check-OUTS feed is board data too (who just left), so
+    // it keeps the floor scope — bounded by a small page like the board is
     const effectiveScope =
-      roleScope === "own_and_floor" && !activeOnly ? "own" : roleScope;
+      roleScope === "own_and_floor" && !activeOnly && !checkedOut
+        ? "own"
+        : roleScope;
 
     const scoped = await scopeFilter(user, effectiveScope);
 
@@ -126,7 +138,7 @@ export async function GET(request: Request) {
         .select("-visitorPhone")
         .populate("userId", "name role")
         .populate("floorId", "name")
-        .sort({ checkedInAt: -1 })
+        .sort(checkedOut ? { checkedOutAt: -1 } : { checkedInAt: -1 })
         .skip((page - 1) * pageSize)
         .limit(pageSize)
         .lean(),

@@ -1,13 +1,17 @@
 /**
  * Branded print documents for the physical QR posters (per-floor check-in
- * posters and the notice-board app poster). Everything is built with DOM
- * APIs and textContent — never string-interpolated HTML: a floor name
- * containing markup must print as text, not execute.
+ * posters and the notice-board app poster).
  *
- * The posters carry the app's visual identity: an accent bar (the floor's
+ * Layout: FOUR identical quarter-A4 cards (roughly A6) per A4 sheet, each
+ * inside a dashed CUT FRAME — print once, cut along the dashes, paste one
+ * per door. Everything is built with DOM APIs and textContent — never
+ * string-interpolated HTML: a floor name containing markup must print as
+ * text, not execute.
+ *
+ * Each card carries the app's visual identity: the accent bar (the floor's
  * identity colour on floor posters, brand blue on the app poster), the
- * "EasyHC - Easy Head Count" wordmark, and the issuing organisation in the
- * footer — so a printout that ends up on a wall still says whose it is.
+ * "EasyHC - Easy Head Count" wordmark, and the issuing organisation — so a
+ * cut-out that ends up on a physical door still says whose it is.
  */
 import { strings } from "@/lib/i18n/strings";
 import { clock } from "@/lib/format";
@@ -15,22 +19,51 @@ import { clock } from "@/lib/format";
 /** Brand blue — the primary used across the app (theme brandPrimary). */
 export const BRAND_BLUE = "#1d4ed8";
 
-export interface PosterDoc {
+const PAGE_CSS = `
+  @page { size: A4; margin: 8mm; }
+  body {
+    margin: 0; color: #111;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  /* 2x2 grid of quarter-A4 cards; the dashed border IS the cut frame */
+  .cut-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+  .cut-card {
+    border: 1.5pt dashed #999; border-radius: 2mm;
+    padding: 0 5mm 3mm; overflow: hidden; text-align: center;
+  }
+  .cut-bar {
+    height: 3mm; margin: 0 -5mm;
+    print-color-adjust: exact; -webkit-print-color-adjust: exact;
+  }
+  .cut-brand { font-size: 11pt; font-weight: 800; letter-spacing: -0.01em; margin: 3mm 0 0; }
+  .cut-tagline { font-size: 6pt; letter-spacing: 0.25em; text-transform: uppercase; color: #666; margin: 0.5mm 0 0; }
+  .cut-title { font-size: 14pt; font-weight: 800; line-height: 1.15; margin: 3mm 0 0; }
+  .cut-sub { font-size: 10pt; font-weight: 700; margin: 1.5mm 0 0; }
+  .cut-qr { width: 52mm; height: 52mm; display: block; margin: 4mm auto 0; }
+  .cut-note { font-size: 7.5pt; color: #555; line-height: 1.35; margin: 3mm 0 0; }
+  .cut-url { font-size: 10pt; font-weight: 700; margin: 3mm 0 0; word-break: break-all; }
+  .cut-steps { font-size: 8pt; line-height: 1.5; text-align: left; width: 86%; margin: 3mm auto 0; padding-left: 4mm; }
+  .cut-org { font-size: 6.5pt; color: #666; margin: 3mm 0 0; }
+  .cut-org strong { color: #444; }
+`;
+
+export interface PosterSheet {
   doc: Document;
-  /** Append the poster body (title, QR, notes) into this container */
-  main: HTMLElement;
-  /** Fire print once the QR image has loaded (with error/timeout fallbacks) */
-  printWhenReady: (img: HTMLImageElement) => void;
+  /** Append `copies` identical cards, each built by `build` */
+  fill: (build: (card: HTMLElement) => void) => void;
+  /** Print once every QR image across all cards has settled */
+  printWhenReady: (imgs: HTMLImageElement[]) => void;
 }
 
 /**
- * Open a blank, branded print document. Returns null when the popup is
- * blocked — callers should simply do nothing then.
+ * Open a blank, quarter-A4 poster sheet. Returns null when the popup is
+ * blocked — callers should tell the user then.
  */
 export function openPoster(
   title: string,
-  accent: string
-): PosterDoc | null {
+  accent: string,
+  copies = 4
+): PosterSheet | null {
   const win = window.open("", "_blank");
   if (!win) return null;
 
@@ -38,61 +71,86 @@ export function openPoster(
   doc.title = title;
   doc.documentElement.lang = "ms";
 
-  // Accent bar — forced so browsers keep it on paper
-  const bar = doc.createElement("div");
-  bar.style.cssText = `height:12px;background:${accent};print-color-adjust:exact;-webkit-print-color-adjust:exact;`;
+  const style = doc.createElement("style");
+  style.textContent = PAGE_CSS;
+  doc.head.append(style);
 
   // Wordmark: split from the single brand string in i18n
   const [wordmarkText, taglineText] = strings.appName.split(" - ");
-  const header = doc.createElement("header");
-  header.style.cssText = "text-align:center;padding:28px 40px 0;";
-  const wordmark = doc.createElement("p");
-  wordmark.textContent = wordmarkText || strings.appName;
-  wordmark.style.cssText = `font-size:30px;font-weight:800;letter-spacing:-0.02em;color:${accent};margin:0;`;
-  const tagline = doc.createElement("p");
-  tagline.textContent = taglineText || "";
-  tagline.style.cssText =
-    "font-size:13px;letter-spacing:0.25em;text-transform:uppercase;color:#666;margin:2px 0 0;";
-  header.append(wordmark, tagline);
 
-  const main = doc.createElement("main");
-  main.style.cssText =
-    "text-align:center;padding:24px 40px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,sans-serif;";
+  const grid = doc.createElement("div");
+  grid.className = "cut-grid";
 
-  // Footer: who issued it, and when this sheet came off the printer
-  const footer = doc.createElement("footer");
-  footer.style.cssText =
-    "text-align:center;padding:20px 40px 36px;color:#666;font-size:13px;";
-  const org = doc.createElement("p");
-  org.textContent = strings.appOrg;
-  org.style.cssText = "font-weight:600;color:#444;margin:0;";
-  const printedOn = doc.createElement("p");
-  printedOn.textContent = strings.printedOn(clock(new Date().toISOString()));
-  printedOn.style.cssText = "margin:2px 0 0;";
-  footer.append(org, printedOn);
+  const addCardOnce = (build: (card: HTMLElement) => void) => {
+    const card = doc.createElement("div");
+    card.className = "cut-card";
 
-  doc.body.style.cssText =
-    "margin:0;color:#111;font-family:'Inter',-apple-system,'Segoe UI',Roboto,sans-serif;";
-  doc.body.append(bar, header, main, footer);
+    // Accent bar — forced so browsers keep it on paper
+    const bar = doc.createElement("div");
+    bar.className = "cut-bar";
+    bar.style.background = accent;
+
+    const brand = doc.createElement("p");
+    brand.className = "cut-brand";
+    brand.textContent = wordmarkText || strings.appName;
+    brand.style.color = accent;
+
+    const tagline = doc.createElement("p");
+    tagline.className = "cut-tagline";
+    tagline.textContent = taglineText || "";
+
+    const body = doc.createElement("div");
+    build(body);
+
+    // The cut-out must say who it belongs to, and when it was printed
+    const org = doc.createElement("p");
+    org.className = "cut-org";
+    const orgStrong = doc.createElement("strong");
+    orgStrong.textContent = strings.appOrg;
+    org.append(
+      orgStrong,
+      doc.createTextNode(
+        ` · ${strings.printedOn(clock(new Date().toISOString()))}`
+      )
+    );
+
+    card.append(bar, brand, tagline, body, org);
+    grid.append(card);
+  };
+
+  doc.body.append(grid);
 
   let didPrint = false;
-  const printWhenReady = (img: HTMLImageElement) => {
+  const printWhenReady = (imgs: HTMLImageElement[]) => {
     const doPrint = () => {
       if (didPrint) return;
       didPrint = true;
       win.print();
     };
-    // Print once the QR image has actually loaded (with fallbacks)
-    img.addEventListener("load", doPrint);
-    img.addEventListener("error", doPrint);
-    // …but the timeout only prints a QR that HAS arrived: a slow endpoint
-    // must not commit a sheet with an empty box (the window stays open with
-    // the layout, and the user can print or retry manually)
+    let remaining = imgs.length;
+    const settle = () => {
+      remaining -= 1;
+      if (remaining <= 0) doPrint();
+    };
+    for (const img of imgs) {
+      img.addEventListener("load", settle);
+      img.addEventListener("error", settle);
+    }
+    // …but the timeout only prints QRs that HAVE arrived: a slow endpoint
+    // must not commit sheets with empty boxes (the window stays open and
+    // can be printed manually once the images show)
     setTimeout(() => {
-      if (didPrint) return;
-      if (img.complete && img.naturalWidth > 0) doPrint();
-    }, 2500);
+      if (!didPrint && imgs.every((i) => i.complete && i.naturalWidth > 0)) {
+        doPrint();
+      }
+    }, 3000);
   };
 
-  return { doc, main, printWhenReady };
+  return {
+    doc,
+    fill: (build) => {
+      for (let i = 0; i < copies; i++) addCardOnce(build);
+    },
+    printWhenReady,
+  };
 }

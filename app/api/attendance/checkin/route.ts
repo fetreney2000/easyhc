@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Types } from "mongoose";
 import { strings } from "@/lib/i18n/strings";
 import { connectDB } from "@/lib/db/mongoose";
 import {
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { qrToken, method = "qr" } = body;
+    const { qrToken, method = "qr", scannedFloorId } = body;
 
     if (method !== "manual" && (typeof qrToken !== "string" || !qrToken.trim())) {
       return badRequest(strings.qrTokenRequired);
@@ -73,6 +74,18 @@ export async function POST(request: Request) {
       } else {
         floor = await Floor.findOne({ qrToken });
         if (!floor) {
+          // A visitor-URL QR names the floor it was printed for (the
+          // scanner passes it as scannedFloorId). If that floor still
+          // exists, a token that no longer matches is a ROTATED poster —
+          // same remedy as the employee-payload case. Floor ids are
+          // public (GET /api/floors), so this reveals nothing new.
+          if (
+            typeof scannedFloorId === "string" &&
+            Types.ObjectId.isValid(scannedFloorId) &&
+            (await Floor.exists({ _id: scannedFloorId }))
+          ) {
+            return badRequest(strings.qrRotated);
+          }
           return badRequest(strings.invalidQrCode);
         }
       }

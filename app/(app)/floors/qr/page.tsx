@@ -66,30 +66,35 @@ export default function QRCodesPage() {
       });
       return;
     }
-    const { doc, main, printWhenReady } = poster;
+    const { doc, fill, printWhenReady } = poster;
+    const imgs: HTMLImageElement[] = [];
 
-    const heading = doc.createElement("h1");
-    heading.textContent = floor.name;
-    heading.style.cssText = "font-size:32px;font-weight:800;margin:0;";
+    // Four identical quarter-A4 cards per sheet — cut along the dashed
+    // frames, one per door
+    fill((card) => {
+      const heading = doc.createElement("p");
+      heading.className = "cut-title";
+      heading.textContent = floor.name;
 
-    const typeLabel = doc.createElement("p");
-    typeLabel.textContent = label;
-    typeLabel.style.cssText = `font-size:18px;font-weight:700;color:${
-      isVisitor ? "#ab3000" : "#1d4ed8"
-    };margin:6px 0 0;`;
+      const typeLabel = doc.createElement("p");
+      typeLabel.className = "cut-sub";
+      typeLabel.textContent = label;
+      typeLabel.style.color = isVisitor ? "#ab3000" : "#1d4ed8";
 
-    const img = doc.createElement("img");
-    img.src = `/api/qr/${encodeURIComponent(floor._id)}?type=${encodeURIComponent(type)}`;
-    img.alt = `Kod QR ${floor.name}`;
-    img.style.cssText =
-      "display:block;width:300px;height:300px;margin:20px auto 0;";
+      const img = doc.createElement("img");
+      img.src = `/api/qr/${encodeURIComponent(floor._id)}?type=${encodeURIComponent(type)}`;
+      img.alt = `Kod QR ${floor.name}`;
+      img.className = "cut-qr";
 
-    const note = doc.createElement("p");
-    note.textContent = desc;
-    note.style.cssText = "margin-top:16px;color:#666;";
+      const note = doc.createElement("p");
+      note.className = "cut-note";
+      note.textContent = desc;
 
-    main.append(heading, typeLabel, img, note);
-    printWhenReady(img);
+      card.append(heading, typeLabel, img, note);
+      imgs.push(img);
+    });
+
+    printWhenReady(imgs);
   };
 
   /** Notice-board poster: big QR + the address + the three steps that turn
@@ -105,37 +110,42 @@ export default function QRCodesPage() {
       });
       return;
     }
-    const { doc, main, printWhenReady } = poster;
+    const { doc, fill, printWhenReady } = poster;
+    const imgs: HTMLImageElement[] = [];
 
-    const heading = doc.createElement("h1");
-    heading.textContent = strings.qrAppPrintTitle;
-    heading.style.cssText = "font-size:28px;font-weight:800;margin:0;";
+    // Four identical quarter-A4 cards per sheet — cut along the dashed
+    // frames, one per notice board
+    fill((card) => {
+      const heading = doc.createElement("p");
+      heading.className = "cut-title";
+      heading.textContent = strings.qrAppPrintTitle;
 
-    const img = doc.createElement("img");
-    img.src = "/api/qr/app";
-    img.alt = strings.qrAppAlt;
-    img.style.cssText =
-      "display:block;width:300px;height:300px;margin:20px auto 0;";
+      const img = doc.createElement("img");
+      img.src = "/api/qr/app";
+      img.alt = strings.qrAppAlt;
+      img.className = "cut-qr";
 
-    const url = doc.createElement("p");
-    url.textContent = window.location.origin;
-    url.style.cssText = "font-size:16px;font-weight:bold;margin-top:12px;";
+      const url = doc.createElement("p");
+      url.className = "cut-url";
+      url.textContent = window.location.origin;
 
-    const steps = doc.createElement("ol");
-    steps.style.cssText =
-      "text-align:left;display:inline-block;margin-top:20px;font-size:15px;line-height:1.9;";
-    for (const step of [
-      strings.qrAppStep1,
-      strings.qrAppStep2,
-      strings.qrAppStep3,
-    ]) {
-      const item = doc.createElement("li");
-      item.textContent = step;
-      steps.appendChild(item);
-    }
+      const steps = doc.createElement("ol");
+      steps.className = "cut-steps";
+      for (const step of [
+        strings.qrAppStep1,
+        strings.qrAppStep2,
+        strings.qrAppStep3,
+      ]) {
+        const item = doc.createElement("li");
+        item.textContent = step;
+        steps.appendChild(item);
+      }
 
-    main.append(heading, img, url, steps);
-    printWhenReady(img);
+      card.append(heading, img, url, steps);
+      imgs.push(img);
+    });
+
+    printWhenReady(imgs);
   };
 
   const access = useAccess(["floors:manage"]);

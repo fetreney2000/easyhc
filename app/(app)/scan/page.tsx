@@ -76,7 +76,7 @@ export default function ScanPage() {
   };
 
   const handleCheckIn = useCallback(
-    async (qrToken: string, scannedText: string) => {
+    async (qrToken: string, scannedText: string, scannedFloorId?: string) => {
       try {
         // Stop scanner temporarily
         const scanner = html5QrCodeRef.current;
@@ -92,7 +92,12 @@ export default function ScanPage() {
         const res = await fetch("/api/attendance/checkin", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ qrToken }),
+          body: JSON.stringify({
+            qrToken,
+            // Present when the code was a visitor-page URL: lets the server
+            // distinguish a ROTATED poster from a random code
+            ...(scannedFloorId ? { scannedFloorId } : {}),
+          }),
         });
 
         const data = await res.json();
@@ -195,6 +200,10 @@ export default function ScanPage() {
               // Extract QR token from URL or use raw text
               let qrToken = decodedText;
               let ownAppUrlWithoutToken = false;
+              // A visitor-page URL also NAMES the floor it was printed for:
+              // passing it along lets the server tell a rotated poster
+              // (floor exists, token no longer matches) from a random code
+              let scannedFloorId: string | undefined;
 
               // If it's a URL, extract the token
               try {
@@ -202,6 +211,11 @@ export default function ScanPage() {
                 const tokenParam = url.searchParams.get("token");
                 if (tokenParam) {
                   qrToken = tokenParam;
+                  // /visitor/<floorId>?token=… — keep the floor it names
+                  const parts = url.pathname.split("/");
+                  if (parts[1] === "visitor" && parts[2]) {
+                    scannedFloorId = parts[2];
+                  }
                 } else {
                   // Maybe it's the path segment
                   const pathParts = url.pathname.split("/");
@@ -244,7 +258,7 @@ export default function ScanPage() {
               if (typeof navigator.vibrate === "function") {
                 navigator.vibrate(200);
               }
-              await handleCheckIn(qrToken, decodedText);
+              await handleCheckIn(qrToken, decodedText, scannedFloorId);
             } catch (err) {
               console.error("QR processing error:", err);
             } finally {

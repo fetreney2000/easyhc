@@ -50,7 +50,13 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        setError(strings.loginError);
+        // next-auth surfaces the `error` query param of the URL it returns;
+        // the throttled path sets TooManyAttempts (see the auth route)
+        setError(
+          result.error === "TooManyAttempts"
+            ? strings.tooManyAttempts
+            : strings.loginError
+        );
       } else {
         router.push("/dashboard");
         router.refresh();

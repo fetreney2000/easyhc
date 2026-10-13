@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Title,
   SimpleGrid,
   Paper,
   Text,
   Group,
+  Avatar,
   Badge,
   Table,
   ActionIcon,
@@ -23,6 +24,7 @@ import {
   IconUsers,
   IconUser,
   IconUserStar,
+  IconBuilding,
   IconRefresh,
   IconLogout,
   IconSearch,
@@ -33,12 +35,21 @@ import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { strings } from "@/lib/i18n/strings";
+import { clock, relativeTime } from "@/lib/format";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable } from "@/components/ui/DataTable";
 import { can } from "@/lib/auth/rbac";
 import { LoadingScreen } from "@/components/shell/LoadingScreen";
 import { notifications } from "@mantine/notifications";
 import { modals } from "@mantine/modals";
+
+/** Stable per-floor identity colour (hue from the id — works for any
+ *  number of floors and survives floor renames). */
+const floorColor = (id: string): string => {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) % 360;
+  return `hsl(${hash}, 62%, 45%)`;
+};
 
 interface PresenceRecord {
   _id: string;
@@ -187,6 +198,49 @@ export default function DashboardPage() {
 
   // Server-side filtered + paginated: this is simply the current page
   const rows = useMemo(() => data?.attendance ?? [], [data?.attendance]);
+
+  // Brief acknowledgement when the headline count ticks (hydration-safe:
+  // false on first render, fires only on a real client-side change)
+  const previousPresent = useRef<number | null>(null);
+  const [flash, setFlash] = useState(false);
+  useEffect(() => {
+    const current = data?.totalPresent ?? null;
+    if (
+      current !== null &&
+      previousPresent.current !== null &&
+      current !== previousPresent.current
+    ) {
+      setFlash(true);
+      const timer = setTimeout(() => setFlash(false), 900);
+      previousPresent.current = current;
+      return () => clearTimeout(timer);
+    }
+    previousPresent.current = current;
+  }, [data?.totalPresent]);
+
+  // Per-floor headcount for the operations strip — from the presence feed,
+  // which is already scoped to what this role may see; floors with nobody
+  // sort last but stay visible so an empty floor reads as "empty"
+  const floorCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const record of data?.attendance ?? []) {
+      const id = record.floorId?._id;
+      if (id) counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+    return (floors ?? [])
+      .map((floor) => ({
+        _id: floor._id,
+        name: floor.name,
+        count: counts.get(floor._id) ?? 0,
+      }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [data?.attendance, floors]);
+
+  // Latest arrivals (the API already returns rows newest-first)
+  const recent = useMemo(
+    () => (data?.attendance ?? []).slice(0, 5),
+    [data?.attendance]
+  );
   const pageCount = data
     ? Math.max(1, Math.ceil(data.total / data.pageSize))
     : 1;
@@ -204,14 +258,27 @@ export default function DashboardPage() {
       <PageHeader
         title={strings.dashboard}
         actions={
-          <Button
-            variant="light"
-            leftSection={<IconRefresh size={16} />}
-            onClick={() => mutate()}
-            loading={isLoading}
-          >
-            {strings.refresh}
-          </Button>
+          <>
+            {/* Trust signal: the number below is refreshed automatically */}
+            <Badge
+              variant="light"
+              color="success"
+              size="lg"
+              leftSection={<span className="live-dot" aria-hidden="true" />}
+              suppressHydrationWarning
+            >
+              {strings.liveNow}
+              {data?.lastUpdated ? ` · ${clock(data.lastUpdated)}` : ""}
+            </Badge>
+            <Button
+              variant="light"
+              leftSection={<IconRefresh size={16} />}
+              onClick={() => mutate()}
+              loading={isLoading}
+            >
+              {strings.refresh}
+            </Button>
+          </>
         }
       />
 
@@ -224,7 +291,9 @@ export default function DashboardPage() {
               <Text size="xs" c="var(--app-text-secondary)">
                 {strings.totalPresent}
               </Text>
-              <Text className="stat-number">
+              <Text
+                className={flash ? "stat-number stat-flash" : "stat-number"}
+              >
                 {data?.totalPresent ?? "—"}
               </Text>
             </div>
@@ -257,6 +326,82 @@ export default function DashboardPage() {
           </Group>
         </Paper>
       </SimpleGrid>
+
+      {/* Operations strip: where people are right now, one card per floor */}
+      {!isLoading && floorCounts.length > 0 && (
+        <div>
+          <Text
+            size="xs"
+            fw={600}
+            tt="uppercase"
+            c="var(--app-text-secondary)"
+            mb={6}
+          >
+            {strings.byFloorPresent}
+          </Text>
+          <SimpleGrid
+            cols={{ base: 2, sm: 3, lg: Math.min(floorCounts.length, 6) }}
+            spacing="sm"
+          >
+            {floorCounts.map((floor) => (
+              <Paper
+                key={floor._id}
+                p="sm"
+                radius="md"
+                withBorder
+                style={{ borderLeft: `4px solid ${floorColor(floor._id)}` }}
+              >
+                <Group justify="space-between" wrap="nowrap" gap="xs">
+                  <Text size="sm" fw={600} lineClamp={1} style={{ flex: 1 }}>
+                    {floor.name}
+                  </Text>
+                  <Text
+                    className="stat-number"
+                    style={{ fontSize: "1.5rem" }}
+                    c={floor.count === 0 ? "var(--app-text-secondary)" : undefined}
+                  >
+                    {floor.count}
+                  </Text>
+                </Group>
+              </Paper>
+            ))}
+          </SimpleGrid>
+        </div>
+      )}
+
+      {/* Latest arrivals: the feed that makes the board feel live */}
+      {recent.length > 0 && (
+        <Paper p="md" radius="md" withBorder>
+          <Text fw={700} size="sm" mb="xs">
+            {strings.recentCheckIns}
+          </Text>
+          <Stack gap={8}>
+            {recent.map((record) => {
+              const name =
+                record.type === "employee"
+                  ? record.userId?.name
+                  : record.visitorName;
+              return (
+                <Group key={record._id} gap="sm" wrap="nowrap">
+                  <Avatar size="sm" radius="xl" color="brandPrimary" aria-hidden>
+                    {name?.charAt(0).toUpperCase() || "?"}
+                  </Avatar>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Text size="sm" fw={500} truncate>
+                      {name}
+                      {record.type === "visitor" ? ` (${strings.visitor})` : ""}
+                    </Text>
+                    <Text size="xs" c="var(--app-text-secondary)" truncate>
+                      {record.floorId?.name} ·{" "}
+                      {relativeTime(record.checkedInAt)}
+                    </Text>
+                  </div>
+                </Group>
+              );
+            })}
+          </Stack>
+        </Paper>
+      )}
 
       {/* Self checkout button */}
       {data?.attendance?.some(
@@ -320,7 +465,20 @@ export default function DashboardPage() {
         error={error}
         onRetry={mutate}
         isEmpty={rows.length === 0}
-        empty={strings.noOnePresent}
+        empty={
+          <Stack align="center" gap="xs" py="md">
+            <IconBuilding
+              size={40}
+              stroke={1.5}
+              color="var(--app-text-secondary)"
+              aria-hidden
+            />
+            <Text fw={600}>{strings.noOnePresent}</Text>
+            <Text size="xs" c="var(--app-text-secondary)" ta="center">
+              {strings.dashboardEmptyHint}
+            </Text>
+          </Stack>
+        }
         minWidth={600}
       >
         <Table.Thead>

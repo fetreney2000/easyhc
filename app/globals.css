@@ -33,6 +33,49 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Live-stat acknowledgement: a count tick gets a brief scale + colour
+   pulse so the board FEELS live (hydration-safe: only fires on a change) */
+.stat-flash {
+  display: inline-block;
+  animation: stat-flash 0.9s ease-out 1;
+}
+
+@keyframes stat-flash {
+  0% {
+    transform: scale(1.08);
+    color: #1d4ed8;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* "Kemas kini langsung" indicator dot */
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2f9e44;
+  animation: live-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stat-flash,
+  .live-dot {
+    animation: none;
+  }
+}
+
 [data-mantine-color-scheme='dark'] {
   /* light gray on Mantine's dark body → ~11:1 */
   --app-text-secondary: #ced4da;

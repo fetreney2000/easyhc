@@ -1,3 +1,5 @@
+import { strings } from "@/lib/i18n/strings";
+
 /**
  * Short local clock label, e.g. "10:34". Timestamps are stored as UTC
  * (ISO 8601) and rendered as SITE time (Asia/Kuala_Lumpur — the app, its
@@ -31,4 +33,18 @@ export function duration(fromIso: string, toIso: string): string {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return rest > 0 ? `${hours} jam ${rest} min` : `${hours} jam`;
+}
+
+/**
+ * Relative freshness for the dashboard's activity feed ("Baru sahaja",
+ * "3 minit lalu"), falling back to the clock time for anything older than
+ * an hour. Recomputed on each poll — no 1s timer needed.
+ */
+export function relativeTime(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return clock(iso);
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 1) return strings.justNow;
+  if (minutes < 60) return strings.minutesAgo(minutes);
+  return clock(iso);
 }

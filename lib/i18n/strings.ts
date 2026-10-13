@@ -192,6 +192,14 @@ export const strings = {
   loginAddToHomeTip:
     "Tip: tambah EasyHC ke skrin utama anda untuk akses pantas — tidak perlu bookmark alamat.",
   installApp: "Pasang Aplikasi",
+
+  // Dashboard operations board
+  liveNow: "Kemas kini langsung",
+  recentCheckIns: "Daftar Masuk Terkini",
+  byFloorPresent: "Hadir Mengikut Lantai",
+  dashboardEmptyHint: "Imbas kod QR di pintu masuk lantai untuk mendaftar masuk.",
+  justNow: "Baru sahaja",
+  minutesAgo: (minutes: number) => `${minutes} minit lalu`,
   methodColumn: "Kaedah",
   stillActive: "Masih aktif",
   methodManual: "Manual",

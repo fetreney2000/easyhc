@@ -76,7 +76,7 @@ export default function ScanPage() {
   };
 
   const handleCheckIn = useCallback(
-    async (qrToken: string) => {
+    async (qrToken: string, scannedText: string) => {
       try {
         // Stop scanner temporarily
         const scanner = html5QrCodeRef.current;
@@ -111,6 +111,10 @@ export default function ScanPage() {
           setTimeout(() => router.push("/dashboard"), 1000);
           return;
         } else {
+          // Deterministic server rejection (rotated poster, wrong code):
+          // remember the code so a poster sitting in frame cannot toast-
+          // loop while the camera re-decodes it every few hundred ms
+          lastRejectedRef.current = { text: scannedText, at: Date.now() };
           notifications.show({
             title: strings.error,
             message: data.error || strings.checkInError,
@@ -131,6 +135,7 @@ export default function ScanPage() {
           }
         }, 2000);
       } catch {
+        lastRejectedRef.current = { text: scannedText, at: Date.now() };
         notifications.show({
           title: strings.error,
           message: strings.serverError,
@@ -172,6 +177,18 @@ export default function ScanPage() {
           },
           async (decodedText: string) => {
             if (processingRef.current) return;
+            // A code that just FAILED deterministically (rotated poster,
+            // wrong code, server error) stays quiet while it sits in frame:
+            // the camera re-decodes it every few hundred ms, and without
+            // this the error card would toast-loop until it moves
+            const lastFail = lastRejectedRef.current;
+            if (
+              lastFail &&
+              lastFail.text === decodedText &&
+              Date.now() - lastFail.at < 3000
+            ) {
+              return;
+            }
             processingRef.current = true;
 
             try {
@@ -205,14 +222,7 @@ export default function ScanPage() {
               }
 
               if (ownAppUrlWithoutToken) {
-                const now = Date.now();
-                if (
-                  lastRejectedRef.current?.text === decodedText &&
-                  now - lastRejectedRef.current.at < 3000
-                ) {
-                  return; // same code still in frame — no toast spam
-                }
-                lastRejectedRef.current = { text: decodedText, at: now };
+                lastRejectedRef.current = { text: decodedText, at: Date.now() };
 
                 notifications.show({
                   title: strings.error,
@@ -234,7 +244,7 @@ export default function ScanPage() {
               if (typeof navigator.vibrate === "function") {
                 navigator.vibrate(200);
               }
-              await handleCheckIn(qrToken);
+              await handleCheckIn(qrToken, decodedText);
             } catch (err) {
               console.error("QR processing error:", err);
             } finally {
@@ -245,6 +255,17 @@ export default function ScanPage() {
             // QR code not found in frame - ignore
           }
         );
+
+        // The user may have left while the camera was still starting: the
+        // cleanup's isScanning check ran too early to stop anything, so
+        // release the track here — otherwise the camera light stays on with
+        // no UI controlling it, and the next visit fights it for the device
+        if (!mounted) {
+          try {
+            await scanner.stop();
+          } catch {}
+          return;
+        }
 
         if (mounted) {
           setScanning(true);

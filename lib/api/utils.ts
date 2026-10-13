@@ -60,6 +60,14 @@ export function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/**
+ * Mongoose CastError = a malformed ObjectId (or date) in a query. It must
+ * surface as a 400 (the caller sent garbage), never as a 500.
+ */
+export function isCastError(error: unknown): boolean {
+  return (error as { name?: string })?.name === "CastError";
+}
+
 export function unauthorized() {
   return NextResponse.json({ error: strings.unauthorized }, { status: 401 });
 }

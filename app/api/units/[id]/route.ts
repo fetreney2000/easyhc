@@ -10,6 +10,9 @@ import { createUnitSchema } from "@/lib/validation/schemas";
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   const user = await getAuthenticatedUser();
   if (!user) return unauthorized();
+  // Same guard as the list: units are manage-page data, and the list route
+  // is the only place with scope-aware exceptions
+  if (!can(user.role, "users:manage")) return forbidden();
   await connectDB();
   try {
     const unit = await Unit.findById(params.id).lean();

@@ -85,7 +85,13 @@ export function openPoster(
     // Print once the QR image has actually loaded (with fallbacks)
     img.addEventListener("load", doPrint);
     img.addEventListener("error", doPrint);
-    setTimeout(doPrint, 2500);
+    // …but the timeout only prints a QR that HAS arrived: a slow endpoint
+    // must not commit a sheet with an empty box (the window stays open with
+    // the layout, and the user can print or retry manually)
+    setTimeout(() => {
+      if (didPrint) return;
+      if (img.complete && img.naturalWidth > 0) doPrint();
+    }, 2500);
   };
 
   return { doc, main, printWhenReady };

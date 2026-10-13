@@ -7,9 +7,11 @@ import {
   badRequest,
   serverError,
   success,
+  isCastError,
 } from "@/lib/api/utils";
 import Floor from "@/lib/db/models/Floor";
 import Attendance from "@/lib/db/models/Attendance";
+import Unit from "@/lib/db/models/Unit";
 import { can } from "@/lib/auth/rbac";
 import { updateFloorSchema } from "@/lib/validation/schemas";
 import crypto from "crypto";
@@ -35,6 +37,7 @@ export async function GET(
 
     return success(floor);
   } catch (error) {
+    if (isCastError(error)) return badRequest(strings.invalidId);
     console.error("Error fetching floor:", error);
     return serverError();
   }
@@ -72,6 +75,7 @@ export async function PUT(
 
     return success(floor);
   } catch (error) {
+    if (isCastError(error)) return badRequest(strings.invalidId);
     console.error("Error updating floor:", error);
     return serverError();
   }
@@ -110,10 +114,21 @@ export async function DELETE(
       );
     }
 
+    // …and never leave a unit pointing at a floor that no longer exists:
+    // the members' own_floor scope would silently resolve to a ghost and
+    // their board and reports would come back empty with no error.
+    const unitCount = await Unit.countDocuments({ homeFloorId: floor._id });
+    if (unitCount > 0) {
+      return badRequest(
+        `Lantai ini masih menjadi lantai rumah bagi ${unitCount} unit. Tukar lantai rumah unit tersebut sebelum memadam.`
+      );
+    }
+
     await Floor.findByIdAndDelete(params.id);
 
     return success({ message: strings.floorDeleted });
   } catch (error) {
+    if (isCastError(error)) return badRequest(strings.invalidId);
     console.error("Error deleting floor:", error);
     return serverError();
   }
@@ -139,6 +154,7 @@ export async function PATCH(
 
     return success(floor);
   } catch (error) {
+    if (isCastError(error)) return badRequest(strings.invalidId);
     console.error("Error regenerating QR:", error);
     return serverError();
   }

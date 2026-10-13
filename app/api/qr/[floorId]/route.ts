@@ -67,8 +67,11 @@ export async function GET(
       return new NextResponse(svg, {
         headers: {
           "Content-Type": "image/svg+xml",
-          // private: the QR is an access capability, shared caches must not store it
-          "Cache-Control": "private, max-age=86400",
+          // no-store: rotating the floor's qrToken revokes every printed
+          // code, and a cached IMAGE would keep encoding the OLD token —
+          // printing right after a rotation would produce a dead poster.
+          // (The URL is stable per floor+type, so HTTP caching is unsafe.)
+          "Cache-Control": "private, no-store",
         },
       });
     }
@@ -89,7 +92,8 @@ export async function GET(
     return new NextResponse(pngBuffer as unknown as BodyInit, {
       headers: {
         "Content-Type": "image/png",
-        "Cache-Control": "private, max-age=86400",
+        // no-store — see the SVG branch above
+        "Cache-Control": "private, no-store",
       },
     });
   } catch (error) {

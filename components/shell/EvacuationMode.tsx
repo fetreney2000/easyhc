@@ -315,7 +315,9 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
               >
                 {strings.evacStartedAt(clock(session.startedAt))} ·{" "}
                 {session.startedByName}
-                <span className="evac-chip">
+                {/* suppressHydrationWarning does NOT cascade: the elapsed
+                    chip computes from the live clock, so it needs its own */}
+                <span className="evac-chip" suppressHydrationWarning>
                   {strings.evacElapsed(elapsed)}
                 </span>
               </Text>

@@ -139,15 +139,16 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
   const {
     data: evacStatus,
     error: evacStatusError,
-  } = useSWR<{ active: boolean }>(
+  } = useSWR<{ active: boolean; sessionId: string | null }>(
     EVACUATION_STATUS_KEY,
     fetcher,
     { refreshInterval: 15000 }
   );
   // A failed status poll must not silently REMOVE the visitor's only action
   // during an alarm — offer the button anyway (the POST itself will say if
-  // there is no session) and explain the uncertainty
-  const statusUnknown = !!evacStatusError && !evacStatus;
+  // there is no session). SWR keeps the LAST good payload on error, so
+  // "no data" is the wrong test: any poll failure means we no longer KNOW.
+  const statusUnknown = !!evacStatusError;
   const [evacLoading, setEvacLoading] = useState(false);
   // "done" is ONLY valid for the session and the record it was made for —
   // cleared on check-out/re-check-in (resetToForm/applyVisit), on a floor
@@ -157,14 +158,16 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
     floorName: string;
   } | null>(null);
 
-  // A new alarm (status false → true) invalidates any stale acknowledgement
-  // from a previous session; within the SAME session the ack must survive
-  const wasActive = useRef(false);
+  // A different session id = a new alarm, which invalidates any stale
+  // acknowledgement from the previous one. Keying on the id (not the
+  // active boolean) also survives a close+reopen that lands inside a
+  // single 15s poll. Within the SAME session the ack must survive.
+  const lastEvacSessionId = useRef<string | null>(null);
   useEffect(() => {
-    const active = !!evacStatus?.active;
-    if (active && !wasActive.current) setEvacState(null);
-    wasActive.current = active;
-  }, [evacStatus?.active]);
+    const sid = evacStatus?.active ? evacStatus.sessionId ?? "" : null;
+    if (sid && sid !== lastEvacSessionId.current) setEvacState(null);
+    lastEvacSessionId.current = sid;
+  }, [evacStatus?.active, evacStatus?.sessionId]);
 
   const handleEvacConfirm = async () => {
     if (!attendanceId) return;
@@ -346,16 +349,21 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
         });
         resetToForm();
       } else {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         notifications.show({
           title: strings.error,
           message: data.error || strings.checkOutError,
           color: "danger",
         });
-        // The record is no longer usable (closed by the daily cron, or the
-        // token no longer matches): drop the local marker so the form works
-        // again instead of being stuck on a dead panel.
-        resetToForm();
+        // A DEFINITIVE answer means the record is unusable (already closed
+        // by the daily cron, or the token no longer matches): drop the local
+        // marker so the form works again instead of a dead panel. A
+        // transient failure (429 rate limit, 5xx) must NOT destroy the
+        // device's checkout token — that would strand the visitor
+        // checked-in with no way out.
+        if (res.status === 403 || res.status === 404 || res.status === 409) {
+          resetToForm();
+        }
       }
     } catch {
       notifications.show({
@@ -436,7 +444,12 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
                 </Button>
               </Stack>
             ) : null}
-            {checkoutToken ? (
+            {/* Check-out is hidden while a session runs: a mid-muster
+                check-out would strand the visitor — re-checking in creates
+                a record the roster snapshot never knew, so neither
+                confirmation path could ever succeed. The warden can still
+                mark them; after the session they can check out normally. */}
+            {checkoutToken && !evacStatus?.active ? (
               <Button
                 fullWidth
                 color="danger"
@@ -446,12 +459,12 @@ function VisitorCheckInContent({ floorId }: { floorId: string }) {
               >
                 {strings.checkOut}
               </Button>
-            ) : (
+            ) : !evacStatus?.active ? (
               // No token on this device → it never checked this record in
               <Text size="xs" c="dimmed" ta="center">
                 {strings.visitorUseOriginalDevice}
               </Text>
-            )}
+            ) : null}
           </Stack>
         ) : (
           <form onSubmit={form.onSubmit(handleSubmit)}>

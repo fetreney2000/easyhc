@@ -67,6 +67,8 @@ interface DashboardData {
   totalEmployees: number;
   totalVisitors: number;
   totalPresent: number;
+  /** Live board only: headcount per floor across ALL pages. */
+  byFloor?: { floorId: string | null; count: number }[];
   lastUpdated: string;
   /** Rows on THIS page (capped at pageSize). */
   rowCount: number;
@@ -101,10 +103,35 @@ export default function DashboardPage() {
     setPage(1);
   }, [floorFilter, debouncedQuery]);
 
+  // A shrinking result set must not strand the table on an out-of-range
+  // page — that rendered "no one present" while the totals above showed
+  // people present (people checked out, a muster ended, search narrowed)
+  const lastPage = Math.max(
+    1,
+    Math.ceil((data?.total ?? 0) / (data?.pageSize || 200))
+  );
+  useEffect(() => {
+    if (page > lastPage) setPage(lastPage);
+  }, [lastPage, page]);
+
   // Fetch floors for filter
   const { data: floors } = useSWR<{ _id: string; name: string; hue?: number }[]>(
     "/api/floors",
     fetcher
+  );
+
+  // Latest arrivals ("Daftar Masuk Terkini") — fetched as their own tiny
+  // page so paging the main table can never redefine "latest", mirroring
+  // the departures feed below
+  const { data: arrivalsData } = useSWR<DashboardData>(
+    `/api/attendance?active=true&page=1&pageSize=5${
+      floorFilter ? `&floorId=${floorFilter}` : ""
+    }`,
+    fetcher,
+    {
+      refreshInterval: 25000,
+      revalidateOnFocus: true,
+    }
   );
 
   // Recent check-outs ("Daftar Keluar Terkini") — who just LEFT the
@@ -227,25 +254,26 @@ export default function DashboardPage() {
   // which is already scoped to what this role may see; floors with nobody
   // sort last but stay visible so an empty floor reads as "empty"
   const floorCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const record of data?.attendance ?? []) {
-      const id = record.floorId?._id;
-      if (id) counts.set(id, (counts.get(id) ?? 0) + 1);
-    }
+    // Server-computed over the WHOLE board (all pages): deriving it from
+    // the current page silently undercounted once more than a page of
+    // people were present — the strip disagreed with the totals above it
+    const countById = new Map(
+      (data?.byFloor ?? []).map((row) => [row.floorId ?? "", row.count])
+    );
     return (floors ?? [])
       .map((floor) => ({
         _id: floor._id,
         name: floor.name,
         hue: floor.hue,
-        count: counts.get(floor._id) ?? 0,
+        count: countById.get(floor._id) ?? 0,
       }))
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  }, [data?.attendance, floors]);
+  }, [data?.byFloor, floors]);
 
-  // Latest arrivals (the API already returns rows newest-first)
+  // Latest arrivals (the dedicated feed is already newest-first)
   const recent = useMemo(
-    () => (data?.attendance ?? []).slice(0, 5),
-    [data?.attendance]
+    () => (arrivalsData?.attendance ?? []).slice(0, 5),
+    [arrivalsData?.attendance]
   );
 
   // Latest departures (newest-checked-out-first from the API)

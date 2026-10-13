@@ -25,9 +25,11 @@ const WINDOW_MS = 60 * 1000;
  * /api/attendance/checkout.
  */
 export async function POST(request: Request) {
-  // Public endpoint → throttle per IP before touching the database
+  // Public endpoint → throttle per IP before touching the database.
+  // Own bucket (see the check-in route): check-OUT must not be starved by
+  // check-in traffic from the same building NAT.
   const rate = checkRateLimit(
-    `visitor:${clientIp(request)}`,
+    `visitor-out:${clientIp(request)}`,
     MAX_ATTEMPTS,
     WINDOW_MS
   );

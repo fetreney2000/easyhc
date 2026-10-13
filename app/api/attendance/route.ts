@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
+import { Types } from "mongoose";
 import type { FilterQuery } from "mongoose";
 import { connectDB } from "@/lib/db/mongoose";
+import { strings } from "@/lib/i18n/strings";
 import {
   getAuthenticatedUser,
   unauthorized,
+  badRequest,
   serverError,
   success,
   escapeRegex,
+  isCastError,
 } from "@/lib/api/utils";
 import Attendance from "@/lib/db/models/Attendance";
 import User from "@/lib/db/models/User";
@@ -95,6 +99,7 @@ export async function GET(request: Request) {
     totalEmployees: 0,
     totalVisitors: 0,
     totalPresent: 0,
+    byFloor: [] as { floorId: Types.ObjectId | null; count: number }[],
     lastUpdated: new Date().toISOString(),
     rowCount: 0,
     pageSize,
@@ -104,13 +109,12 @@ export async function GET(request: Request) {
   try {
     // The floor-wide slice exists for the LIVE board only; historical
     // queries stay personal (own records). Otherwise a plain employee could
-    // pull their whole floor's past straight from this endpoint.
+    // pull their whole floor's past straight from this endpoint — the
+    // recent check-OUTS feed is history too, so it degrades to "own"
+    // exactly like an unfiltered list query does.
     const roleScope = getAttendanceScope(user.role);
-    // own_and_floor is the LIVE board's scope: history degrades to "own",
-    // but the recent check-OUTS feed is board data too (who just left), so
-    // it keeps the floor scope — bounded by a small page like the board is
     const effectiveScope =
-      roleScope === "own_and_floor" && !activeOnly && !checkedOut
+      roleScope === "own_and_floor" && !(activeOnly && !checkedOut)
         ? "own"
         : roleScope;
 
@@ -131,21 +135,47 @@ export async function GET(request: Request) {
         ? Promise.resolve(0)
         : Attendance.countDocuments({ ...baseActive, type: t });
 
-    const [attendance, total, totalEmployees, totalVisitors] = await Promise.all([
-      Attendance.find(query)
-        // Phone numbers are collected for identity/deduplication only — they
-        // are not needed to draw a presence list, so they are not returned.
-        .select("-visitorPhone")
-        .populate("userId", "name role")
-        .populate("floorId", "name hue")
-        .sort(checkedOut ? { checkedOutAt: -1 } : { checkedInAt: -1 })
-        .skip((page - 1) * pageSize)
-        .limit(pageSize)
-        .lean(),
-      Attendance.countDocuments(query),
-      countActive("employee"),
-      countActive("visitor"),
-    ]);
+    // Per-floor headcounts over the WHOLE live board (not the current page)
+    // — the dashboard's floor strip must agree with the totals above, even
+    // when the user has paged the table. Aggregation $match does not cast,
+    // so the string floorId filter is converted here.
+    const boardActive = activeOnly && !checkedOut;
+    const byFloor = boardActive
+      ? Attendance.aggregate<{ _id: Types.ObjectId | null; count: number }>(
+          [
+            {
+              $match: {
+                ...baseActive,
+                ...(query.floorId
+                  ? { floorId: new Types.ObjectId(String(query.floorId)) }
+                  : {}),
+              } as Record<string, unknown>,
+            },
+            { $group: { _id: "$floorId", count: { $sum: 1 } } },
+          ]
+        ).then((rows) =>
+          rows.map((row) => ({ floorId: row._id, count: row.count }))
+        )
+      : Promise.resolve([]);
+
+    const [attendance, total, totalEmployees, totalVisitors, floorCounts] =
+      await Promise.all([
+        Attendance.find(query)
+          // Phone numbers are collected for identity/deduplication only —
+          // they are not needed to draw a presence list, so they are not
+          // returned.
+          .select("-visitorPhone")
+          .populate("userId", "name role")
+          .populate("floorId", "name hue")
+          .sort(checkedOut ? { checkedOutAt: -1 } : { checkedInAt: -1 })
+          .skip((page - 1) * pageSize)
+          .limit(pageSize)
+          .lean(),
+        Attendance.countDocuments(query),
+        countActive("employee"),
+        countActive("visitor"),
+        byFloor,
+      ]);
 
     return success({
       attendance,
@@ -154,6 +184,8 @@ export async function GET(request: Request) {
       totalEmployees,
       totalVisitors,
       totalPresent: totalEmployees + totalVisitors,
+      /** Live board only: headcount per floor across ALL pages. */
+      byFloor: floorCounts,
       lastUpdated: new Date().toISOString(),
       /** Rows on THIS page (capped at pageSize). */
       rowCount: attendance.length,
@@ -161,6 +193,7 @@ export async function GET(request: Request) {
       page,
     });
   } catch (error) {
+    if (isCastError(error)) return badRequest(strings.invalidId);
     console.error("Error fetching attendance:", error);
     return serverError();
   }

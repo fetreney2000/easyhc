@@ -89,6 +89,17 @@ export default function AllFloorsPage() {
     setPage(1);
   }, [debouncedQuery]);
 
+  // Never strand the list on an out-of-range page (the result set shrank
+  // while the user was paging): it would render "no one present" while
+  // people are still on the board
+  const lastPage = Math.max(
+    1,
+    Math.ceil((data?.total ?? 0) / (data?.pageSize || 20))
+  );
+  useEffect(() => {
+    if (page > lastPage) setPage(lastPage);
+  }, [lastPage, page]);
+
   // Expand every floor once on first load (hooks must run unconditionally,
   // so this lives above the session guard — the old version called useState
   // after an early return, which crashes React when the session arrives).

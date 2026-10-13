@@ -82,6 +82,25 @@ AttendanceSchema.index(
     },
   }
 );
+/**
+ * ONE OPEN check-in per employee — the same atomic backstop for the staff
+ * path: two simultaneous requests (double-tap, two tabs, a scan racing a
+ * manual check-in) can both pass the route's findOnes and both insert.
+ * Partial, so closed records, visitor rows and phoneless rows are excluded
+ * and history is unaffected. /api/attendance/checkin handles the duplicate-
+ * key error this can raise.
+ */
+AttendanceSchema.index(
+  { userId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      type: "employee",
+      userId: { $exists: true },
+      checkedOutAt: null,
+    },
+  }
+);
 
 const Attendance: Model<IAttendance> =
   mongoose.models.Attendance ||

@@ -16,6 +16,7 @@ import {
   Divider,
 } from "@mantine/core";
 import { IconPrinter, IconRefresh, IconQrcode, IconUsers, IconUserStar } from "@tabler/icons-react";
+import { notifications } from "@mantine/notifications";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api/fetcher";
 import { useAccess } from "@/components/shell/useAccess";
@@ -57,7 +58,14 @@ export default function QRCodesPage() {
       `Kod QR ${isVisitor ? strings.visitor : strings.employee} - ${floor.name}`,
       floorColor(floor.hue ?? floor._id)
     );
-    if (!poster) return;
+    if (!poster) {
+      notifications.show({
+        title: strings.error,
+        message: strings.printBlocked,
+        color: "danger",
+      });
+      return;
+    }
     const { doc, main, printWhenReady } = poster;
 
     const heading = doc.createElement("h1");
@@ -89,7 +97,14 @@ export default function QRCodesPage() {
    *  The issuing organisation now lives in the shared poster footer. */
   const handlePrintAppQr = () => {
     const poster = openPoster(strings.qrAppPrintTitle, BRAND_BLUE);
-    if (!poster) return;
+    if (!poster) {
+      notifications.show({
+        title: strings.error,
+        message: strings.printBlocked,
+        color: "danger",
+      });
+      return;
+    }
     const { doc, main, printWhenReady } = poster;
 
     const heading = doc.createElement("h1");

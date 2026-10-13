@@ -417,8 +417,14 @@ export async function buildRoster(): Promise<IRosterEntry[]> {
     name: record.visitorName?.trim() || strings.visitor,
     type: "visitor",
     floorId: record.floorId,
-    floorName: floorName.get(record.floorId.toString()),
-    floorHue: floorHue.get(record.floorId.toString()),
+    // Guarded like the employee branch above: a legacy row with no floor
+    // must not throw inside buildRoster() and turn the alarm into a 500
+    floorName: record.floorId
+      ? floorName.get(record.floorId.toString())
+      : undefined,
+    floorHue: record.floorId
+      ? floorHue.get(record.floorId.toString())
+      : undefined,
   }));
 
   // Staff first, each group alphabetical — a warden scans one list

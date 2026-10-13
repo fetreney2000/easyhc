@@ -8,6 +8,7 @@ import {
   badRequest,
   serverError,
   success,
+  isCastError,
 } from "@/lib/api/utils";
 import Attendance from "@/lib/db/models/Attendance";
 import Floor from "@/lib/db/models/Floor";
@@ -90,15 +91,25 @@ export async function POST(request: Request) {
       return badRequest(strings.manualCheckinUserRequired);
     }
 
-    // …and nobody may give the hidden control account a presence record
+    // …and nobody may give the hidden control account a presence record,
+    // and the target must actually exist (an orphan row would render as a
+    // nameless ghost on the floor board and still count towards totals)
     if (method === "manual" && targetUserId) {
       const targetUser = await User.findById(targetUserId)
         .select("role")
         .lean();
-      if (targetUser?.role === "superadmin") {
+      if (!targetUser) {
+        return badRequest(strings.userNotFound);
+      }
+      if (targetUser.role === "superadmin") {
         return forbidden();
       }
     }
+
+    // Who closed the old record: "self" when the person themselves moved
+    // floors (QR), the ACTOR's id when an admin did it manually. The old
+    // version had these exactly backwards.
+    const checkoutBy = method === "manual" ? user.id : "self";
 
     // Check if target user already has an open attendance record on THIS floor (toggle behavior)
     const existingOnThisFloor = await Attendance.findOne({
@@ -111,7 +122,7 @@ export async function POST(request: Request) {
     if (existingOnThisFloor) {
       // Already on this floor → CHECK OUT (toggle)
       existingOnThisFloor.checkedOutAt = new Date();
-      existingOnThisFloor.checkedOutBy = "self";
+      existingOnThisFloor.checkedOutBy = checkoutBy;
       await existingOnThisFloor.save();
 
       return success({
@@ -134,18 +145,72 @@ export async function POST(request: Request) {
 
     if (existingOnOtherFloor) {
       existingOnOtherFloor.checkedOutAt = new Date();
-      existingOnOtherFloor.checkedOutBy = method === "manual" ? "self" : user.id;
+      existingOnOtherFloor.checkedOutBy = checkoutBy;
       await existingOnOtherFloor.save();
     }
 
-    // Create new attendance record for the target user
-    const attendance = await Attendance.create({
-      type: "employee",
+    // Create new attendance record for the target user. The partial unique
+    // index on open employee records (lib/db/models/Attendance.ts) is the
+    // atomic backstop: two simultaneous requests can both pass the finds
+    // above, but only one can INSERT — the loser handles the duplicate key
+    // instead of double-counting the person on the floor board.
+    const newRecord = () => ({
+      type: "employee" as const,
       userId: targetUserId,
       floorId: floor._id,
       checkedInAt: new Date(),
       method,
     });
+
+    let attendance;
+    try {
+      attendance = await Attendance.create(newRecord());
+    } catch (err) {
+      if ((err as { code?: number }).code !== 11000) throw err;
+
+      // Lost the race. If the winner is on THIS floor, this request was a
+      // duplicate of an identical check-in — report it as the success it
+      // is. Otherwise (different floor) finish the move and retry once.
+      const winner = await Attendance.findOne({
+        userId: targetUserId,
+        checkedOutAt: null,
+        type: "employee",
+      });
+      if (
+        winner &&
+        winner.floorId?.toString() === floor._id.toString()
+      ) {
+        return success(
+          {
+            message: strings.checkedInTo(floor.name),
+            action: "checkin",
+            attendance: {
+              _id: winner._id,
+              floorName: floor.name,
+              checkedInAt: winner.checkedInAt,
+            },
+          },
+          201
+        );
+      }
+      if (winner) {
+        winner.checkedOutAt = new Date();
+        winner.checkedOutBy = checkoutBy;
+        await winner.save();
+      }
+      try {
+        attendance = await Attendance.create(newRecord());
+      } catch (err2) {
+        if ((err2 as { code?: number }).code !== 11000) throw err2;
+        const again = await Attendance.findOne({
+          userId: targetUserId,
+          checkedOutAt: null,
+          type: "employee",
+        });
+        if (!again) throw err2;
+        attendance = again;
+      }
+    }
 
     // Audit log for manual check-in
     if (method === "manual") {
@@ -173,6 +238,7 @@ export async function POST(request: Request) {
       201
     );
   } catch (error) {
+    if (isCastError(error)) return badRequest(strings.invalidId);
     console.error("Error checking in:", error);
     return serverError();
   }

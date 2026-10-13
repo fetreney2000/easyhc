@@ -10,6 +10,8 @@ import { createJabatanSchema } from "@/lib/validation/schemas";
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   const user = await getAuthenticatedUser();
   if (!user) return unauthorized();
+  // Same guard as the list (jabatans/route.ts): manage-page data only
+  if (!can(user.role, "users:manage")) return forbidden();
   await connectDB();
   try {
     const jabatan = await Jabatan.findById(params.id).lean();

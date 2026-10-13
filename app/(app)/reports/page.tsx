@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import {
   Title,
   Paper,
@@ -88,10 +89,20 @@ export default function ReportsPage() {
   const MAX_EXPORT_ROWS = 5000;
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
-  // A new filter starts back at page 1
+  // A new filter starts back at page 1, and any earlier print stamp no
+  // longer describes what is on screen
   useEffect(() => {
     setPage(1);
+    setPrintedAt(null);
   }, [fromDate, toDate, floorFilter, typeFilter]);
+
+  // Printing a reversed range silently yields an empty report — say so and
+  // disable the actions instead
+  const rangeReversed =
+    datesReady &&
+    fromDate !== null &&
+    toDate !== null &&
+    fromDate > toDate;
 
   // Floor options only exist while the range is set (that lookup is gated
   // too): dropping a date must drop the filter as well, otherwise the Select
@@ -217,7 +228,7 @@ export default function ReportsPage() {
               onClick={handleExportCSV}
               loading={exporting}
               disabled={
-                !exporting && (!datesReady || !data?.records?.length)
+                !exporting && (!datesReady || rangeReversed || !data?.records?.length)
               }
             >
               {strings.exportCSV}
@@ -226,10 +237,12 @@ export default function ReportsPage() {
               variant="light"
               leftSection={<IconPrinter size={16} />}
               onClick={() => {
-                setPrintedAt(new Date().toISOString());
+                // Commit the stamp to the DOM BEFORE the dialog: some
+                // engines snapshot the page synchronously inside print()
+                flushSync(() => setPrintedAt(new Date().toISOString()));
                 window.print();
               }}
-              disabled={!datesReady}
+              disabled={!datesReady || rangeReversed}
             >
               {strings.printReport}
             </Button>
@@ -282,12 +295,17 @@ export default function ReportsPage() {
           <Button
             leftSection={<IconRefresh size={16} />}
             onClick={() => mutate()}
-            disabled={!datesReady}
+            disabled={!datesReady || rangeReversed}
             mt="auto"
           >
             {strings.refresh}
           </Button>
         </Group>
+        {rangeReversed && (
+          <Text size="sm" c="danger" mt="sm">
+            {strings.reportsReversed}
+          </Text>
+        )}
       </Paper>
 
       {/* Print/PDF letterhead — hidden on screen (the filter bar shows the

@@ -36,6 +36,25 @@ const FloorSchema = new Schema<IFloor>(
 );
 
 // qrToken uniqueness comes from `unique: true` on the field above
+
+/**
+ * Backstop for the identity hue: the POST route assigns it (golden angle,
+ * spaced off every existing hue), but any other creation path — seeds,
+ * scripts — and any doc written BEFORE hues existed (renames and QR
+ * rotations call save() on hydrated docs, and `required` is validated on
+ * save) must never fail or save a floor without a colour.
+ */
+FloorSchema.pre("save", async function (next) {
+  if (this.hue !== undefined && this.hue !== null) return next();
+  try {
+    const count = await (this.constructor as Model<IFloor>).countDocuments();
+    this.hue = (count * 137) % 360;
+    next();
+  } catch (err) {
+    next(err as Error);
+  }
+});
+
 const Floor: Model<IFloor> =
   mongoose.models.Floor || mongoose.model<IFloor>("Floor", FloorSchema);
 

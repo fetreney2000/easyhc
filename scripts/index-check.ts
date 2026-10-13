@@ -1,7 +1,8 @@
 /**
  * Verifies the schema's indexes can actually be built — in particular the
- * partial unique index ({type, visitorPhone} over OPEN visitor records),
- * because MongoDB may reject `checkedOutAt: null` in a partialFilterExpression.
+ * partial unique indexes (one OPEN check-in per visitor phone, one per
+ * employee, one ACTIVE evacuation session), because MongoDB may reject
+ * `checkedOutAt: null` in a partialFilterExpression.
  * Read-only apart from index builds (what the app does on boot anyway).
  *
  * Usage: npx tsx scripts/index-check.ts
@@ -45,6 +46,28 @@ async function main(): Promise<void> {
           )}`
         : "MISSING"
     );
+    if (!uniqueVisitor || !uniqueVisitor.unique) {
+      console.error("VISITOR OPEN-CHECKIN INDEX FAILED");
+      process.exit(1);
+    }
+
+    // ONE OPEN check-in per employee — the staff-side twin of the phone
+    // index; /api/attendance/checkin handles the duplicate-key error it
+    // can raise when two requests race past the findOnes
+    const uniqueEmployee = indexes.find((i) => i.name === "userId_1");
+    console.log(
+      "partial unique index (one open check-in per employee):",
+      uniqueEmployee
+        ? `unique=${!!uniqueEmployee.unique} filter=${JSON.stringify(
+            (uniqueEmployee as { partialFilterExpression?: unknown })
+              .partialFilterExpression
+          )}`
+        : "MISSING"
+    );
+    if (!uniqueEmployee || !uniqueEmployee.unique) {
+      console.error("EMPLOYEE OPEN-CHECKIN INDEX FAILED");
+      process.exit(1);
+    }
 
     // Confirm the semantics: one open row per phone, closed rows exempt
     const anyOpen = await Attendance.findOne({

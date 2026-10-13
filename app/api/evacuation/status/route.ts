@@ -25,7 +25,13 @@ export async function GET() {
     const active = await Evacuation.findOne({ status: "active" })
       .select("_id")
       .lean();
-    return success({ active: !!active });
+    return success({
+      active: !!active,
+      // The id lets the visitor page recognise a NEW session (a fast
+      // close+reopen inside one poll) instead of trusting a stale ack —
+      // an opaque id, nothing else
+      sessionId: active ? active._id.toString() : null,
+    });
   } catch (error) {
     console.error("Error reading evacuation status:", error);
     return serverError();

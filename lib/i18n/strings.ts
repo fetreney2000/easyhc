@@ -247,6 +247,10 @@ export const strings = {
 
   // Errors
   serverError: "Ralat pelayan. Sila cuba lagi.",
+  invalidId: "ID tidak sah",
+  printBlocked:
+    "Tetingkap cetakan disekat oleh pelayar. Benarkan pop-up untuk halaman ini dan cuba lagi.",
+  reportsReversed: "Tarikh mula mesti sebelum tarikh akhir.",
   forbidden: "Akses ditolak",
   tooManyAttempts: "Terlalu banyak percubaan. Sila cuba lagi sebentar lagi.",
   unauthorized: "Anda tidak mempunyai kebenaran untuk tindakan ini",

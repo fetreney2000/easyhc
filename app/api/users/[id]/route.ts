@@ -40,6 +40,17 @@ export async function GET(
       .lean();
 
     if (!user) return badRequest(strings.userNotFound);
+
+    // The hidden control account stays hidden: only it itself (impossible —
+    // it holds no session here) or its own superadmin tier may read it by id
+    if (
+      user.role === "superadmin" &&
+      params.id !== authUser.id &&
+      !can(authUser.role, "users:manage_admin")
+    ) {
+      return forbidden();
+    }
+
     return success(user);
   } catch (error) {
     console.error("Error fetching user:", error);
@@ -68,9 +79,11 @@ export async function PUT(
     const user = await User.findById(params.id);
     if (!user) return badRequest(strings.userNotFound);
 
-    // Editing a superadmin account requires users:manage_admin
+    // Managing an admin OR superadmin account requires users:manage_admin —
+    // an admin must not be able to demote or take over a PEER admin (the
+    // UI hides those rows; the API must agree)
     if (
-      user.role === "superadmin" &&
+      user.role !== "user" &&
       !isOwnProfile &&
       !can(authUser.role, "users:manage_admin")
     ) {
@@ -150,9 +163,10 @@ export async function DELETE(
       return badRequest(strings.cannotDeleteOwnAccount);
     }
 
-    // Deleting a superadmin account requires users:manage_admin
+    // Deleting an admin OR superadmin account requires users:manage_admin —
+    // an admin must not be able to remove a PEER admin the UI never offered
     if (
-      user.role === "superadmin" &&
+      user.role !== "user" &&
       !can(authUser.role, "users:manage_admin")
     ) {
       return forbidden();

@@ -9,7 +9,10 @@ import { checkRateLimit, clientIp } from "@/lib/security/rateLimit";
 import { normalizeVisitorPhone } from "@/lib/validation/schemas";
 import { strings } from "@/lib/i18n/strings";
 
-const MAX_ATTEMPTS = 60;
+// Higher than the check-in/out buckets: confirmations are DELIBERATELY
+// simultaneous (everyone at the muster point taps at once, behind one
+// building NAT), while check-ins spread across the morning
+const MAX_ATTEMPTS = 120;
 const WINDOW_MS = 60 * 1000;
 
 /**

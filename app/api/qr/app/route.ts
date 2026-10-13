@@ -93,7 +93,10 @@ export async function GET(request: Request) {
     return new NextResponse(body, {
       headers: {
         "Content-Type": contentType,
-        "Cache-Control": "public, max-age=3600",
+        // no-store: the body is derived from client-controllable forwarded
+        // headers, and a shared or long-lived cache could pin one
+        // request's origin into every notice-board poster for an hour
+        "Cache-Control": "private, no-store",
         "X-Qr-Url": appUrl,
       },
     });

@@ -49,8 +49,13 @@ export async function POST(
     const target = await User.findById(params.id);
     if (!target) return badRequest(strings.userNotFound);
 
-    // Admins cannot reset a superadmin's password
-    if (authUser.role === "admin" && target.role === "superadmin") {
+    // Touching an admin OR superadmin account requires users:manage_admin:
+    // a password reset bumps sessionVersion (instant lockout), and an admin
+    // must not be able to lock out or take over a PEER admin
+    if (
+      target.role !== "user" &&
+      !can(authUser.role, "users:manage_admin")
+    ) {
       return forbidden();
     }
 

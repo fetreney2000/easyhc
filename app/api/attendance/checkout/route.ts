@@ -8,6 +8,7 @@ import {
   badRequest,
   serverError,
   success,
+  isCastError,
 } from "@/lib/api/utils";
 import Attendance from "@/lib/db/models/Attendance";
 import AuditLog from "@/lib/db/models/AuditLog";
@@ -22,14 +23,16 @@ export async function POST(request: Request) {
 
   await connectDB();
 
-  const body = await request.json();
-  const { attendanceId, force } = body;
-
-  if (!attendanceId) {
-    return badRequest(strings.attendanceIdRequired);
-  }
-
   try {
+    // Parsed INSIDE the try: a malformed JSON body is a 400 (like every
+    // sibling route), not an unhandled throw → 500
+    const body = await request.json().catch(() => null);
+    const { attendanceId, force } = body ?? {};
+
+    if (!attendanceId || typeof attendanceId !== "string") {
+      return badRequest(strings.attendanceIdRequired);
+    }
+
     const record = await Attendance.findById(attendanceId);
     if (!record) {
       return badRequest(strings.attendanceNotFound);
@@ -84,6 +87,7 @@ export async function POST(request: Request) {
         : strings.checkOutSuccess,
     });
   } catch (error) {
+    if (isCastError(error)) return badRequest(strings.invalidId);
     console.error("Error checking out:", error);
     return serverError();
   }

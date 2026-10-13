@@ -66,9 +66,15 @@ export async function POST(request: Request) {
 
     // Identity colour: the golden angle (137°) spaces each new floor as
     // far as possible from every existing one, whatever the count — an id
-    // hash could land three floors in the same colour family
-    const existingCount = await Floor.countDocuments();
-    const hue = (existingCount * 137) % 360;
+    // hash could land three floors in the same colour family. If the
+    // candidate hue is taken (a floor was deleted, so the count shrank),
+    // keep stepping by the angle until it is free: floors never collide.
+    const hues = new Set(
+      (await Floor.find().select("hue").lean()).map((f) => f.hue)
+    );
+    const existingCount = hues.size;
+    let hue = (existingCount * 137) % 360;
+    while (hues.has(hue)) hue = (hue + 137) % 360;
 
     const floor = await Floor.create({
       name,

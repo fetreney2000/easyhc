@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/mongoose";
 import { bearerToken, secureCompare } from "@/lib/api/utils";
 import Attendance from "@/lib/db/models/Attendance";
+import Evacuation from "@/lib/db/models/Evacuation";
 
 /**
  * Vercel Cron: daily maintenance at 3:00 AM MYT (UTC+8).
@@ -35,17 +36,26 @@ export async function GET(request: Request) {
   await connectDB();
 
   try {
-    const result = await Attendance.updateMany(
-      {
-        checkedOutAt: null,
-      },
-      {
-        $set: {
-          checkedOutAt: new Date(),
-          checkedOutBy: "cron_daily",
+    // Never force-close the building out from under a live muster: the
+    // visitor phone-confirmation path needs the record to still be open.
+    const activeSession = await Evacuation.findOne({ status: "active" })
+      .select("_id")
+      .lean();
+
+    let result = { modifiedCount: 0 };
+    if (!activeSession) {
+      result = await Attendance.updateMany(
+        {
+          checkedOutAt: null,
         },
-      }
-    );
+        {
+          $set: {
+            checkedOutAt: new Date(),
+            checkedOutBy: "cron_daily",
+          },
+        }
+      );
+    }
 
     // Retention: keeps the M0 bucket from growing without bound while still
     // preserving more than a year of muster history (README risk table).
@@ -55,7 +65,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Auto-checkout completed. ${result.modifiedCount} records closed, ${purge.deletedCount} purged (retention ${days} days).`,
+      message: activeSession
+        ? `Skipped auto-checkout: an evacuation session is active. ${purge.deletedCount} purged (retention ${days} days).`
+        : `Auto-checkout completed. ${result.modifiedCount} records closed, ${purge.deletedCount} purged (retention ${days} days).`,
       modifiedCount: result.modifiedCount,
       purgedCount: purge.deletedCount,
       retentionDays: days,

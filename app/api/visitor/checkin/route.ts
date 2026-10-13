@@ -51,9 +51,11 @@ async function alreadyCheckedInResponse(
 }
 
 export async function POST(request: Request) {
-  // Public endpoint → throttle per IP before touching the database
+  // Public endpoint → throttle per IP before touching the database.
+  // The bucket is check-in-specific: sharing one with check-out let a busy
+  // lobby's combined traffic starve either flow.
   const rate = checkRateLimit(
-    `visitor:${clientIp(request)}`,
+    `visitor-in:${clientIp(request)}`,
     MAX_ATTEMPTS,
     WINDOW_MS
   );

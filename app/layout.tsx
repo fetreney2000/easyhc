@@ -15,7 +15,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  // `template` gives every child title a suffix ("Log Masuk · EasyHC")
+  // `template` gives every child title a suffix ("Log Masuk · EasyHC - …")
   title: {
     default: strings.appName,
     template: `%s · ${strings.appName}`,
@@ -35,7 +35,8 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: strings.appName,
+    // Home-screen labels truncate aggressively — keep the short brand
+    title: strings.appShortName,
   },
   // Shared into WhatsApp/Teams/Slack previews — the visitor QR link is
   // circulated as a plain URL, so the preview should not be blank.

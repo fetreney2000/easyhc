@@ -6,8 +6,13 @@
 
 export const strings = {
   // App
-  appName: "EasyHC",
-  appDescription: "Sistem Kehadiran Lantai",
+  appName: "EasyHC - Easy Head Count",
+  appShortName: "EasyHC",
+  appOrg: "Jabatan Farmasi Hospital Keningau",
+  appDescription:
+    "Easy Head Count — sistem pengiraan kehadiran mudah, Jabatan Farmasi Hospital Keningau",
+  copyrightLine: (year: number) =>
+    `© ${year} EasyHC - Easy Head Count. Semua hak cipta terpelihara.`,
 
   // Auth
   login: "Log Masuk",

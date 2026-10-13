@@ -316,6 +316,11 @@ async function main(): Promise<void> {
     loginHtml.includes(strings.loginAddToHomeTip),
     `${loginHtml.length} bytes`
   );
+  check(
+    "login page carries the full brand + organisation",
+    loginHtml.includes(strings.appName) && loginHtml.includes(strings.appOrg),
+    `${loginHtml.length} bytes`
+  );
 
   const searched = await authed("/api/attendance?active=true&q=zzz-no-such-person");
   check(

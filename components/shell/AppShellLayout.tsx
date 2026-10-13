@@ -400,9 +400,17 @@ export function AppShellLayout({
                 height={32}
                 priority
               />
-              <Text fw={700} size="lg">
-                {strings.appName}
-              </Text>
+              <div>
+                <Text fw={700} className="app-brand-name">
+                  {strings.appName}
+                </Text>
+                {/* Hidden on the smallest screens: the fixed-height header
+                    must never wrap (the org still appears on login, the
+                    emergency display and every printed poster) */}
+                <Text className="app-brand-org" hiddenFrom="sm">
+                  {strings.appOrg}
+                </Text>
+              </div>
             </Group>
           </Group>
           <Group gap="xs">

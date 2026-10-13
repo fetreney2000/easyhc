@@ -1,7 +1,7 @@
 {
-  "name": "EasyHC - Sistem Kehadiran Lantai",
+  "name": "EasyHC - Easy Head Count",
   "short_name": "EasyHC",
-  "description": "Sistem penjejakan kehadiran lantai untuk kiraan kecemasan",
+  "description": "Easy Head Count — sistem pengiraan kehadiran mudah, Jabatan Farmasi Hospital Keningau",
   "id": "/dashboard",
   "start_url": "/dashboard",
   "scope": "/",

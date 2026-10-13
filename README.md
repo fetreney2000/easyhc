@@ -1,4 +1,6 @@
-# EasyHC — Sistem Kehadiran Lantai
+# EasyHC - Easy Head Count
+
+*Jabatan Farmasi Hospital Keningau*
 
 A PWA for tracking employee and visitor presence on building floors, primarily for emergency headcounts (fire, earthquake, etc.).
 

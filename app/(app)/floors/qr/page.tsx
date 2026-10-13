@@ -103,6 +103,13 @@ export default function QRCodesPage() {
     const heading = doc.createElement("h1");
     heading.textContent = strings.qrAppPrintTitle;
 
+    // The issuing organisation — the poster hangs on a physical wall and
+    // must say who it belongs to
+    const org = doc.createElement("p");
+    org.textContent = strings.appOrg;
+    org.style.cssText =
+      "font-size:15px;font-weight:600;color:#555;margin-top:4px;";
+
     const img = doc.createElement("img");
     img.src = "/api/qr/app";
     img.alt = strings.qrAppAlt;
@@ -127,7 +134,7 @@ export default function QRCodesPage() {
 
     doc.body.style.cssText =
       "text-align:center; padding:40px; font-family:'Inter',sans-serif;";
-    doc.body.append(heading, img, url, steps);
+    doc.body.append(heading, org, img, url, steps);
 
     let printed = false;
     const doPrint = () => {

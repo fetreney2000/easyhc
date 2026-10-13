@@ -241,6 +241,21 @@ html {
   font-weight: 800;
 }
 
+/* Header branding — full name + organisation, clamp-fitted so the fixed
+   height header never wraps; the org line hides on the smallest screens */
+.app-brand-name {
+  font-size: clamp(0.95rem, 3.4vw, 1.2rem);
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.app-brand-org {
+  font-size: clamp(0.6rem, 2vw, 0.7rem);
+  color: var(--app-text-secondary);
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
 /* Captions that only matter on paper (the printed reports page) */
 .print-only {
   display: none;

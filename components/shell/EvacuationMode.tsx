@@ -565,6 +565,12 @@ export function EvacuationMode({ user, data, onRefresh }: EvacuationModeProps) {
             )}
           </Stack>
         )}
+
+        {/* Authority line: an emergency display belongs to a named
+            department, not to a faceless app — shown in every state */}
+        <Text size="xs" className="evac-quiet" ta="center" pt="lg">
+          {strings.appName} · {strings.appOrg}
+        </Text>
       </Stack>
     </div>
   );

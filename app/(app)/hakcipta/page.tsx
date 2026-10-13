@@ -20,6 +20,7 @@ import {
   IconShield,
   IconHeart,
 } from "@tabler/icons-react";
+import { strings } from "@/lib/i18n/strings";
 
 export default function HakciptaPage() {
   const currentYear = new Date().getFullYear();
@@ -50,10 +51,10 @@ export default function HakciptaPage() {
 
             <div>
               <Title order={1} size="h2" c="brandPrimary" mb={4}>
-                EasyHC
+                {strings.appName}
               </Title>
               <Text size="sm" c="var(--app-text-secondary)">
-                Sistem Kehadiran Lantai
+                {strings.appOrg}
               </Text>
             </div>
 
@@ -125,7 +126,7 @@ export default function HakciptaPage() {
 
         {/* Footer */}
         <Text size="xs" c="var(--app-text-secondary)" ta="center">
-          &copy; {currentYear} EasyHC. Semua hak cipta terpelihara.
+          {strings.copyrightLine(currentYear)}
         </Text>
       </Stack>
     </Center>

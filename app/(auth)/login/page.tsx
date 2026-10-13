@@ -71,9 +71,12 @@ export default function LoginPage() {
         maw={400}
         mx="md"
       >
-        <Title order={1} size="h2" ta="center" mb="lg">
+        <Title order={1} size="h2" ta="center" mb="xs">
           {strings.appName}
         </Title>
+        <Text fw={500} size="sm" ta="center" c="brandPrimary" mb="xs">
+          {strings.appOrg}
+        </Text>
         <Text c="var(--app-text-secondary)" size="sm" ta="center" mb="xl">
           {strings.loginTitle}
         </Text>

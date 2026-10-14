@@ -516,20 +516,27 @@ export default function DashboardPage() {
           onChange={(e) => setSearch(e.currentTarget.value)}
           style={{ flex: 1 }}
         />
-        <Select
-          placeholder={strings.allFloors}
-          data={[
-            { value: "", label: strings.allFloors },
-            ...(floors?.map((f) => ({
-              value: f._id,
-              label: f.name,
-            })) || []),
-          ]}
-          value={floorFilter}
-          onChange={setFloorFilter}
-          clearable
-          w={200}
-        />
+        {/* A plain staffer (own + home floor) and a ketua lantai (own
+            floor only) have a single meaningful floor on this board —
+            offering every floor just invited a filter that could only
+            ever produce an empty board (same treatment as Laporan) */}
+        {session?.user?.role !== "user" &&
+          session?.user?.role !== "floor_head" && (
+            <Select
+              placeholder={strings.allFloors}
+              data={[
+                { value: "", label: strings.allFloors },
+                ...(floors?.map((f) => ({
+                  value: f._id,
+                  label: f.name,
+                })) || []),
+              ]}
+              value={floorFilter}
+              onChange={setFloorFilter}
+              clearable
+              w={200}
+            />
+          )}
       </Group>
 
       {/* Presence Table */}

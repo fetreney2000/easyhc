@@ -267,20 +267,26 @@ export default function ReportsPage() {
             clearable
             w={160}
           />
-          <Select
-            label={strings.floors}
-            data={[
-              { value: "", label: strings.all },
-              ...(floors?.map((f) => ({
-                value: f._id,
-                label: f.name,
-              })) || []),
-            ]}
-            value={floorFilter}
-            onChange={setFloorFilter}
-            clearable
-            w={160}
-          />
+          {/* A ketua lantai's report scope IS their home floor — offering
+              every floor in the list just invited a filter that could never
+              select anything else (the API returns an empty report for a
+              foreign floor) */}
+          {session?.user?.role !== "floor_head" && (
+            <Select
+              label={strings.floors}
+              data={[
+                { value: "", label: strings.all },
+                ...(floors?.map((f) => ({
+                  value: f._id,
+                  label: f.name,
+                })) || []),
+              ]}
+              value={floorFilter}
+              onChange={setFloorFilter}
+              clearable
+              w={160}
+            />
+          )}
           <Select
             label={strings.typeLabel}
             data={[

@@ -86,6 +86,19 @@ export async function GET(request: Request) {
       return success({ records: [], total: 0, rowCount: 0, pageSize, page });
     }
 
+    // Scope is applied last so request params can only narrow the query,
+    // never replace it. A floorId OUTSIDE the caller's own scope must yield
+    // an EMPTY report — the filter visibly does its job — instead of being
+    // silently overwritten (the old Object.assign let an own_floor scope
+    // swallow the param and always return their own floor).
+    if (
+      query.floorId !== undefined &&
+      "floorId" in scoped &&
+      String(scoped.floorId) !== String(query.floorId)
+    ) {
+      return success({ records: [], total: 0, rowCount: 0, pageSize, page });
+    }
+
     // Scope is applied last so request params can only narrow the query
     Object.assign(query, scoped);
 
@@ -112,6 +125,10 @@ export async function GET(request: Request) {
       page,
     });
   } catch (error) {
+    // A malformed floorId (or date) is a 400, never a 500
+    if ((error as { name?: string })?.name === "CastError") {
+      return badRequest(strings.invalidId);
+    }
     console.error("Error generating report:", error);
     return serverError();
   }

@@ -509,6 +509,50 @@ async function main(): Promise<void> {
     skip("reports visitorPhone privacy (no rows to inspect)");
   }
 
+  /* floor filter vs scope: params narrow the scope, they never replace it
+     and never get ignored — a foreign floorId must yield an EMPTY report
+     for a floor-scoped role, and a malformed id is a 400 for everyone */
+  {
+    const Unit = (await import("@/lib/db/models/Unit")).default;
+    const floorHead = await User.findOne({
+      role: "floor_head",
+      status: "active",
+      unitId: { $ne: null },
+    }).lean();
+    const homeUnit = floorHead?.unitId
+      ? await Unit.findById(floorHead.unitId).select("homeFloorId").lean()
+      : null;
+    const homeFloorId = homeUnit?.homeFloorId?.toString();
+    const otherFloor = await Floor.findOne(
+      homeFloorId ? { _id: { $ne: homeFloorId } } : {}
+    )
+      .select("_id")
+      .lean();
+
+    if (floorHead && homeFloorId && otherFloor) {
+      const fhCookie = await mintCookie(floorHead);
+      const foreign = await fetch(
+        `${BASE}/api/reports?floorId=${otherFloor._id}&pageSize=5`,
+        { headers: { cookie: fhCookie } }
+      ).then(async (r) => ({
+        status: r.status,
+        body: (await r.json().catch(() => ({}))) as { total?: number },
+      }));
+      check(
+        "floor_head: a foreign floorId filter yields an empty report",
+        foreign.status === 200 && foreign.body.total === 0,
+        `status=${foreign.status} total=${foreign.body.total}`
+      );
+    } else {
+      skip("floor_head foreign-floor filter (no floor head with a home floor)");
+    }
+
+    const bogus = await fetch(`${BASE}/api/reports?floorId=not-an-id`, {
+      headers: { cookie },
+    }).then(async (r) => ({ status: r.status }));
+    check("reports: bogus floorId -> 400", bogus.status === 400, `${bogus.status}`);
+  }
+
   /* 4. the partial unique index (race) -------------------------------- */
   const floor = await Floor.findOne({}).sort({ name: 1 }).lean();
   let racePhone = "";

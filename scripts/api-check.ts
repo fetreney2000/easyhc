@@ -298,6 +298,125 @@ async function main(): Promise<void> {
     skip("check-outs feed ordering (no closed rows yet)");
   }
 
+  /* plain employee: the departures feed is floor-wide like the arrivals
+     feed (own records + the unit's home floor) — but ONLY in its bounded
+     feed shape; a bigger page, deeper paging or a search is history and
+     stays own-only */
+  {
+    const Unit = (await import("@/lib/db/models/Unit")).default;
+    const plain = await User.findOne({
+      role: "user",
+      status: "active",
+      unitId: { $ne: null },
+    }).lean();
+    const unit = plain?.unitId
+      ? await Unit.findById(plain.unitId).select("homeFloorId").lean()
+      : null;
+    const homeFloorIds = unit?.homeFloorId ? [unit.homeFloorId] : [];
+
+    if (plain && homeFloorIds.length > 0) {
+      const plainId = plain._id.toString();
+      const plainCookie = await mintCookie(plain);
+      const asPlain = (path: string) =>
+        fetch(`${BASE}${path}`, { headers: { cookie: plainCookie } }).then(
+          async (r) => ({
+            status: r.status,
+            body: (await r.json().catch(() => ({}))) as {
+              attendance?: Array<
+                Record<string, unknown> & { _id?: unknown; userId?: { _id?: unknown } | null }
+              >;
+              total?: number;
+            },
+          })
+        );
+
+      // The exact row set the bounded feed MUST return — computed straight
+      // from the DB so an own-only regression cannot sneak a pass
+      const expected = await Attendance.find({
+        $or: [
+          { type: "employee", userId: plain._id },
+          { floorId: { $in: homeFloorIds } },
+        ],
+        checkedOutAt: { $ne: null },
+      })
+        .sort({ checkedOutAt: -1 })
+        .limit(5)
+        .select("_id")
+        .lean();
+      const expectedIds = new Set(expected.map((r) => r._id.toString()));
+      const floorOthers = await Attendance.countDocuments({
+        floorId: { $in: homeFloorIds },
+        checkedOutAt: { $ne: null },
+        userId: { $ne: plain._id },
+      });
+
+      if (expectedIds.size === 0) {
+        skip(
+          "plain-user departures feed scope (no closed records on own + home floor yet)"
+        );
+      } else {
+        const feed = await asPlain(
+          "/api/attendance?checkedOut=true&page=1&pageSize=5"
+        );
+        const feedRows = feed.body.attendance ?? [];
+        const gotIds = feedRows.map((r) => r._id?.toString() ?? "");
+        check(
+          "plain user: departures feed = newest own + home-floor rows",
+          feed.status === 200 &&
+            gotIds.length === expectedIds.size &&
+            gotIds.every((id) => expectedIds.has(id)),
+          `status=${feed.status} api=${gotIds.length} db=${expectedIds.size}`
+        );
+        check(
+          "plain user: feed envelope is clamped (not floor history count)",
+          feed.status === 200 && feed.body.total === gotIds.length,
+          `total=${feed.body.total} rows=${gotIds.length}`
+        );
+
+        if (floorOthers > 0) {
+          // Beyond the feed shape the floor's history must vanish entirely
+          const wide = await asPlain(
+            "/api/attendance?checkedOut=true&page=1&pageSize=1000"
+          );
+          const paged = await asPlain(
+            "/api/attendance?checkedOut=true&page=2&pageSize=5"
+          );
+          const wideRows = wide.body.attendance ?? [];
+          const pagedRows = paged.body.attendance ?? [];
+          const allOwn = [...wideRows, ...pagedRows].every(
+            (r) => r.userId?._id?.toString() === plainId
+          );
+          check(
+            "plain user: bigger page or page=2 degrades to own-only",
+            wide.status === 200 && paged.status === 200 && allOwn,
+            `wide=${wideRows.length} paged=${pagedRows.length} rows (${floorOthers} floor records exist)`
+          );
+
+          // A search narrowing the window is HISTORY too: even in the small
+          // shape, q must degrade to own-only
+          const needle = (plain.name || "zz").slice(0, 3);
+          const searched = await asPlain(
+            `/api/attendance?checkedOut=true&page=1&pageSize=5&q=${encodeURIComponent(needle)}`
+          );
+          check(
+            "plain user: a searched feed shape degrades to own-only",
+            searched.status === 200 &&
+              (searched.body.attendance ?? []).every(
+                (r) => r.userId?._id?.toString() === plainId
+              ),
+            `${(searched.body.attendance ?? []).length} rows (q=${needle})`
+          );
+        } else {
+          skip(
+            "plain-user beyond-feed degradation (no floor history to exclude)"
+          );
+        }
+      }
+    } else {
+      skip("plain-user feed scope (no plain staff with a home floor)");
+    }
+  }
+
   const attBig = await authed("/api/attendance?active=true&pageSize=500");
   check(
     "attendance honours pageSize",
@@ -441,10 +560,24 @@ async function main(): Promise<void> {
   }
 
   /* 5. evacuation session: start → confirm → privacy → close ------------- */
-  const evacActor = await User.findOne({
-    role: { $in: ["superadmin", "admin", "safety_head"] },
-    status: "active",
-  }).lean();
+  // Prefer an activator who is NOT currently checked in: the takeover
+  // assertions require an activator without a check-in, and live usage
+  // means real accounts hold open records mid-morning. Falls back to the
+  // natural-order pick, whose record the fixture then closes explicitly.
+  const openEmployeeIds = await Attendance.distinct("userId", {
+    type: "employee",
+    checkedOutAt: null,
+  });
+  const evacActor =
+    (await User.findOne({
+      role: { $in: ["superadmin", "admin", "safety_head"] },
+      status: "active",
+      _id: { $nin: openEmployeeIds },
+    }).lean()) ??
+    (await User.findOne({
+      role: { $in: ["superadmin", "admin", "safety_head"] },
+      status: "active",
+    }).lean());
 
   let evacCookie: string | null = null;
   if (!allowWrites) {
@@ -484,6 +617,9 @@ async function main(): Promise<void> {
     // the finally-cleanup even if the flow dies midway
     let plainFixtureId: string | null = null;
     let targetFixtureId: string | null = null;
+    // REAL check-ins the fixtures temporarily closed — reopened in the
+    // finally so live staff reappear on the board once the run is over
+    const closedByFixture: unknown[] = [];
     // A visitor present in the building when the alarm goes off (roster
     // fixture) — later confirms through the PUBLIC endpoint
     const evacVisitorPhone = `018${String(Date.now()).slice(-7)}`;
@@ -554,7 +690,33 @@ async function main(): Promise<void> {
          now — check in the plain user (gate + self-confirm) and a second
          staffer (the warden-tap target, left unconfirmed) */
       let expectedMin = visitorCheckin?.attendance?._id ? 1 : 0;
+      // The partial unique index allows ONE open record per employee, and
+      // these fixture accounts are real (possibly live-used) users: close
+      // whatever they still hold before seating the fixture — remembering
+      // the ids so the finally block can reopen them after the run
+      const closeOpenFor = async (userId: unknown) => {
+        const open = await Attendance.find({
+          type: "employee",
+          userId,
+          checkedOutAt: null,
+        })
+          .select("_id")
+          .lean();
+        if (!open.length) return;
+        const ids = open.map((r) => r._id);
+        closedByFixture.push(...ids);
+        await Attendance.updateMany(
+          { _id: { $in: ids } },
+          { $set: { checkedOutAt: new Date(), checkedOutBy: "fixture" } }
+        );
+      };
+      // …and the SESSION VIEWER must have none either: the takeover
+      // assertions below require an activator WITHOUT a check-in (an open
+      // record from live usage would put them on their own roster and hand
+      // them the "Saya Selamat" button)
+      if (evacActor) await closeOpenFor(evacActor._id);
       if (floor && plainUser) {
+        await closeOpenFor(plainUser._id);
         plainFixtureId = (
           await Attendance.create({
             type: "employee",
@@ -566,14 +728,24 @@ async function main(): Promise<void> {
         )._id.toString();
         expectedMin += 1;
       }
+      /* The warden-tap target: a staffer who lands on the roster and stays
+         unconfirmed. MUST be disjoint from the session viewer (evacActor —
+         a checked-in activator would get the "Saya Selamat" button and the
+         stats-without-a-check-in assertions below would fail) and from the
+         plain user (already excluded, one fixture per person). */
       const wardenTarget = floor
         ? await User.findOne({
             status: "active",
             role: { $ne: "superadmin" },
-            ...(plainUser ? { _id: { $ne: plainUser._id } } : {}),
+            _id: {
+              $nin: [plainUser?._id, evacActor?._id].filter(
+                (id): id is NonNullable<typeof id> => !!id
+              ),
+            },
           }).lean()
         : null;
       if (floor && wardenTarget) {
+        await closeOpenFor(wardenTarget._id);
         targetFixtureId = (
           await Attendance.create({
             type: "employee",
@@ -585,11 +757,19 @@ async function main(): Promise<void> {
         )._id.toString();
         expectedMin += 1;
       }
-      check(
-        "staff check-in fixtures (roster = checked-in only)",
-        !!plainFixtureId && !!targetFixtureId,
-        `plain=${!!plainFixtureId} target=${!!targetFixtureId}`
-      );
+      if (floor && !wardenTarget) {
+        // Sparse DB: every candidate is already a fixture subject — the
+        // warden-tap assertions below skip instead of failing
+        skip(
+          "staff check-in fixtures (no disjoint warden target on this DB)"
+        );
+      } else {
+        check(
+          "staff check-in fixtures (roster = checked-in only)",
+          !!plainFixtureId && !!targetFixtureId,
+          `plain=${!!plainFixtureId} target=${!!targetFixtureId}`
+        );
+      }
 
       /* State-1 subject: a NON-activator with no open check-in. One $nin —
          two separate `_id` spreads would silently overwrite each other. */
@@ -1147,6 +1327,8 @@ async function main(): Promise<void> {
           unmark.status === 200,
           `${unmark.status}`
         );
+      } else if (!targetFixtureId) {
+        skip("warden tap (no disjoint target fixture on this DB)");
       } else {
         check("warden tap target found", false, "roster fully confirmed");
       }
@@ -1354,6 +1536,19 @@ async function main(): Promise<void> {
           await Attendance.deleteMany({ _id: { $in: staffFixtureIds } });
         } catch (cleanupError) {
           console.error("cleanup: staff fixture delete failed:", cleanupError);
+        }
+      }
+      // Reopen the REAL check-ins the fixtures temporarily closed — those
+      // people were only closed to seat the roster fixtures, and the live
+      // board should show them as present again
+      if (closedByFixture.length) {
+        try {
+          await Attendance.updateMany(
+            { _id: { $in: closedByFixture } },
+            { $set: { checkedOutAt: null }, $unset: { checkedOutBy: "" } }
+          );
+        } catch (cleanupError) {
+          console.error("cleanup: fixture reopen failed:", cleanupError);
         }
       }
     }

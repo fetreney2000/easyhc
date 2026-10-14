@@ -22,6 +22,13 @@ import { scopeFilter } from "@/lib/auth/scope";
 const ATTENDANCE_PAGE_SIZE = 200;
 /** Hard ceiling (the evacuation view asks for the whole building at once). */
 const ATTENDANCE_PAGE_MAX = 1000;
+/**
+ * The recent check-OUTS feed's exact shape ("Daftar Keluar Terkini": page 1,
+ * a handful of rows). own_and_floor roles keep their floor scope in THIS
+ * shape — the feed sits beside the arrivals feed and must behave the same
+ * way — while any other checkedOut query is history and stays personal.
+ */
+const FEED_PAGE_MAX = 10;
 
 function positiveInt(value: string | null, fallback: number): number {
   const parsed = Number.parseInt(value ?? "", 10);
@@ -107,14 +114,20 @@ export async function GET(request: Request) {
   };
 
   try {
-    // The floor-wide slice exists for the LIVE board only; historical
-    // queries stay personal (own records). Otherwise a plain employee could
-    // pull their whole floor's past straight from this endpoint — the
-    // recent check-OUTS feed is history too, so it degrades to "own"
-    // exactly like an unfiltered list query does.
+    // The floor-wide slice exists for two BOUNDED views: the live board
+    // (current presence) and its recent check-OUTs feed — "Daftar Keluar
+    // Terkini" must show a plain employee their floor's departures exactly
+    // like "Daftar Masuk Terkini" shows the arrivals. Beyond those shapes
+    // (paging, larger pages, a search narrowing the window, anything
+    // else) a historical query degrades to "own", so nobody can walk
+    // their floor's past per-person through this endpoint.
     const roleScope = getAttendanceScope(user.role);
+    const feedBounded =
+      checkedOut && page === 1 && pageSize <= FEED_PAGE_MAX && !q;
     const effectiveScope =
-      roleScope === "own_and_floor" && !(activeOnly && !checkedOut)
+      roleScope === "own_and_floor" &&
+      !(activeOnly && !checkedOut) &&
+      !feedBounded
         ? "own"
         : roleScope;
 
@@ -158,7 +171,12 @@ export async function GET(request: Request) {
         )
       : Promise.resolve([]);
 
-    const [attendance, total, totalEmployees, totalVisitors, floorCounts] =
+    // The bounded feed view is NOT pageable: its envelope reports the rows
+    // it carries instead of leaking the floor's all-time history COUNT
+    // (and skips a needless countDocuments on every poll)
+    const feedEnvelopeClamp = roleScope === "own_and_floor" && feedBounded;
+
+    const [attendance, totalRaw, totalEmployees, totalVisitors, floorCounts] =
       await Promise.all([
         Attendance.find(query)
           // Phone numbers are collected for identity/deduplication only —
@@ -171,15 +189,19 @@ export async function GET(request: Request) {
           .skip((page - 1) * pageSize)
           .limit(pageSize)
           .lean(),
-        Attendance.countDocuments(query),
+        feedEnvelopeClamp
+          ? Promise.resolve(-1)
+          : Attendance.countDocuments(query),
         countActive("employee"),
         countActive("visitor"),
         byFloor,
       ]);
+    const total = totalRaw < 0 ? attendance.length : totalRaw;
 
     return success({
       attendance,
-      /** Rows matching the filters across ALL pages. */
+      /** Rows matching the filters across ALL pages (the bounded feed
+       *  view reports the rows it carries — see feedEnvelopeClamp). */
       total,
       totalEmployees,
       totalVisitors,

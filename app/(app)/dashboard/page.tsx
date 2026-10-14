@@ -256,7 +256,10 @@ export default function DashboardPage() {
   const floorCounts = useMemo(() => {
     // Server-computed over the WHOLE board (all pages): deriving it from
     // the current page silently undercounted once more than a page of
-    // people were present — the strip disagreed with the totals above it
+    // people were present — the strip disagreed with the totals above it.
+    // Floors with nobody present are dropped: the strip answers "where are
+    // people right now", and zero cards were noise (a plain staffer saw
+    // every building floor at 0 — floors their scope cannot even see).
     const countById = new Map(
       (data?.byFloor ?? []).map((row) => [row.floorId ?? "", row.count])
     );
@@ -267,6 +270,7 @@ export default function DashboardPage() {
         hue: floor.hue,
         count: countById.get(floor._id) ?? 0,
       }))
+      .filter((floor) => floor.count > 0)
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }, [data?.byFloor, floors]);
 
@@ -393,8 +397,11 @@ export default function DashboardPage() {
         </Paper>
       </SimpleGrid>
 
-      {/* Operations strip: where people are right now, one card per floor */}
-      {!isLoading && floorCounts.length > 0 && (
+      {/* Operations strip: where people are right now, one card per floor
+          WITH people. Hidden when that is a single floor — a plain staffer
+          or a ketua lantai sees only their own floor here, and that number
+          is already the headline stat card above. */}
+      {!isLoading && floorCounts.length > 1 && (
         <div>
           <Text
             size="xs"
